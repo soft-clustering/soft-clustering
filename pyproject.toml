@@ -3,6 +3,14 @@ requires = ["flit_core >=3.2,<4"]
 build-backend = "flit_core.buildapi"
 
 [project]
-name = "lumache"
-authors = [{name = "Graziella", email = "graziella@lumache"}]
+name = "soft-clustering"
+authors = [{name = "Kiyan Rezaee", email = "kiyanrezaee17@gmail.com"}, {name = "Morteza Ziabakhsh", email = "morteza24mail@protonmail.com"}]
 dynamic = ["version", "description"]
+dependencies = [
+  "numpy",
+  "scipy",
+  "torch",
+  "typeguard",
+  "myst_parser"
+]
+
