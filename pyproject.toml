@@ -4,7 +4,7 @@ build-backend = "flit_core.buildapi"
 
 [project]
 name = "soft-clustering"
-authors = [{name = "-", email = "-"}]
+authors = [{name = "Kiyan Rezaee", email = "kiyanrezaee17@gmail.com"}, {name = "Morteza Ziabakhsh", email = "morteza24mail@protonmail.com"}]
 dynamic = ["version", "description"]
 dependencies = [
   "numpy",
