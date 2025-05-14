@@ -6,4 +6,5 @@ Welcome to soft clustering documentation!
 
    This project is under active development.
 
-.. mdinclude:: nocd.md
+.. toctree::    
+    nocd
