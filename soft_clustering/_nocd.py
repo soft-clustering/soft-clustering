@@ -61,20 +61,20 @@ def _collate_fn(batch):
 	return (edges, nonedges)
 
 
-def seed_worker(worker_id):
+def _seed_worker(worker_id):
     worker_seed = torch.initial_seed() % 2**32
     np.random.seed(worker_seed)
     random.seed(worker_seed)
 
 
 def _get_edge_sampler(A, num_pos=1000, num_neg=1000, num_workers=2, random_seed=None):
-    data_source = EdgeSampler(A, num_pos, num_neg)
+    data_source = _EdgeSampler(A, num_pos, num_neg)
     if random_seed:
-        return torch.utils.data.DataLoader(data_source, num_workers=num_workers, collate_fn=_collate_fn, worker_init_fn=seed_worker, generator=torch.Generator().manual_seed(random_seed))
+        return torch.utils.data.DataLoader(data_source, num_workers=num_workers, collate_fn=_collate_fn, worker_init_fn=_seed_worker, generator=torch.Generator().manual_seed(random_seed))
     return torch.utils.data.DataLoader(data_source, num_workers=num_workers, collate_fn=_collate_fn)
 
 
-class EdgeSampler(torch.utils.data.Dataset):
+class _EdgeSampler(torch.utils.data.Dataset):
     """Sample edges and non-edges uniformly from a graph.
 
     Args:
@@ -109,7 +109,7 @@ class EdgeSampler(torch.utils.data.Dataset):
         return 2**32
 
 
-class GraphConvolution(torch.nn.Module):
+class _GraphConvolution(torch.nn.Module):
     """Graph convolution layer.
 
     Args:
@@ -133,7 +133,7 @@ class GraphConvolution(torch.nn.Module):
         return adj @ (x @ self.weight) + self.bias
 
 
-class GCN(torch.nn.Module):
+class _GCN(torch.nn.Module):
     """Graph convolution network.
 
     References:
@@ -144,9 +144,9 @@ class GCN(torch.nn.Module):
         super().__init__()
         self.dropout = dropout
         layer_dims = np.concatenate([hidden_dims, [output_dim]]).astype(np.int32)
-        self.layers = torch.nn.ModuleList([GraphConvolution(input_dim, layer_dims[0])])
+        self.layers = torch.nn.ModuleList([_GraphConvolution(input_dim, layer_dims[0])])
         for idx in range(len(layer_dims) - 1):
-            self.layers.append(GraphConvolution(layer_dims[idx], layer_dims[idx + 1]))
+            self.layers.append(_GraphConvolution(layer_dims[idx], layer_dims[idx + 1]))
         if batch_norm:
             self.batch_norm = [
                 torch.nn.BatchNorm1d(dim, affine=False, track_running_stats=False) for dim in hidden_dims
@@ -190,7 +190,7 @@ class GCN(torch.nn.Module):
         return [w for n, w in self.named_parameters() if 'bias' in n]
 
 
-class BernoulliDecoder(torch.nn.Module):
+class _BernoulliDecoder(torch.nn.Module):
     def __init__(self, num_nodes, num_edges, balance_loss=False):
         """Base class for Bernoulli decoder.
 
@@ -238,7 +238,7 @@ class BernoulliDecoder(torch.nn.Module):
         raise NotImplementedError
 
 
-class BerpoDecoder(BernoulliDecoder):
+class _BerpoDecoder(_BernoulliDecoder):
     def __init__(self, num_nodes, num_edges, balance_loss=False):
         super().__init__(num_nodes, num_edges, balance_loss)
         edge_proba = num_edges / (num_nodes**2 - num_nodes)
@@ -309,7 +309,7 @@ class BerpoDecoder(BernoulliDecoder):
         return (loss_edges / self.num_edges + neg_scale * loss_nonedges / self.num_nonedges) / (1 + neg_scale)
 
 
-class ModelSaver:
+class _ModelSaver:
     """In-memory saver for model parameters.
 
     Storing weights in memory is faster than saving to disk with torch.save.
@@ -324,12 +324,12 @@ class ModelSaver:
         self.model.load_state_dict(self.state_dict)
 
 
-class EarlyStopping:
+class _EarlyStopping:
     """Base class for an early stopping monitor that says when it's time to stop training.
 
     Examples
     --------
-    early_stopping = EarlyStopping()
+    early_stopping = _EarlyStopping()
     for epoch in range(max_epochs):
         sess.run(train_op)  # perform training operation
         early_stopping.next_step()
@@ -359,7 +359,7 @@ class EarlyStopping:
         raise NotImplementedError
 
 
-class NoImprovementStopping(EarlyStopping):
+class _NoImprovementStopping(_EarlyStopping):
     """Stop training when the validation metric stops improving.
 
     Parameters
@@ -491,15 +491,15 @@ class NOCD:
 		x_norm = sp.hstack([feature_matrix, adjacency_matrix])
 		x_norm = _to_sparse_tensor(x_norm).to(device)
 		sampler = _get_edge_sampler(adjacency_matrix, self.batch_size, self.batch_size, num_workers=2, random_seed=self.random_state)
-		gnn = GCN(x_norm.shape[1], self.hidden_sizes, K, dropout=self.dropout, batch_norm=self.batch_norm).to(device)
+		gnn = _GCN(x_norm.shape[1], self.hidden_sizes, K, dropout=self.dropout, batch_norm=self.batch_norm).to(device)
 		adj_norm = gnn.normalize_adj(adjacency_matrix)
-		decoder = BerpoDecoder(adjacency_matrix.shape[0], adjacency_matrix.nnz, balance_loss=self.balance_loss)
+		decoder = _BerpoDecoder(adjacency_matrix.shape[0], adjacency_matrix.nnz, balance_loss=self.balance_loss)
 		opt = torch.optim.Adam(gnn.parameters(), lr=self.lr)
 
 		val_loss = np.inf
 		validation_fn = lambda: val_loss
-		early_stopping = NoImprovementStopping(validation_fn, patience=10)
-		model_saver = ModelSaver(gnn)
+		early_stopping = _NoImprovementStopping(validation_fn, patience=10)
+		model_saver = _ModelSaver(gnn)
 
 		for epoch, batch in enumerate(sampler):
 			if epoch > self.max_epochs:
@@ -531,5 +531,9 @@ class NOCD:
 			opt.step()
 
 		Z = torch.nn.functional.relu(gnn(x_norm, adj_norm))
+		# Z_min = torch.min(Z)
+		# Z_max = torch.max(Z)
+		# denominator = Z_max - Z_min + 1e-1
+		# Z = (Z - Z_min) / denominator
 		memberships = Z.cpu().detach().numpy()
 		return memberships
