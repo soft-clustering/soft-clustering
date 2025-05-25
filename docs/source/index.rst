@@ -7,4 +7,5 @@ Welcome to soft clustering documentation!
    This project is under active development.
 
 .. toctree::    
-    nocd
+   :maxdepth: 2
+   nocd

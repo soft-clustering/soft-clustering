@@ -531,9 +531,9 @@ class NOCD:
 			opt.step()
 
 		Z = torch.nn.functional.relu(gnn(x_norm, adj_norm))
-		# Z_min = torch.min(Z)
-		# Z_max = torch.max(Z)
-		# denominator = Z_max - Z_min + 1e-1
-		# Z = (Z - Z_min) / denominator
+		Z_min = torch.min(Z)
+		Z_max = torch.max(Z)
+		denominator = Z_max - Z_min + 1e-8
+		Z = (Z - Z_min) / denominator
 		memberships = Z.cpu().detach().numpy()
 		return memberships
