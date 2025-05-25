@@ -3,6 +3,6 @@
 __version__ = "0.0.1"
 
 from ._nocd import NOCD
-
-__all__ = ["NOCD"]
+from ._wbsc import WBSC
+__all__ = ["NOCD", "WBSC"]
 
