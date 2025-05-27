@@ -4,5 +4,6 @@ __version__ = "0.0.1"
 
 from ._nocd import NOCD
 from ._wbsc import WBSC
-__all__ = ["NOCD", "WBSC"]
+from ._pfcm import PFCM
+__all__ = ["NOCD", "WBSC", "PFCM"]
 
