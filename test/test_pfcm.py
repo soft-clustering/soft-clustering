@@ -1,41 +1,56 @@
 import sys
 from os import path
-import numpy as np
-import matplotlib.pyplot as plt
-from sklearn.datasets import make_blobs
+import random
 
 if __name__ == '__main__':
     base_dir = path.dirname(path.realpath(__file__))
     sys.path.append(base_dir[:-4])
     from soft_clustering import PFCM
 
-X, _ = make_blobs(n_samples=300, centers=3, cluster_std=1.2, random_state=42)
+#Create simple sample data (3 small groups of 2D points)
+def create_data():
+    data = []
 
-# Fit the PFCM model
-model = PFCM(n_clusters=3, random_state=42)
-model.fit(X)
+    # Group 1: around (1, 1)
+    for _ in range(5):
+        x = 1 + random.uniform(-0.1, 0.1)
+        y = 1 + random.uniform(-0.1, 0.1)
+        data.append([x, y])
 
-U = model.U
-T = model.T
-V = model.V
-hard_labels = np.argmax(U, axis=0)
-min_typicality = np.min(T, axis=0)
+    # Group 2: around (5, 5)
+    for _ in range(5):
+        x = 5 + random.uniform(-0.1, 0.1)
+        y = 5 + random.uniform(-0.1, 0.1)
+        data.append([x, y])
 
-plt.figure(figsize=(10, 4))
-plt.suptitle("PFCM Soft Clustering Test Example", fontsize=16)
+    # Group 3: around (9, 1)
+    for _ in range(5):
+        x = 9 + random.uniform(-0.1, 0.1)
+        y = 1 + random.uniform(-0.1, 0.1)
+        data.append([x, y])
 
-plt.subplot(1, 2, 1)
-plt.title("PFCM Clustering Result (Fuzzy Membership)")
-plt.scatter(X[:, 0], X[:, 1], c=hard_labels, cmap='viridis', alpha=0.6)
-plt.scatter(V[:, 0], V[:, 1], c='red', marker='X', s=200, label='Centroids')
-plt.legend()
+    return data
 
-plt.subplot(1, 2, 2)
-plt.title("Typicality (Low = More Likely Outlier)")
-plt.scatter(X[:, 0], X[:, 1], c=min_typicality, cmap='coolwarm', alpha=0.7)
-plt.colorbar(label="Minimum Typicality")
-plt.scatter(V[:, 0], V[:, 1], c='black', marker='X', s=200, label='Centroids')
-plt.legend()
+#Run PFCM on the data and print results
+def run_pfcm():
+    data = create_data()
+    model = PFCM(n_clusters=3, random_state=0)
+    model.fit(data)
 
-plt.tight_layout()
-plt.show()
+    print("Cluster centers:")
+    for i, center in enumerate(model.cluster_centroids):
+        print(f"Cluster {i + 1}: {center}")
+
+    print("\nMemberships for first 5 points:")
+    for i in range(5):
+        memberships = [round(model.membership_matrix[j][i], 3) for j in range(model.n_clusters)]
+        print(f"Point {i + 1}: {memberships}")
+
+    print("\nTypicalities for first 5 points:")
+    for i in range(5):
+        typicalities = [round(model.typicality_matrix[j][i], 3) for j in range(model.n_clusters)]
+        print(f"Point {i + 1}: {typicalities}")
+
+
+if __name__ == "__main__":
+    run_pfcm()

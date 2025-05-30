@@ -59,9 +59,9 @@ model = PFCM(n_clusters=3, random_state=0)
 model.fit(data)
 
 # Access results
-print("Cluster centers:", model.V)
-print("Memberships:", model.U)
-print("Typicalities:", model.T)
+print("Cluster centers:", model.cluster_centroids)
+print("Memberships:", model.membership_matrix)
+print("Typicalities:", model.typicality_matrix)
 ```
 ---
 
@@ -85,7 +85,7 @@ Compute typicalities for new data points.
 
 #### Returns:
 
-- `U` (`np.ndarray`, shape `(s,n_samples)`): **Membership Matrix**.
+- `membership_matrix` (`np.ndarray`, shape `(s,n_samples)`): **Membership Matrix**.
 
 
 
@@ -94,39 +94,10 @@ Compute typicalities for new data points.
 
 #### Returns:
 
-- `T` (`np.ndarray`, shape `(c, n_samples)`): **Typicality matrix**.
+- `typicality_matrix` (`np.ndarray`, shape `(c, n_samples)`): **Typicality matrix**.
 
 ---
 
-## 🧪 Test Example
-
-The repository includes a simple test script at `test/test_pfcm.py`. This file:
-
-- Generates a basic 2D dataset with 3 clusters
-
-- Trains the PFCM model
-
-- Prints membership and typicality results
-
-- Optionally plots fuzzy clusters and outliers (if `matplotlib` is available)
-
-#### Run it:
-
-```python
-python tests/test_pfcm.py
-```
-
----
-
-## 📊 Example Output
-
-If you have `matplotlib` installed, you'll see:
-
-- **Left panel**: PFCM cluster results (colored by fuzzy membership)
-
-- **Right panel**: Outlier scores (colored by lowest typicality)
-
----
 
 ## 📝 Notes
 
