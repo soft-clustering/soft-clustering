@@ -10,7 +10,6 @@ if __name__ == '__main__':
     sys.path.append(base_dir[:-4])
     from soft_clustering import NOCD
 
-
     n = 10
     p = 0.2
 
