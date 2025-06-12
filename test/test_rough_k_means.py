@@ -8,6 +8,6 @@ if __name__ == '__main__':
         np.random.randn(50, 2) + [5, 5]
     ])
     model = RoughKMeans(n_clusters=2)
-    result = model.fit(X)
+    result = model.fit_predict(X)
     print('Converged in', result['n_iter'], 'iterations')
     print('Centroids:\n', result['centroids'])
