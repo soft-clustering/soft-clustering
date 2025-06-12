@@ -32,3 +32,67 @@ class rough_kmeans.RoughKMeans(
 
 ---
 
+## 📋 Parameters
+
+| Parameter    | Type   | Default | Description                                                               |
+| ------------ | -------| ------- | ------------------------------------------------------------------------- |
+| n_clusters   | `int`  | `2`     | Number of clusters to form.                                               |
+| weight_lower | `float`| `0.7`   | Weight for averaging between lower and fringe regions when updating means.|
+| max_iter     | `int`  | `100`   | Maximum number of iterations for convergence.                             |
+| tol          | `float`| `1e-4`  | Tolerance for centroid movement to declare convergence.                   |
+
+---
+
+## 🚀 Usage Examples
+
+```python
+from rough_kmeans import RoughKMeans
+import numpy as np
+
+# Create sample dataset
+X = np.array([
+    [1.0, 2.0],
+    [1.2, 1.9],
+    [0.8, 2.1],
+    [8.0, 8.0],
+    [8.2, 7.8],
+    [7.9, 8.3]
+])
+
+# Initialize and fit the model
+model = RoughKMeans(n_clusters=2, weight_lower=0.6, max_iter=50, tol=1e-3)
+results = model.fit(X)
+
+print("Lower approximation:\n", results['lower_approx'])
+print("Upper approximation:\n", results['upper_approx'])
+print("Centroids:\n", results['centroids'])
+print("Iterations:", results['n_iter'])
+```
+
+---
+
+## 🛠️ Methods
+
+### `fit(X)`
+
+Perform Rough K-Means clustering using interval-set approximations.
+
+**Parameters:**
+
+* `X` (`np.ndarray`, shape `(n_samples, n_features)`): Feature matrix of input data.
+
+**Returns:**
+
+*`result` (`dict`) with:
+
+`lower_approx`: (`np.ndarray`, shape `(n_samples, n_clusters)`) – Binary matrix indicating definite membership.
+
+`upper_approx`: (`np.ndarray`, shape `(n_samples, n_clusters)`) – Binary matrix indicating possible membership.
+
+`centroids`: (`np.ndarray`, shape `(n_clusters, n_features)`) – Final cluster centers.
+
+`n_iter`: (`int`) – Total number of iterations executed.
+
+[🔗 Source definition](https://github.com/soft-clustering/soft-clustering/blob/main/soft_clustering/_rough_k_means#L14)
+
+---
