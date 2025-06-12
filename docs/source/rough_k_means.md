@@ -28,7 +28,7 @@ class rough_kmeans.RoughKMeans(
 )
 ```
 
-[🔗 Source on GitHub](https://github.com/soft-clustering/soft-clustering/blob/main/soft_clustering/_rough_k_means.py#L5)
+[🔗 Source on GitHub](https://github.com/soft-clustering/soft-clustering/blob/main/soft_clustering/_rough_k_means#L5)
 
 ---
 
