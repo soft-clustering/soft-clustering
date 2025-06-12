@@ -461,8 +461,8 @@ class _NoImprovementStopping(_EarlyStopping):
         return self._num_bad_epochs > self.patience
 
 
+@typechecked
 class NOCD:
-    @typechecked
     def __init__(self, random_state: Optional[int] = None,
                  hidden_sizes: List[int] = [128],
                  weight_decay: float = 1e-2,

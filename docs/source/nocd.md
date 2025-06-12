@@ -27,7 +27,7 @@ class soft_clustering.NOCD(
 )
 ```
 
-[🔗 Source on GitHub](https://github.com/soft-clustering/soft-clustering/blob/main/soft_clustering/_nocd.py#L444)
+[🔗 Source on GitHub](https://github.com/soft-clustering/soft-clustering/blob/main/soft_clustering/_nocd.py#L465)
 
 ---
 
@@ -94,7 +94,7 @@ Train the NOCD model on provided graph data and return the predicted membership 
 
 * `memberships` (`np.ndarray`, shape `(n_nodes, K)`): Community membership degrees.
 
-[🔗 Source definition](https://github.com/soft-clustering/soft-clustering/blob/main/soft_clustering/_nocd.py#L478)
+[🔗 Source definition](https://github.com/soft-clustering/soft-clustering/blob/main/soft_clustering/_nocd.py#L499)
 
 ---
 
