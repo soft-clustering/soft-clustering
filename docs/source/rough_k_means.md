@@ -96,3 +96,17 @@ Perform Rough K-Means clustering using interval-set approximations.
 [🔗 Source definition](https://github.com/soft-clustering/soft-clustering/blob/main/soft_clustering/_rough_k_means#L14)
 
 ---
+
+## 📝 Implementation Notes
+
+* **Centroid Initialization:** Centroids are randomly initialized from the dataset.
+* **Alpha & Beta Thresholds:** Alpha determines lower approximation (certain members), while Beta bounds possible members (upper approximation).
+* **Fringe Region:** Points between alpha and beta contribute to centroid with a weight of `1 - weight_lower`.
+* **Convergence:** Algorithm halts if centroid shifts fall below the defined tolerance.
+
+---
+
+## 📚 Reference
+
+1. Lingras, P., & West, C. (2004). Interval Set Clustering of Web Users with Rough K-Means.
+Journal of Intelligent Information Systems, 23(1), 5-16.(https://link.springer.com/article/10.1023/B:JIIS.0000029668.88665.1a)
