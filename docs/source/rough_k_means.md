@@ -59,7 +59,7 @@ X = np.array([
 
 # Initialize and fit the model
 model = RoughKMeans(n_clusters=2, weight_lower=0.6, max_iter=50, tol=1e-3)
-results = model.fit(X)
+results = model.fit_predict(X)
 
 print("Lower approximation:\n", results['lower_approx'])
 print("Upper approximation:\n", results['upper_approx'])
@@ -71,7 +71,7 @@ print("Iterations:", results['n_iter'])
 
 ## 🛠️ Methods
 
-### `fit(X)`
+### `fit_predict(X)`
 
 Perform Rough K-Means clustering using interval-set approximations.
 
