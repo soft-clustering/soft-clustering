@@ -10,3 +10,4 @@ Welcome to soft clustering documentation!
    :maxdepth: 2
    nocd
    pfcm
+   rough_k_means
