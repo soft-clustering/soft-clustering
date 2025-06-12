@@ -1,6 +1,10 @@
 import numpy as np
+from os import path
+import sys
 
 if __name__ == '__main__':
+    base_dir = path.dirname(path.realpath(__file__))
+    sys.path.append(base_dir[:-4])
     from soft_clustering import RoughKMeans
     # Generate two well-separated clusters
     X = np.vstack([
