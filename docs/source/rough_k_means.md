@@ -83,13 +83,13 @@ Perform Rough K-Means clustering using interval-set approximations.
 
 * `result` (`dict`) with:
   
-  `lower_approx`: (`np.ndarray`, shape `(n_samples, n_clusters)`) – Binary matrix indicating definite membership.
+  `lower_approx` (`np.ndarray`, shape `(n_samples, n_clusters)`): Binary matrix indicating definite membership.
   
-  `upper_approx`: (`np.ndarray`, shape `(n_samples, n_clusters)`) – Binary matrix indicating possible membership.
+  `upper_approx` (`np.ndarray`, shape `(n_samples, n_clusters)`): Binary matrix indicating possible membership.
   
-  `centroids`: (`np.ndarray`, shape `(n_clusters, n_features)`) – Final cluster centers.
+  `centroids` (`np.ndarray`, shape `(n_clusters, n_features)`): Final cluster centers.
   
-  `n_iter`: (`int`) – Total number of iterations executed.
+  `n_iter` (`int`): Total number of iterations executed.
 
 [🔗 Source definition](https://github.com/soft-clustering/soft-clustering/blob/main/soft_clustering/_rough_k_means.py#L14)
 
