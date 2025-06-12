@@ -34,7 +34,7 @@ class RoughKMeans:
         """Compute Euclidean distance between two points."""
         return np.linalg.norm(a - b)
 
-    def fit(self, X: np.ndarray) -> Dict[str, Any]:
+    def fit_predict(self, X: np.ndarray) -> Dict[str, Any]:
         """
         Perform Rough K-Means clustering on the input data.
 
