@@ -18,8 +18,6 @@ It computes per-cluster thresholds (`alpha` and `beta`) to distinguish core vs. 
 ## ⚙️ Class Definition
 
 ```python
-from rough_kmeans import RoughKMeans
-
 class rough_kmeans.RoughKMeans(
     n_clusters: int = 2,
     weight_lower: float = 0.7,
@@ -28,7 +26,7 @@ class rough_kmeans.RoughKMeans(
 )
 ```
 
-[🔗 Source on GitHub](https://github.com/soft-clustering/soft-clustering/blob/main/soft_clustering/_rough_k_means#L5)
+[🔗 Source on GitHub](https://github.com/soft-clustering/soft-clustering/blob/main/soft_clustering/_rough_k_means.py#L5)
 
 ---
 
@@ -46,7 +44,7 @@ class rough_kmeans.RoughKMeans(
 ## 🚀 Usage Examples
 
 ```python
-from rough_kmeans import RoughKMeans
+from soft_clustering import RoughKMeans
 import numpy as np
 
 # Create sample dataset
@@ -93,16 +91,13 @@ Perform Rough K-Means clustering using interval-set approximations.
   
   `n_iter`: (`int`) – Total number of iterations executed.
 
-[🔗 Source definition](https://github.com/soft-clustering/soft-clustering/blob/main/soft_clustering/_rough_k_means#L14)
+[🔗 Source definition](https://github.com/soft-clustering/soft-clustering/blob/main/soft_clustering/_rough_k_means.py#L14)
 
 ---
 
 ## 📝 Implementation Notes
 
 * **Centroid Initialization:** Centroids are randomly initialized from the dataset.
-* **Alpha & Beta Thresholds:** Alpha determines lower approximation (certain members), while Beta bounds possible members (upper approximation).
-* **Fringe Region:** Points between alpha and beta contribute to centroid with a weight of `1 - weight_lower`.
-* **Convergence:** Algorithm halts if centroid shifts fall below the defined tolerance.
 
 ---
 
