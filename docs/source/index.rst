@@ -6,7 +6,9 @@ Welcome to soft clustering documentation!
 
    This project is under active development.
 
-.. toctree::    
+.. toctree::
+   :maxdepth: 2
+
    nocd
    pfcm
    rough_k_means
