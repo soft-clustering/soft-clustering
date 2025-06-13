@@ -10,3 +10,4 @@ Welcome to soft clustering documentation!
    nocd
    pfcm
    rough_k_means
+   wbsc
