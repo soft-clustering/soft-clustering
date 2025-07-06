@@ -25,15 +25,13 @@ class LDA:
     """
 
     @typechecked
-    def __init__(
-        self,
-        n_topics=10,
-        alpha=None,
-        beta=0.01,
-        max_iter=100,
-        var_max_iter=20,
-        tol=1e-4
-    ):
+    def __init__(self, n_topics: int = 10,
+                 alpha: Optional[float] = None,
+                 beta: float = 0.01,
+                 max_iter: int = 100,
+                 var_max_iter: int = 20,
+                 tol: float = 1e-4):
+
         self.n_topics = n_topics
         self.alpha = alpha if alpha is not None else 50.0 / n_topics
         self.beta = beta
