@@ -24,7 +24,7 @@ class soft_clustering.LDA(
 
 [🔗 Source on GitHub](https://github.com/soft-clustering/soft-clustering/blob/main/soft_clustering/_lda.py#L7)
 
-```
+---
 
 ## 📋 Parameters
 
