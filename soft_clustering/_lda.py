@@ -5,6 +5,13 @@ from sklearn.feature_extraction.text import CountVectorizer
 from typeguard import typechecked
 
 class LDA:
+    @typechecked
+    def __init__(self, n_topics: int = 10,
+                 alpha: Optional[float] = None,
+                 beta: float = 0.01,
+                 max_iter: int = 100,
+                 var_max_iter: int = 20,
+                 tol: float = 1e-4):
     """
     Latent Dirichlet Allocation (LDA) with variational EM inference.
 
@@ -23,15 +30,6 @@ class LDA:
     tol : float
         Convergence tolerance on mean change in gamma.
     """
-
-    @typechecked
-    def __init__(self, n_topics: int = 10,
-                 alpha: Optional[float] = None,
-                 beta: float = 0.01,
-                 max_iter: int = 100,
-                 var_max_iter: int = 20,
-                 tol: float = 1e-4):
-
         self.n_topics = n_topics
         self.alpha = alpha if alpha is not None else 50.0 / n_topics
         self.beta = beta
