@@ -16,7 +16,7 @@ if __name__ == '__main__':
       "fruit banana banana"
   ]
   model1 = LDA(n_topics=2, max_iter=20, var_max_iter=50, beta=0.1)
-  model1.fit(docs)
+  model1.fit_predict(docs)
   print("Topic–word distributions:")
   model1.print_top_words(n_top_words=3)
   print("Document–topic mixtures (gamma):")
@@ -32,7 +32,7 @@ if __name__ == '__main__':
   mixed_docs = ["cat dog bird feline canine feather"]
   docs2 = cat_docs + dog_docs + bird_docs + mixed_docs
   model2 = LDA(n_topics=3, alpha=0.5, beta=0.1, max_iter=30, var_max_iter=100)
-  model2.fit(docs2)
+  model2.fit_predict(docs2)
   print("Topic–word distributions:")
   model2.print_top_words(n_top_words=3)
   print("Document–topic mixtures (gamma):")
@@ -50,7 +50,7 @@ if __name__ == '__main__':
   vocab = ["apple", "banana", "cherry", "date"]
   X_csr = csr_matrix(counts)
   model3 = LDA(n_topics=2, alpha=1.0, beta=0.01, max_iter=25, var_max_iter=50)
-  model3.fit(X_csr, vocabulary=vocab)
+  model3.fit_predict(X_csr, vocabulary=vocab)
   print("Topic–word distributions:")
   model3.print_top_words(n_top_words=4)
   print("Document–topic mixtures (gamma):")
