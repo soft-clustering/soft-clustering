@@ -41,4 +41,74 @@ class soft_clustering.LDA(
 
 ## 🚀 Usage Examples
 
+```python
+from soft_clustering import LDA
+
+# Sample documents
+docs = [
+    "apple banana apple",
+    "banana fruit apple",
+    "fruit banana banana"
+]
+
+# Initialize and fit the model
+model = LDA(n_topics=2, max_iter=20, var_max_iter=10)
+model.fit(docs)
+
+# Print top words in each topic
+model.print_top_words(n_top_words=5)
+```
+
+## 🛠️ Methods
+
+### `fit_predict(X, vocabulary=None)`
+
+Fits the LDA model to a corpus using variational EM inference.
+
+**Parameters:**
+
+* `X` (`list[str]` or `csr_matrix`): Input documents as raw strings or a precomputed term-document matrix.
+*  `vocabulary` (`list[str]`, `optional`): Fixed vocabulary to use when building the term-document matrix.
+
+**Returns:**
+
+* `self` (`LDA`): The trained model instance.
+
+[🔗 Source definition](https://github.com/soft-clustering/soft-clustering/blob/main/soft_clustering/_lda.py#L55)
+
+### `get_topic_word_dist()`
+
+Returns the normalized topic-word distribution matrix.
+
+**Returns:**
+
+* `topic_word` (`ndarray` of shape `(n_topics, V)`): Each row is a probability distribution over the vocabulary for a topic.
+
+[🔗 Source definition](https://github.com/soft-clustering/soft-clustering/blob/main/soft_clustering/_lda.py#L131)
+
+### `print_top_words(n_top_words=10)`
+
+Prints the top words in each topic based on their probabilities.
+
+**Parameters:**
+
+* `n_top_words` (`int`): Number of top words to display per topic.
+
+**Returns:**
+
+* `None`
+
+[🔗 Source definition](https://github.com/soft-clustering/soft-clustering/blob/main/soft_clustering/_lda.py#L142)
+
+---
+
+## 📝 Implementation Notes
+
+* **Input compatibility:** Users can input either raw documents or a preprocessed term-document matrix (`csr_matrix`).
+  
+---
+## 📚 Reference
+
+1. Blei, D. M., Ng, A. Y., & Jordan, M. I. (2003).
+*Latent Dirichlet Allocation*. Journal of Machine Learning Research, 3, 993–1022. (https://jmlr.org/papers/v3/blei03a.html)
 
