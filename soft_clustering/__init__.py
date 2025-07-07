@@ -6,5 +6,6 @@ from ._nocd import NOCD
 from ._wbsc import WBSC
 from ._pfcm import PFCM
 from ._rough_k_means import RoughKMeans
-__all__ = ["NOCD", "WBSC", "PFCM", "RoughKMeans"]
+from ._lda import LDA
 
+__all__ = ["NOCD", "WBSC", "PFCM", "RoughKMeans"]
