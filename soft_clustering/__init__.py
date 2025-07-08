@@ -7,5 +7,6 @@ from ._wbsc import WBSC
 from ._pfcm import PFCM
 from ._rough_k_means import RoughKMeans
 from ._lda import LDA
+from ._plsi import PLSI
 
 __all__ = ["NOCD", "WBSC", "PFCM", "RoughKMeans"]
