@@ -5,9 +5,37 @@ from typing import Union, Optional, List
 
 
 class PLSI:
-    def __init__(self, n_topics: int = 10, max_iter: int = 100, tol: float = 1e-4,
-                 tempered: bool = True, beta_start: float = 1.0, beta_step: float = 0.9,
-                 heldout_ratio: float = 0.1, random_state: Optional[int] = None):
+    def __init__(
+        self,
+        n_topics: int = 10,
+        max_iter: int = 100,
+        tol: float = 1e-4,
+        tempered: bool = True,
+        beta_start: float = 1.0,
+        beta_step: float = 0.9,
+        heldout_ratio: float = 0.1,
+        random_state: Optional[int] = None,
+    ):
+        """
+        Parameters
+        ----------
+        n_topics : int, default=10
+            Number of latent topics.
+        max_iter : int, default=100
+            Maximum number of EM iterations.
+        tol : float, default=1e-4
+            Convergence threshold for log-likelihood.
+        tempered : bool, default=True
+            Whether to use Tempered EM or standard EM.
+        beta_start : float, default=1.0
+            Initial value of inverse temperature beta.
+        beta_step : float, default=0.9
+            Multiplicative step to reduce beta at each iteration.
+        heldout_ratio : float, default=0.1
+            Fraction of word tokens used as held-out validation data.
+        random_state : int or None, default=None
+            Seed for random number generator.
+        """
         self.n_topics = n_topics
         self.max_iter = max_iter
         self.tol = tol
@@ -25,21 +53,57 @@ class PLSI:
         self.vocab = None
 
     def _initialize(self, n_docs, n_words):
+        """Randomly initialize model parameters."""
         self.P_z = np.ones(self.n_topics) / self.n_topics
         self.P_w_given_z = self.random_state.dirichlet(np.ones(n_words), self.n_topics)
         self.P_d_given_z = self.random_state.dirichlet(np.ones(n_docs), self.n_topics)
 
     def _e_step(self, doc_idx, word_idx, beta):
+        """
+        Perform the E-step of the EM algorithm.
+
+        Parameters
+        ----------
+        doc_idx : ndarray
+            Document indices of non-zero entries in the term-document matrix.
+        word_idx : ndarray
+            Word indices of non-zero entries.
+        beta : float
+            Inverse temperature parameter for tempered EM.
+
+        Returns
+        -------
+        ndarray
+            Posterior topic probabilities P(z | d, w).
+        """
         # P(z | d, w) proportional to P(z) * P(d | z)^beta * P(w | z)^beta
         weight = np.zeros((len(doc_idx), self.n_topics))
         for z in range(self.n_topics):
-            weight[:, z] = self.P_z[z] * \
-                           np.power(self.P_d_given_z[z, doc_idx], beta) * \
-                           np.power(self.P_w_given_z[z, word_idx], beta)
+            weight[:, z] = (
+                self.P_z[z]
+                * np.power(self.P_d_given_z[z, doc_idx], beta)
+                * np.power(self.P_w_given_z[z, word_idx], beta)
+            )
         weight /= weight.sum(axis=1, keepdims=True)
         return weight
 
     def _m_step(self, X, doc_idx, word_idx, count, p_z_dw):
+        """
+        Perform the M-step of the EM algorithm.
+
+        Parameters
+        ----------
+        X : csr_matrix
+            Sparse term-document matrix.
+        doc_idx : ndarray
+            Document indices.
+        word_idx : ndarray
+            Word indices.
+        count : ndarray
+            Word counts.
+        p_z_dw : ndarray
+            Posterior topic probabilities from E-step.
+        """
         n_docs = X.shape[0]
         n_words = X.shape[1]
 
@@ -60,17 +124,67 @@ class PLSI:
         self.P_z /= self.P_z.sum()
 
     def _log_likelihood(self, X, doc_idx, word_idx, count):
+        """
+        Compute the log-likelihood of the model.
+
+        Parameters
+        ----------
+        X : csr_matrix
+            Sparse term-document matrix.
+        doc_idx : ndarray
+            Document indices.
+        word_idx : ndarray
+            Word indices.
+        count : ndarray
+            Word counts.
+
+        Returns
+        -------
+        float
+            Log-likelihood value.
+        """
         prob = np.zeros(len(doc_idx))
         for z in range(self.n_topics):
-            prob += self.P_z[z] * self.P_d_given_z[z, doc_idx] * self.P_w_given_z[z, word_idx]
+            prob += (
+                self.P_z[z]
+                * self.P_d_given_z[z, doc_idx]
+                * self.P_w_given_z[z, word_idx]
+            )
         return np.sum(count * np.log(prob + 1e-12))
 
     def _perplexity(self, X, doc_idx, word_idx, count):
+        """
+        Compute the perplexity of the model.
+
+        Parameters
+        ----------
+        X : csr_matrix
+            Sparse term-document matrix.
+        doc_idx : ndarray
+            Document indices.
+        word_idx : ndarray
+            Word indices.
+        count : ndarray
+            Word counts.
+
+        Returns
+        -------
+        float
+            Perplexity value.
+        """
         ll = self._log_likelihood(X, doc_idx, word_idx, count)
         total = count.sum()
         return np.exp(-ll / total)
 
     def fit(self, data: Union[List[str], csr_matrix]):
+        """
+        Fit the PLSI model to a corpus.
+
+        Parameters
+        ----------
+        data : list of str or csr_matrix
+            Raw text corpus or a sparse term-document matrix.
+        """
         if isinstance(data, list):
             vectorizer = CountVectorizer()
             X = vectorizer.fit_transform(data)
@@ -91,8 +205,16 @@ class PLSI:
             train_mask = mask
             heldout_mask = ~mask
 
-            doc_idx_train, word_idx_train, count_train = doc_idx[train_mask], word_idx[train_mask], count[train_mask]
-            doc_idx_val, word_idx_val, count_val = doc_idx[heldout_mask], word_idx[heldout_mask], count[heldout_mask]
+            doc_idx_train, word_idx_train, count_train = (
+                doc_idx[train_mask],
+                word_idx[train_mask],
+                count[train_mask],
+            )
+            doc_idx_val, word_idx_val, count_val = (
+                doc_idx[heldout_mask],
+                word_idx[heldout_mask],
+                count[heldout_mask],
+            )
         else:
             doc_idx_train, word_idx_train, count_train = doc_idx, word_idx, count
             doc_idx_val, word_idx_val, count_val = None, None, None
@@ -115,7 +237,10 @@ class PLSI:
                 best_ll = val_ll
                 beta *= self.beta_step
 
-            if i > 0 and abs(self.log_likelihoods[-1] - self.log_likelihoods[-2]) < self.tol:
+            if (
+                i > 0
+                and abs(self.log_likelihoods[-1] - self.log_likelihoods[-2]) < self.tol
+            ):
                 break
 
         self.perplexity = self._perplexity(X, doc_idx, word_idx, count)
@@ -123,4 +248,12 @@ class PLSI:
         self.P_z_given_d /= self.P_z_given_d.sum(axis=0, keepdims=True)
 
     def get_P_w_given_d(self):
+        """
+        Compute the smoothed word distributions per document.
+
+        Returns
+        -------
+        ndarray
+            Matrix of P(w | d) values.
+        """
         return self.P_z_given_d.T @ self.P_w_given_z
