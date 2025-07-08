@@ -3,6 +3,7 @@ from scipy.sparse import csr_matrix
 from scipy.special import psi
 from sklearn.feature_extraction.text import CountVectorizer
 from typeguard import typechecked
+from typing import Optional
 
 class LDA:
     @typechecked
@@ -12,24 +13,24 @@ class LDA:
                  max_iter: int = 100,
                  var_max_iter: int = 20,
                  tol: float = 1e-4):
-    """
-    Latent Dirichlet Allocation (LDA) with variational EM inference.
+        """
+        Latent Dirichlet Allocation (LDA) with variational EM inference.
 
-    Parameters
-    ----------
-    n_topics : int
-        Number of latent topics to infer.
-    alpha : float or None
-        Dirichlet prior for document-topic distribution.
-    beta : float
-        Dirichlet prior for topic-word distribution.
-    max_iter : int
-        Number of outer EM iterations.
-    var_max_iter : int
-        Number of variational inference steps per document (inner loop).
-    tol : float
-        Convergence tolerance on mean change in gamma.
-    """
+        Parameters
+        ----------
+        n_topics : int
+            Number of latent topics to infer.
+        alpha : float or None
+            Dirichlet prior for document-topic distribution.
+        beta : float
+            Dirichlet prior for topic-word distribution.
+        max_iter : int
+            Number of outer EM iterations.
+        var_max_iter : int
+            Number of variational inference steps per document (inner loop).
+        tol : float
+            Convergence tolerance on mean change in gamma.
+        """
         self.n_topics = n_topics
         self.alpha = alpha if alpha is not None else 50.0 / n_topics
         self.beta = beta
