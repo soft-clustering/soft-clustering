@@ -2,9 +2,11 @@ import numpy as np
 from scipy.sparse import csr_matrix, issparse
 from sklearn.feature_extraction.text import CountVectorizer
 from typing import Union, Optional, List
+from typeguard import typechecked
 
 
 class PLSI:
+    @typechecked
     def __init__(
         self,
         n_topics: int = 10,
