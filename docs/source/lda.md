@@ -22,7 +22,7 @@ class soft_clustering.LDA(
     tol: float = 1e-4)
 ```
 
-[🔗 Source on GitHub](https://github.com/soft-clustering/soft-clustering/blob/main/soft_clustering/_lda.py#L7)
+[🔗 Source on GitHub](https://github.com/soft-clustering/soft-clustering/blob/main/soft_clustering/_lda.py#L8)
 
 ---
 
@@ -53,11 +53,13 @@ docs = [
 
 # Initialize and fit the model
 model = LDA(n_topics=2, max_iter=20, var_max_iter=10)
-model.fit(docs)
+model.fit_predict(docs)
 
 # Print top words in each topic
 model.print_top_words(n_top_words=5)
 ```
+
+---
 
 ## 🛠️ Methods
 
@@ -74,7 +76,7 @@ Fits the LDA model to a corpus using variational EM inference.
 
 * `self` (`LDA`): The trained model instance.
 
-[🔗 Source definition](https://github.com/soft-clustering/soft-clustering/blob/main/soft_clustering/_lda.py#L55)
+[🔗 Source definition](https://github.com/soft-clustering/soft-clustering/blob/main/soft_clustering/_lda.py#L56)
 
 ### `get_topic_word_dist()`
 
@@ -84,7 +86,7 @@ Returns the normalized topic-word distribution matrix.
 
 * `topic_word` (`ndarray` of shape `(n_topics, V)`): Each row is a probability distribution over the vocabulary for a topic.
 
-[🔗 Source definition](https://github.com/soft-clustering/soft-clustering/blob/main/soft_clustering/_lda.py#L131)
+[🔗 Source definition](https://github.com/soft-clustering/soft-clustering/blob/main/soft_clustering/_lda.py#L132)
 
 ### `print_top_words(n_top_words=10)`
 
@@ -98,17 +100,11 @@ Prints the top words in each topic based on their probabilities.
 
 * `None`
 
-[🔗 Source definition](https://github.com/soft-clustering/soft-clustering/blob/main/soft_clustering/_lda.py#L142)
+[🔗 Source definition](https://github.com/soft-clustering/soft-clustering/blob/main/soft_clustering/_lda.py#L143)
 
 ---
 
-## 📝 Implementation Notes
-
-* **Input compatibility:** Users can input either raw documents or a preprocessed term-document matrix (`csr_matrix`).
-  
----
 ## 📚 Reference
 
 1. Blei, D. M., Ng, A. Y., & Jordan, M. I. (2003).
 *Latent Dirichlet Allocation*. Journal of Machine Learning Research, 3, 993–1022. (https://jmlr.org/papers/v3/blei03a.html)
-
