@@ -178,7 +178,7 @@ class PLSI:
         total = count.sum()
         return np.exp(-ll / total)
 
-    def fit(self, data: Union[List[str], csr_matrix]):
+    def fit_predict(self, data: Union[List[str], csr_matrix]):
         """
         Fit the PLSI model to a corpus.
 
