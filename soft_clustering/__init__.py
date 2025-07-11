@@ -8,5 +8,6 @@ from ._pfcm import PFCM
 from ._rough_k_means import RoughKMeans
 from ._lda import LDA
 from ._plsi import PLSI
+from ._rdfkc import RDFKC
 
-__all__ = ["NOCD", "WBSC", "PFCM", "RoughKMeans"]
+__all__ = ["NOCD", "WBSC", "PFCM", "RoughKMeans", "RDFKC"]
