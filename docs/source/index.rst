@@ -14,3 +14,4 @@ Welcome to soft clustering documentation!
    rough_k_means
    wbsc
    lda
+   rdfkc
