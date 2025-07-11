@@ -125,16 +125,17 @@ class RDFKC:
         Initialize the Robust Deep Fuzzy K-Means Clustering model.
 
         Parameters:
-            X (Tensor): Input data of shape (N, C, H, W)
-            K (int): Number of clusters
-            encoder (nn.Module): Encoder neural network
-            decoder (nn.Module): Decoder neural network
-            mu (float): Laplacian regularization weight
-            gamma (float): Weight regularization coefficient
-            tau (float): Robustness coefficient for adaptive loss
-            batch_size (int): Batch size (not currently used)
-            lr (float): Learning rate
-            max_iter (int): Maximum number of iterations
+            K: Number of clusters.
+            encoder: Encoder network (optional).
+            decoder: Decoder network (optional).
+            dataset: Dataset name/path (optional).
+            random_state: Random seed (optional).
+            max_iter: Max iterations (default 100).
+            batch_size: Batch size (optional).
+            lr: Learning rate (default 1e-4).
+            mu: Laplacian regularization weight.
+            gamma: Weight regularization coefficient.
+            tau: Robustness coefficient.
         """
         self.K = K
         self.mu = mu
@@ -166,7 +167,7 @@ class RDFKC:
 
     def _k_nearest_to_nth_sample(self, n: int, k: int = 10) -> list:
         distances = torch.norm(self.Z[n] - self.Z, dim=1)
-        neighbors = torch.argsort(distances)[1:k+1]       # exclude self (at index 0)
+        neighbors = torch.argsort(distances)[1:k+1]
         return neighbors.tolist()
 
     def _initialize_membership_matrix(self) -> torch.Tensor:
@@ -179,7 +180,7 @@ class RDFKC:
         return torch.randn(self.K, self.Z.shape[1])
 
     def _initialize_similarity_matrix(self) -> torch.Tensor:
-        """Construct the similarity matrix using k-nearest neighbors and RBF kernel."""
+        """Construct the similarity matrix using k-nearest neighbors"""
         S = torch.zeros(self.N, self.N)
         for i in range(self.N):
             distances = torch.tensor([torch.norm(self.Z[i] - self.Z[j]) for j in range(self.N)])
