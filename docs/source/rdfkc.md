@@ -28,7 +28,7 @@ class soft_clustering.RDFKC(
     tau: float = 0.1):
 ```
 
-[🔗 Source on GitHub]()
+[🔗 Source on GitHub](https://github.com/soft-clustering/soft-clustering/blob/cb1517c07cdd3228ae2aae8e6f269b36560aab65/soft_clustering/_rdfkc.py#L110)
 
 ---
 
@@ -90,7 +90,7 @@ Train the RDFKC model on input images and return soft cluster assignments.
 
 * `labels` (`np.ndarray`, shape `(N,)`): Soft cluster labels (argmax of membership matrix).
 
-[🔗 Source definition]()
+[🔗 Source definition](https://github.com/soft-clustering/soft-clustering/blob/cb1517c07cdd3228ae2aae8e6f269b36560aab65/soft_clustering/_rdfkc.py#L255)
 
 ---
 
