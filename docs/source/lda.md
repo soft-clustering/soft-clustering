@@ -53,7 +53,7 @@ docs = [
 
 # Initialize and fit the model
 model = LDA(n_topics=2, max_iter=20, var_max_iter=10)
-model.fit_predict(docs)
+model.fit(docs)
 
 # Print top words in each topic
 model.print_top_words(n_top_words=5)
@@ -63,7 +63,7 @@ model.print_top_words(n_top_words=5)
 
 ## 🛠️ Methods
 
-### `fit_predict(X, vocabulary=None)`
+### `fit(X, vocabulary=None)`
 
 Fits the LDA model to a corpus using variational EM inference.
 

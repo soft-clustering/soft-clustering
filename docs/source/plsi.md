@@ -66,7 +66,7 @@ model = PLSI(
 )
 
 # Fit the model to the corpus
-model.fit_predict(documents)
+model.fit(documents)
 
 # Get topic distributions
 topic_word = model.P_w_given_z        # shape: (n_topics, n_words)
@@ -83,7 +83,7 @@ print("Perplexity:", model.perplexity)
 
 ## 🛠️ Methods
 
-### `fit_predict(data)`
+### `fit(data)`
 
 Train the PLSI model on a text corpus or term-document matrix.
 
@@ -94,7 +94,7 @@ Train the PLSI model on a text corpus or term-document matrix.
 
 **Returns:**
 
-* `None`
+* `self` (`PLSI`): The trained model instance.
 
 [🔗 Source definition](https://github.com/soft-clustering/soft-clustering/blob/main/soft_clustering/_plsi.py#L181)
 
@@ -110,7 +110,7 @@ Compute the word distribution for each document  based on the learned topic and 
 
 * `word_given_doc` (`np.ndarray`, shape `(n_documents, n_words)`): Smoothed word distribution per document.
 
-[🔗 Source definition](https://github.com/soft-clustering/soft-clustering/blob/main/soft_clustering/_plsi.py#L252)
+[🔗 Source definition](https://github.com/soft-clustering/soft-clustering/blob/main/soft_clustering/_plsi.py#L254)
 
 ---
 

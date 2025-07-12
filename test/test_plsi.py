@@ -15,19 +15,19 @@ if __name__ == '__main__':
         "fruit banana banana"
     ]
     model1 = PLSI(n_topics=2, max_iter=30, tempered=True, random_state=42)
-    model1.fit_predict(docs)
+    model1.fit(docs)
     print("Example 1: Perplexity:", model1.perplexity)
     print("P(w|d):\n", model1.get_P_w_given_d())
 
     # Example 2: Different number of topics, disable tempering
     model2 = PLSI(n_topics=3, max_iter=50, tempered=False, random_state=1)
-    model2.fit_predict(docs)
+    model2.fit(docs)
     print("\nExample 2: Perplexity (EM only):", model2.perplexity)
 
     # Example 3: Sparse matrix input
     vectorizer = CountVectorizer()
     X = vectorizer.fit_transform(docs)
     model3 = PLSI(n_topics=2, max_iter=25, tempered=True, random_state=0)
-    model3.fit_predict(X)
+    model3.fit(X)
     print("\nExample 3: Vocabulary size:", len(vectorizer.get_feature_names_out()))
     print("Log Likelihoods:", model3.log_likelihoods)
