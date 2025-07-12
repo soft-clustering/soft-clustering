@@ -23,9 +23,7 @@ if __name__ == '__main__':
     # Run clustering and get the predicted cluster labels
     cluster_labels = model.fit_predict(images)
 
-    # Optional: print basic cluster stats
-    unique_clusters = torch.unique(cluster_labels)
-    print(f"Test passed. Found {len(unique_clusters)} unique clusters.")
+    print(cluster_labels)
 
 
 
