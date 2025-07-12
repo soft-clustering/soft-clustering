@@ -103,5 +103,5 @@ Perform Rough K-Means clustering using interval-set approximations.
 
 ## 📚 Reference
 
-1. Lingras, P., & West, C. (2004). Interval Set Clustering of Web Users with Rough K-Means.
+1. Lingras, P., & West, C. (2004). *Interval Set Clustering of Web Users with Rough K-Means*.
 Journal of Intelligent Information Systems, 23(1), 5-16.(https://link.springer.com/article/10.1023/B:JIIS.0000029668.88665.1a)
