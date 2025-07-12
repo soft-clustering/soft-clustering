@@ -248,6 +248,8 @@ class PLSI:
         self.perplexity = self._perplexity(X, doc_idx, word_idx, count)
         self.P_z_given_d = (self.P_d_given_z.T * self.P_z).T
         self.P_z_given_d /= self.P_z_given_d.sum(axis=0, keepdims=True)
+        
+        return self
 
     def get_P_w_given_d(self):
         """
