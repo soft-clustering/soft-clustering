@@ -53,7 +53,7 @@ class LDA:
         # Alpha vector: symmetric prior over topics
         self.alpha_vec = np.full(self.n_topics, self.alpha)
 
-    def fit_predict(self, X, vocabulary=None):
+    def fit(self, X, vocabulary=None):
         """
         Run variational EM algorithm to fit LDA model to corpus.
 
