@@ -13,3 +13,4 @@ Welcome to soft clustering documentation!
    pfcm
    rough_k_means
    wbsc
+   kfcm
