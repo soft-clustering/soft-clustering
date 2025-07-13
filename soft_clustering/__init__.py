@@ -10,6 +10,7 @@ from ._lda import LDA
 from ._plsi import PLSI
 from ._rdfkc import RDFKC
 from ._kfcm import KFCM
-__all__ = ["NOCD", "WBSC", "PFCM", "RoughKMeans", "KFCM"]
+from ._kfccl import KFCCL
+__all__ = ["NOCD", "WBSC", "PFCM", "RoughKMeans", "KFCM" , "KFCCL"]
 
-__all__ = ["NOCD", "WBSC", "PFCM", "RoughKMeans", "RDFKC"]
+__all__ = ["NOCD", "WBSC", "PFCM", "RoughKMeans", "RDFKC" , "KFCCL"]
