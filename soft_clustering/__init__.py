@@ -11,6 +11,17 @@ from ._plsi import PLSI
 from ._rdfkc import RDFKC
 from ._kfcm import KFCM
 from ._kfccl import KFCCL
-__all__ = ["NOCD", "WBSC", "PFCM", "RoughKMeans", "KFCM" , "KFCCL"]
+from ._scm import SCM
 
-__all__ = ["NOCD", "WBSC", "PFCM", "RoughKMeans", "RDFKC" , "KFCCL"]
+__all__ = [
+    "NOCD",
+    "WBSC",
+    "PFCM",
+    "RoughKMeans",
+    "LDA",
+    "PLSI",
+    "RDFKC",
+    "KFCM",
+    "KFCCL",
+    "SCM",
+]
