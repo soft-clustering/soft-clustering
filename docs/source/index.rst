@@ -16,3 +16,4 @@ Welcome to soft clustering documentation!
    kfcm
    lda
    rdfkc
+   scm
