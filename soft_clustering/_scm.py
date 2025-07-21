@@ -1,6 +1,8 @@
 import numpy as np
+from typeguard import typechecked
 
 
+@typechecked
 class SCM:
     def __init__(self, ra: float = 0.5, ea: float = 0.5, er: float = 0.15):
         """
@@ -40,8 +42,6 @@ class SCM:
         diff = X_max - X_min
         diff[diff == 0] = 1.0  # avoid division by zero
         X_norm = (X - X_min) / diff
-
-        n_samples, n_features = X_norm.shape
 
         # Compute squared distances matrix
         dist_sq = (
