@@ -15,5 +15,6 @@ Welcome to soft clustering documentation!
    wbsc
    kfcm
    lda
+   plsi
    rdfkc
    scm
