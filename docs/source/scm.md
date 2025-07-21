@@ -20,7 +20,7 @@ class soft_clustering.NOCD(
 )
 ```
 
-[🔗 Source on GitHub](https://github.com/soft-clustering/soft-clustering/blob/main/soft_clustering/_scm.py#L4)
+[🔗 Source on GitHub](https://github.com/soft-clustering/soft-clustering/blob/main/soft_clustering/_scm.py#L6)
 
 ---
 
@@ -70,7 +70,7 @@ Apply subtractive clustering to the input data and return cluster centers.
 
 * `centers` (`np.ndarray`, shape `(n_clusters, n_features)`): Coordinates of the discovered cluster centers.
 
-[🔗 Source definition](https://github.com/soft-clustering/soft-clustering/blob/main/soft_clustering/_scm.py#L23)
+[🔗 Source definition](https://github.com/soft-clustering/soft-clustering/blob/main/soft_clustering/_scm.py#L25)
 
 ---
 
