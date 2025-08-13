@@ -18,3 +18,7 @@ Welcome to soft clustering documentation!
    plsi
    rdfkc
    scm
+   fcm
+   gmm
+   pcm
+   gk
