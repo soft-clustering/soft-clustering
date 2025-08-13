@@ -12,6 +12,11 @@ from ._rdfkc import RDFKC
 from ._kfcm import KFCM
 from ._kfccl import KFCCL
 from ._scm import SCM
+from ._fcm import FuzzyCMeans as FCM
+from ._gmm import GaussianMixtureEM as GMM
+from ._pcm import PossibilisticCMeans as PCM
+from ._gk import GustafsonKessel as GK
+
 
 __all__ = [
     "NOCD",
@@ -24,4 +29,8 @@ __all__ = [
     "KFCM",
     "KFCCL",
     "SCM",
+    "FCM",
+    "GMM",
+    "PCM",
+    "GK"
 ]
