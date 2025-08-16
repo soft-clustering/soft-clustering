@@ -24,6 +24,7 @@ if __name__ == '__main__':
     cluster_labels = model.fit_predict(images)
 
     print(cluster_labels)
+    print(cluster_labels.V)
 
 
 
