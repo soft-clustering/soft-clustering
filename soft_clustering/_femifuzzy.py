@@ -1,5 +1,4 @@
 import numpy as np
-import torch
 from typeguard import typechecked
 from typing import Optional
 from sklearn.metrics import silhouette_score
