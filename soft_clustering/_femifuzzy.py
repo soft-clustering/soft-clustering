@@ -117,15 +117,77 @@ class FeMIFuzzy:
     @typechecked
     def __init__(self,
                  random_state: Optional[int] = None,
-                 max_iter: int = 0,
+                 max_iter: int = 100,
                  ):
         self.random_state = random_state
         self.max_iter = max_iter
 
-        if random_state is not None:
-            np.random.seed(random_state)
-
         self.rng = np.random.default_rng(random_state)
+
+    def _align_clients_features(self, clients, features):
+        # Find intersection of features across all clients
+        common_features = set(features[0])
+        for fnames in features[1:]:
+            common_features &= set(fnames)
+        common_features = list(common_features)
+
+        if not common_features:
+            raise ValueError("No common features across clients!")
+
+        aligned_clients = []
+        for X, fnames in zip(clients, features):
+            # Find indices of common features in this client
+            indices = [fnames.index(f) for f in common_features]
+            aligned_clients.append(X[:, indices])
+
+        return aligned_clients
+
+    def _sammon_mapping(self, X, n_components=2, tol=1e-9):
+        """
+        Sammon mapping: projects data into lower-dimensional space while preserving pairwise distances.
+        """
+        max_iter = self.max_iter
+
+        N, D = X.shape
+        # Original pairwise distances in high-D
+        d_high = np.linalg.norm(X[:, None, :] - X[None, :, :], axis=2)
+        np.fill_diagonal(d_high, 1e-9)  # avoid divide by zero
+        scale = np.sum(d_high)
+
+        # Initialize low-dim representation randomly
+        rng = np.random.default_rng()
+        Y = rng.normal(size=(N, n_components))
+
+        for it in range(max_iter):
+            d_low = np.linalg.norm(Y[:, None, :] - Y[None, :, :], axis=2)
+            np.fill_diagonal(d_low, 1e-9)
+
+            # Compute gradient
+            delta = d_high - d_low
+            ratio = delta / d_high
+
+            # Update rule (gradient descent)
+            grad = np.zeros_like(Y)
+            for i in range(N):
+                for j in range(N):
+                    if i != j:
+                        grad[i] += ratio[i, j] * (Y[i] - Y[j]) / d_low[i, j]
+
+            Y_new = Y + 0.3 * grad / scale  # step size 0.3 (tunable)
+
+            # Convergence check (stress improvement small)
+            stress_old = np.sum((delta**2) / d_high) / scale
+            d_low_new = np.linalg.norm(Y_new[:, None, :] - Y_new[None, :, :], axis=2)
+            np.fill_diagonal(d_low_new, 1e-9)
+            delta_new = d_high - d_low_new
+            stress_new = np.sum((delta_new**2) / d_high) / scale
+
+            if abs(stress_old - stress_new) < tol:
+                break
+
+            Y = Y_new
+
+        return Y
 
     def _xie_beni(self, X, U, V, N, m=2.0):
         num = 0.0
@@ -171,12 +233,14 @@ class FeMIFuzzy:
         row_ind, col_ind = linear_sum_assignment(dist_matrix)
         return col_ind
 
-    def fit(self, clients: np.ndarray) -> np.ndarray:
+    def fit(self, clients: np.ndarray, features) -> np.ndarray:
+        clients = self._align_clients_features(clients, features)
         C_global = 0.0
         N = []
         centroids = []
 
-        for X in clients:
+        for client in clients:
+            X = self._sammon_mapping(client)
             max_k = 10
             n = X.shape[0]
             N.append(n)
