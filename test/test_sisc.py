@@ -3,9 +3,6 @@ from scipy.sparse import csr_matrix
 import sys
 import os
 
-# To run this script, ensure the sisc.py file is in the same directory.
-# You will also need the scipy and numpy libraries installed.
-
 if __name__ == '__main__':
     base_dir = path.dirname(path.realpath(__file__))
     sys.path.append(base_dir[:-4])
