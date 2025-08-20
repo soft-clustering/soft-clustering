@@ -40,6 +40,13 @@ class KMART:
         self.prototypes_: List[np.ndarray] = []
         self._unique_words: List[str] = []
         self.cluster_words_: List[Set[str]] = []
+        
+        # Stop words are defined as a class attribute for reusability.
+        self._stop_words = set([
+            "the", "a", "an", "and", "or", "but", "in", "on", "with", "for",
+            "to", "of", "from", "at", "by", "is", "are", "be", "was", "were",
+            "it", "its", "that", "this", "these", "those"
+        ])
 
     def _preprocess(self, docs: List[str]) -> Tuple[List[np.ndarray], List[str]]:
         """
@@ -53,12 +60,6 @@ class KMART:
             Tuple[List[np.ndarray], List[str]]: A tuple containing a list of document
                                                  vectors and the unique vocabulary.
         """
-        stop_words = set([
-            "the", "a", "an", "and", "or", "but", "in", "on", "with", "for",
-            "to", "of", "from", "at", "by", "is", "are", "be", "was", "were",
-            "it", "its", "that", "this", "these", "those"
-        ])
-
         word_counts = []
         unique_words = set()
 
@@ -67,7 +68,8 @@ class KMART:
             words = doc.lower().split()
             doc_word_counts = defaultdict(int)
             for word in words:
-                if word not in stop_words:
+                # Use the class's stop word set for filtering
+                if word not in self._stop_words:
                     doc_word_counts[word] += 1
                     unique_words.add(word)
             word_counts.append(doc_word_counts)
@@ -105,7 +107,7 @@ class KMART:
     def _extract_keywords(self, docs: List[str]) -> List[Set[str]]:
         """
         Extracts representative keywords for each cluster by collecting all
-        words from the documents within each final cluster.
+        words from the documents within each final cluster, filtering out stop words.
         
         Args:
             docs (List[str]): The original list of text documents.
@@ -120,7 +122,9 @@ class KMART:
             for doc_idx in doc_set:
                 words = docs[doc_idx].lower().split()
                 for word in words:
-                    word_counts[word] += 1
+                    # Filter out stop words here to ensure the final output is clean
+                    if word not in self._stop_words:
+                        word_counts[word] += 1
             sorted_words = sorted(word_counts.keys(), key=lambda w: word_counts[w], reverse=True)
             cluster_keywords.append(set(sorted_words[:10]))
         return cluster_keywords
