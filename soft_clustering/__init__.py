@@ -17,6 +17,7 @@ from ._gmm import GaussianMixtureEM as GMM
 from ._pcm import PossibilisticCMeans as PCM
 from ._gk import GustafsonKessel as GK
 from ._sisc import SISC
+from ._kmart import KMART
 
 
 __all__ = [
@@ -35,4 +36,5 @@ __all__ = [
     "PCM",
     "GK",
     "SISC",
+    "KMART",
 ]
