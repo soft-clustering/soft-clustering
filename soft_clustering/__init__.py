@@ -16,6 +16,7 @@ from ._fcm import FuzzyCMeans as FCM
 from ._gmm import GaussianMixtureEM as GMM
 from ._pcm import PossibilisticCMeans as PCM
 from ._gk import GustafsonKessel as GK
+from ._sisc import SISC
 
 
 __all__ = [
@@ -32,5 +33,6 @@ __all__ = [
     "FCM",
     "GMM",
     "PCM",
-    "GK"
+    "GK",
+    "SISC",
 ]
