@@ -113,8 +113,8 @@ class _MIFuzzy:
         return X
             
 
+@typechecked
 class FeMIFuzzy:
-    @typechecked
     def __init__(self,
                  random_state: Optional[int] = None,
                  max_iter: int = 100,
@@ -233,7 +233,7 @@ class FeMIFuzzy:
         row_ind, col_ind = linear_sum_assignment(dist_matrix)
         return col_ind
 
-    def fit(self, clients: np.ndarray, features) -> np.ndarray:
+    def fit_predict(self, clients: np.ndarray, features) -> np.ndarray:
         clients = self._align_clients_features(clients, features)
         C_global = 0.0
         N = []

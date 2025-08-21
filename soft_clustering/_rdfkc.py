@@ -107,8 +107,8 @@ class FashionMNISTDecoder(nn.Module):
         return x
 
 
+@typechecked
 class RDFKC:
-    @typechecked
     def __init__(self, 
                 K: int,
                 encoder: Optional[torch.nn.Module] = None,
