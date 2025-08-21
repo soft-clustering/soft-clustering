@@ -7,15 +7,17 @@ if __name__ == '__main__':
     sys.path.append(base_dir[:-4])
     from soft_clustering import SFCMEP
 
-    X = np.array([
-        [0.1, 0.2],
-        [0.2, 0.1],
-        [0.15, 0.15],
-        [0.9, 0.8],
-        [0.8, 0.9],
-        [0.85, 0.85],
-    ])
-    y = np.array([0, 0, 0, 1, 1, 1])  # ground truth labels (semi-supervised)
+    # Generate synthetic data for 2 clusters
+    rng = np.random.default_rng(0)
+    X1 = rng.normal(loc=0, scale=0.5, size=(50, 2))
+    X2 = rng.normal(loc=5, scale=0.5, size=(50, 2))
+    X = np.vstack([X1, X2])
 
-    model = SFCMEP(K=2, random_state=42, max_iter=300)
-    print(model.fit_predict(X, y))
+    # Semi-supervised labels (only a few given)
+    y = np.array([0] * 5 + [None] * 45 + [1] * 5 + [None] * 45, dtype=object)
+
+    model = SFCMEP(K=2, random_state=0, max_iter=50)
+    result = model.fit_predict(X, y)
+
+    U = result["membership_matrix"]
+    V = result["centroids"]
