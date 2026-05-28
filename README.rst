@@ -18,7 +18,6 @@ Features
 - Rough and possibilistic clustering: `RoughKMeans`, `WBSC`, `NOCD`, `DMon`, `RDFKC`
 - Nonnegative matrix factorization and graph clustering: `BNMF`, `BIGCLAM`, `CDCgS`, `SoftDBSCANGM`
 - Document and graph clustering methods: `KMART`, `SCSPA` and additional soft clustering algorithms
-- PyTorch-powered models and utilities for modern soft clustering workflows
 
 
 Installation
