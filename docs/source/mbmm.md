@@ -80,6 +80,5 @@ print("Memberships:", model.predict_proba())
 
 ### 📚 Reference
 
-This implementation is based on:  
-**"Multivariate Beta Mixture Model: Probabilistic Clustering with Flexible Cluster Shapes"**  
-by K. Kim and A. Tewari.
+1. Kim, K., & Tewari, A. (2024). *Multivariate Beta Mixture Model: Probabilistic Clustering with Flexible Cluster Shapes*.
+
