@@ -158,3 +158,6 @@ cython_debug/
 # IDEs
 .vscode/
 .idea/
+
+# Mac
+.DS_Store
