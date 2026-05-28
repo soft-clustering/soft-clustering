@@ -82,6 +82,4 @@ print("Membership matrix:", membership)
 
 ### 📚 Reference
 
-This implementation is based on:  
-**"Fuzzy density-based clustering method: Soft DBSCAN-GM"**  
-by X. Zhang, H. Xu, et al.
+1. Zhang, X., Xu, H., et al. (2016). *Fuzzy density-based clustering method: Soft DBSCAN-GM*.
