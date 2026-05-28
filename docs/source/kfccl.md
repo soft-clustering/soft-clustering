@@ -1,4 +1,3 @@
-
 # Kernel-based Fuzzy Competitive Learning (K-FCCL)  
 An adaptive soft-to-hard clustering algorithm using kernel-induced similarity and competitive learning dynamics.
 
