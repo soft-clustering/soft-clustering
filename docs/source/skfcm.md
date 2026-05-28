@@ -15,7 +15,6 @@ SKFCM extends Kernelized Fuzzy C-Means (KFCM) by adding a spatial constraint tha
 class SKFCM:
     def __init__(self, n_clusters: int = 3, m: float = 2.0, gamma: float = 1.0,
                  lambda_: float = 0.5, max_iter: int = 100, tol: float = 1e-5):
-        ...
 ```
 
 ---
@@ -85,6 +84,5 @@ membership = model.predict_proba().reshape(shape[0], shape[1], -1)
 
 ### 📚 Reference
 
-This implementation is based on:  
-**"A novel kernelized fuzzy C-means algorithm with application in medical image segmentation"**  
-by S. Chen and D. Zhang.
+1. Chen, S., & Zhang, D. (2004). *A novel kernelized fuzzy C-means algorithm with application in medical image segmentation*. Pattern Recognition Letters [25](https://doi.org/10.1016/j.patrec.2004.01.012).
+
