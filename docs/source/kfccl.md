@@ -72,7 +72,6 @@ Trains the K-FCCL model on the input dataset using kernel similarity and iterati
 
 ## 📚 Reference
 
-K. Mizutani, S. Miyamoto: *"Kernel-Based Fuzzy Competitive Learning Clustering" ieeexplore.ieee.org/document/1452468*
+1. Mizutani, K., & Miyamoto, S. (2005). *Kernel-Based Fuzzy Competitive Learning Clustering*. IEEE Xplore [1452468](https://ieeexplore.ieee.org/document/1452468).
 
----
  
