@@ -85,6 +85,4 @@ print("Soft Probabilities:", model.predict_proba(X))
 
 ### 📚 Reference
 
-This implementation is based on:  
-**"Soft Kernel Spectral Clustering"**  
-by Faraki et al.
+1. Faraki, M., et al. (2013). *Soft Kernel Spectral Clustering*.
