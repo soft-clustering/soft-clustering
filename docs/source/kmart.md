@@ -1,16 +1,16 @@
-### A Modified Fuzzy ART for Soft Document Clustering (KMART)
+# A Modified Fuzzy ART for Soft Document Clustering (KMART)
 
 > **An efficient soft clustering algorithm that allows documents to be a member of multiple clusters.**
 
 -----
 
-### 🔍 Overview
+## 🔍 Overview
 
 The **Modified Fuzzy ART (KMART)** algorithm is an efficient approach to identifying overlapping themes in a collection of documents. Unlike hard clustering methods, KMART enables a single document to belong to multiple clusters, which is vital for capturing documents with multi-topic content. The algorithm modifies the Fuzzy ART neural network to make it more suitable for document clustering by eliminating an expensive iterative search process and dynamically determining the number of clusters.
 
 -----
 
-### ⚙️ Class Definition
+## ⚙️ Class Definition
 
 ```python
 class KMART(vigilance_param: float, learning_rate: float)
@@ -18,7 +18,7 @@ class KMART(vigilance_param: float, learning_rate: float)
 
 -----
 
-### 📋 Parameters
+## 📋 Parameters
 
 | Parameter | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
@@ -27,7 +27,7 @@ class KMART(vigilance_param: float, learning_rate: float)
 
 -----
 
-### 🚀 Usage Examples
+## 🚀 Usage Examples
 
 ```python
 from kmart import KMART
@@ -55,7 +55,7 @@ print("Membership matrix:\n", memberships.toarray())
 
 -----
 
-### 🛠️ Methods
+## 🛠️ Methods
 
 #### `fit_predict(docs)`
 
@@ -72,7 +72,7 @@ Runs the KMART clustering algorithm on the provided documents and returns the me
 [🔗 Source definition](https://github.com/soft-clustering/soft-clustering/blob/main/soft_clustering/_kmart.py#L132)
 -----
 
-### 📝 Implementation Notes
+## 📝 Implementation Notes
 
   * **Fuzzy ART Modification:** KMART's core innovation is its modification of the Fuzzy ART neural network. Instead of iteratively searching for the best-matching cluster, it checks all clusters against a vigilance test. This not only enables soft clustering but also significantly improves performance by removing a computationally expensive step.
   * **Dynamic Cluster Creation:** The number of clusters is not a user-defined input. New clusters are created dynamically whenever a document fails the vigilance test for all existing clusters.
