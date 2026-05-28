@@ -77,6 +77,4 @@ print("Block Matrix:", B)
 
 ### 📚 Reference
 
-This implementation is based on:  
-**"Mixed Membership Stochastic Blockmodels"**  
-by Airoldi et al. (2008).
+1. Airoldi, E. M., Blei, D. M., Fienberg, S. E., & Lafferty, J. D. (2008). *Mixed Membership Stochastic Blockmodels*. Journal of Machine Learning Research [9](https://jmlr.org/papers/v9/airoldi08a.html).
