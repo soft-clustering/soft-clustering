@@ -84,8 +84,4 @@ Cluster input data `X` using the RPFKM algorithm.
 ---
 ## 📚 Reference
 
-This implementation is based on the following paper:
-**Improving Projected Fuzzy K-Means Clustering via Robust Learning**  
-
-
----
+1. *Improving Projected Fuzzy K-Means Clustering via Robust Learning*.
