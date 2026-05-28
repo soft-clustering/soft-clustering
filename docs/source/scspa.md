@@ -16,6 +16,7 @@ Implements the soft CSPA algorithm that merges several soft membership matrices 
 class SCSPA:
     def __init__(self, n_clusters: int):
         self.n_clusters = n_clusters
+```
 ---
 ## 📋 Parameters
 
@@ -63,9 +64,8 @@ print("Consensus Labels:", labels)
 
 ### 📚 Reference
 
-This implementation is based on:
-**"Consensus-Based Ensembles of Soft Clusterings" (sCSPA, sMCLA, sHBGF)**  
-by Kunal Punera and Joydeep Ghosh.
+1. Punera, K., & Ghosh, J. (2008). *Consensus-Based Ensembles of Soft Clusterings*.
+
 
 
 
