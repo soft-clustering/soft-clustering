@@ -8,17 +8,43 @@ Welcome to soft clustering documentation!
 
 .. toctree::
    :maxdepth: 2
-
    nocd
-   pfcm
-   rough_k_means
-   wbsc
-   kfcm
-   lda
-   plsi
-   rdfkc
-   scm
-   fcm
-   gmm
    pcm
+   kfccl
+   rpfkm
+   bgmm
+   scm
+   wbsc
+   afcmSimple
+   cafhfcm
+   rdfkc
+   softksc
+   EntropyFCM
+   gmm
+   mmsb
+   bnmf
+   shbgf
+   index
+   rough_k_means
+   femifuzzy
+   softdbscangm
+   kmart
+   fcc
+   scspa
+   ecm
+   dmon
+   sisc
+   cdcgs
+   bigclam
+   cafcm
+   fcm
+   pfcm
    gk
+   kfcm
+   afcmadaptive
+   afcm
+   skfcm
+   plsi
+   smcla
+   lda
+   mbmm
