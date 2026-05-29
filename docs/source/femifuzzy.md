@@ -2,12 +2,12 @@
 
 
 
-## 🔍 Overview
+### 🔍 Overview
 FeMIFuzzy is a federated fuzzy clustering algorithm designed for incomplete longitudinal behavioral data. It combines multiple imputation, Sammon mapping (via dimensionality reduction), and fuzzy c-means clustering, allowing decentralized learning from incomplete data.
 
 ---
 
-## ⚙️ Class Definition
+### ⚙️ Class Definition
 **Class Name:** `FeMIFuzzy`
 
 ```python
@@ -21,7 +21,7 @@ class FeMIFuzzy:
 
 ---
 
-## 📋 Parameters
+### 📋 Parameters
 
 | Parameter       | Type   | Default | Description                                                        |
 |------------------|--------|---------|--------------------------------------------------------------------|
@@ -32,7 +32,7 @@ class FeMIFuzzy:
 
 ---
 
-## 🚀 Usage Examples
+### 🚀 Usage Examples
 
 ```python
 from soft_clustering._femifuzzy import FeMIFuzzy
@@ -58,7 +58,7 @@ print("Membership matrix shape:", U.shape)
 
 ---
 
-## 🛠️ Methods
+### 🛠️ Methods
 
 - `fit_predict(X)`: Runs the complete FeMIFuzzy pipeline:
   - Mean imputation of missing data
@@ -69,7 +69,7 @@ print("Membership matrix shape:", U.shape)
 
 
 
-## 📝 Implementation Notes
+### 📝 Implementation Notes
 
 - Imputation uses mean strategy per feature
 - PCA replaces Sammon mapping for simplicity
