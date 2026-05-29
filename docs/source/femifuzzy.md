@@ -69,7 +69,7 @@ print("Membership matrix shape:", U.shape)
 
 
 
-# 📝 Implementation Notes
+## 📝 Implementation Notes
 
 - Imputation uses mean strategy per feature
 - PCA replaces Sammon mapping for simplicity
