@@ -1,4 +1,4 @@
-### Similarity-Based Soft Clustering (SISC)
+## Similarity-Based Soft Clustering (SISC)
 
 > **An efficient soft clustering algorithm that allows documents to be a member of multiple clusters.**
 
@@ -78,6 +78,6 @@ Runs the SISC clustering algorithm on the provided documents and returns the mem
   * **Dynamic Thresholding:** Instead of requiring a user-defined similarity threshold, SISC calculates a dynamic `lambda` value based on the document set itself. This makes the algorithm adaptive and robust across different datasets.
   * **Randomization:** To improve efficiency, SISC employs a randomization technique during the iterative refinement phase. It only recalculates the membership measure for a document-centroid pair with a probability proportional to their current similarity, significantly reducing computation time without sacrificing cluster quality.
 
-## 📚 Reference
+### 📚 Reference
 
 1. King-Ip Lin, Ravikumar Kondadadi. *A SIMILARITY-BASED SOFT CLUSTERING ALGORITHM FOR DOCUMENTS*.(https://www.comp.nus.edu.sg/~lingtw/dasfaa_proceedings/dasfaa2001/00916362.pdf).
