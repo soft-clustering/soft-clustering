@@ -28,7 +28,8 @@ class SCSPA:
 from soft_clustering._scspa._scspa import SCSPA
 import numpy as np
 
-# Simulate 3 soft clusterings
+## Simulate 3 soft clusterings
+```python
 soft1 = np.random.dirichlet(np.ones(3), size=100)
 soft2 = np.random.dirichlet(np.ones(3), size=100)
 soft3 = np.random.dirichlet(np.ones(3), size=100)
@@ -36,6 +37,7 @@ soft3 = np.random.dirichlet(np.ones(3), size=100)
 model = SCSPA(n_clusters=3)
 labels = model.fit_predict([soft1, soft2, soft3])
 print("Consensus Labels:", labels)
+```
 ### 📥 Input / 📤 Output
 
 - **Input to `fit_predict(soft_memberships)`**:
