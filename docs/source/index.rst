@@ -8,6 +8,7 @@ Welcome to soft clustering documentation!
 
 .. toctree::
    :maxdepth: 2
+
    nocd
    pcm
    kfccl
