@@ -25,7 +25,6 @@ Welcome to soft clustering documentation!
    mmsb
    bnmf
    shbgf
-   index
    rough_k_means
    femifuzzy
    softdbscangm
