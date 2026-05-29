@@ -1,6 +1,5 @@
 # CAF-HFCM (Centroid Auto-Fused Hierarchical FCM) Documentation
 
----
 
 ## 🔍 Overview
 CAFHFCM is a fuzzy clustering algorithm that integrates traditional FCM with a centroid fusion regularization. The method promotes centroid merging by minimizing both distance-to-centroid loss and an L2 penalty encouraging centroid similarity.

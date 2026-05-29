@@ -1,6 +1,5 @@
 #  ECM (Evidential C-Means) Documentation
 
----
 
 ## 🔍 Overview
 ECM is an evidential extension of the classic Fuzzy C-Means algorithm. It is based on the theory of belief functions and produces a credal partition. Each data point can belong to multiple clusters or even be assigned to the ignorance/noise cluster if its assignment is uncertain.

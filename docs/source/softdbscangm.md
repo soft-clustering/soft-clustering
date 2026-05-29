@@ -1,6 +1,5 @@
 # Soft DBSCAN-GM Documentation
 
----
 
 ## 🔍 Overview
 Soft DBSCAN-GM is a fuzzy extension of the DBSCAN-GM algorithm. It combines density-based clustering with fuzzy logic by introducing membership degrees and iterative center updates using Mahalanobis distance.

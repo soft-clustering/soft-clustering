@@ -1,6 +1,5 @@
 # FCC (Fuzzy Color Clustering) Documentation
 
----
 
 ## 🔍 Overview
 Fuzzy Color Clustering (FCC) is a color clustering algorithm that represents each cluster as a fuzzy color sphere in CIELAB space. Each data point (color) has a degree of membership in each cluster, based on its distance from the fuzzy centroid using a JND (Just Noticeable Difference) threshold.

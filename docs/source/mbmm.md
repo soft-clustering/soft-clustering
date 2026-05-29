@@ -1,7 +1,5 @@
 #  MBMM (Multivariate Beta Mixture Model) Documentation
 
----
-
 ## 🔍 Overview
 MBMM is a probabilistic soft clustering algorithm using mixtures of multivariate Beta distributions. Each feature is modeled independently with a Beta distribution. It is especially effective when features are constrained to the range (0,1).
 

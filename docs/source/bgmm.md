@@ -1,6 +1,5 @@
 # BGMM (Beta-Gaussian Mixture Model) Documentation
 
----
 ## 🔍 Overview
 BGMM is a clustering algorithm that jointly models two types of data using Gaussian and Beta distributions. It is especially useful when integrating expression data (continuous, real-valued) and binding probability data (ranged in (0,1)).
 

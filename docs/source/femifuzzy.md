@@ -1,6 +1,6 @@
 # FeMIFuzzy (Federated Multiple Imputation Fuzzy Clustering) Documentation
 
----
+
 
 ## 🔍 Overview
 FeMIFuzzy is a federated fuzzy clustering algorithm designed for incomplete longitudinal behavioral data. It combines multiple imputation, Sammon mapping (via dimensionality reduction), and fuzzy c-means clustering, allowing decentralized learning from incomplete data.

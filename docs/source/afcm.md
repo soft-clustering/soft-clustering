@@ -1,6 +1,5 @@
 # AFCM (Full Graph Embedding) Documentation
 
----
 
 ## 🔍 Overview
 This version of Adaptive Fuzzy C-Means (AFCM) includes a graph embedding step using a Laplacian matrix derived from a k-nearest neighbors graph. The embedding regularizes fuzzy clustering using both manifold structure and adaptive memberships.

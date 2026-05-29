@@ -1,6 +1,5 @@
 #  AFCMAdaptive (Adaptive Fuzzy C-Means for Image Segmentation) Documentation
 
----
 ## 🔍 Overview
 
 AFCMAdaptive is an image segmentation algorithm that extends Fuzzy C-Means by introducing a spatially varying multiplier field `m(i,j)`. This adaptive mechanism improves segmentation in images with intensity inhomogeneity such as MRI or CT scans.

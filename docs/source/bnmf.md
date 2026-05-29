@@ -1,6 +1,5 @@
 # Bayesian NMF for Overlapping Community Detection
 
----
 
 ## 🔍 Overview
 This algorithm performs overlapping community detection using Bayesian Non-negative Matrix Factorization (Bayesian NMF). It approximates a non-negative adjacency matrix V as a product of two lower-rank non-negative matrices W and H, and uses a Bayesian prior over the latent dimensions.

@@ -1,7 +1,5 @@
 # SKFCM (Spatially-Constrained Kernelized Fuzzy C-Means) Documentation
 
----
-
 ## 🔍 Overview
 SKFCM extends Kernelized Fuzzy C-Means (KFCM) by adding a spatial constraint that incorporates local neighborhood information into the clustering process. This makes it more robust to noise and suitable for image segmentation tasks like MRI.
 

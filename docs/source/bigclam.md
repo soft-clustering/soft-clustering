@@ -1,6 +1,5 @@
 #  BIGCLAM (Cluster Affiliation Model for Big Networks) Documentation
 
----
 
 ## 🔍 Overview
 BIGCLAM is an overlapping community detection algorithm based on non-negative matrix factorization. It models edge formation as a function of shared community affiliations and scales well to large networks.

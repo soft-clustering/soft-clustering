@@ -1,6 +1,6 @@
 #  DMoN (Deep Modularity Networks) Documentation
 
----
+
 
 ## 🔍 Overview
 DMoN is a deep clustering model for graphs that combines graph neural networks (GNNs) with modularity optimization. It performs soft clustering by maximizing modularity while preventing collapse using a regularization term. This approach enables unsupervised, end-to-end differentiable graph clustering.

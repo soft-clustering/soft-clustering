@@ -1,6 +1,5 @@
 #  CAFCM (Collaborative Annealing FCM) Documentation
 
----
 
 ## 🔍 Overview
 CAFCM (Collaborative Annealing Fuzzy C-Means) is a fuzzy clustering algorithm that gradually sharpens membership assignments through an annealing process. It starts from a high fuzziness level and iteratively cools down the fuzziness parameter to encourage more deterministic (harder) cluster assignments.

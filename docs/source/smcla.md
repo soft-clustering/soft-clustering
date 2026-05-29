@@ -1,6 +1,5 @@
 # SMCLA Algorithm Documentation
 
----
 
 ## 🔍 Overview
 The Soft MCLA (sMCLA) is a consensus clustering algorithm that combines soft membership matrices by treating clusters as vectors and grouping them into meta-clusters. This is the soft version of the MCLA ensemble algorithm.

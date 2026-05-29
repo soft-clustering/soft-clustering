@@ -1,6 +1,5 @@
 # CDCGS (Community Detection Clustering via Gumbel Softmax) Documentation
 
----
 
 ## 🔍 Overview
 CDCGS is a graph clustering algorithm that applies the Gumbel-Softmax trick to learn soft assignments of nodes to communities. It computes a community relationship matrix R using these assignments and applies softmax to normalize interactions between clusters.

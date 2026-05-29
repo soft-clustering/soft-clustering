@@ -1,7 +1,5 @@
 # SHBGF Algorithm Documentation
 
----
-
 ## 🔍 Overview
 The Soft HBGF (sHBGF) is a consensus clustering algorithm that combines multiple soft clusterings by representing each data point with a concatenated membership vector and clustering them using KMeans. It is the soft version of the HBGF/hypergraph bipartite graph formulation.
 

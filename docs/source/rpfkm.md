@@ -1,7 +1,5 @@
 # RPFKM Algorithm Documentation
 
----
-
 ## 🔍 Overview
 The Robust Projected Fuzzy K-Means (RPFKM) is a fuzzy clustering algorithm designed for high-dimensional data with noise and outliers. It combines fuzzy clustering with dimensionality reduction and robustness mechanisms to improve clustering quality.
 

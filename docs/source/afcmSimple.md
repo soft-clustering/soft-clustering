@@ -1,6 +1,5 @@
 # AFCM (Without Graph Embedding) Documentation
 
----
 
 ## 🔍 Overview
 This version of Adaptive Fuzzy C-Means (AFCM) performs clustering by adaptively updating fuzzy memberships and cluster centers, without incorporating any graph structure. It is a simplified form of the full AFCM model and operates directly on the original data space.

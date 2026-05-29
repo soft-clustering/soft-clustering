@@ -1,6 +1,5 @@
 # EntropyFCM (Entropy c-Means) Documentation
 
----
 
 ## 🔍 Overview
 Entropy c-Means (EntropyFCM) is a fuzzy clustering algorithm designed to balance between compact clusters and fuzzy membership distributions. The objective function optimizes both compactness and entropy of membership values, allowing flexible cluster boundaries based on user-defined weighting.

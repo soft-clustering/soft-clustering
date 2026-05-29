@@ -1,6 +1,5 @@
 # SoftKSC (Soft Kernel Spectral Clustering) Documentation
 
----
 
 ## 🔍 Overview
 SoftKSC is a semi-supervised kernel spectral clustering algorithm that separates data using two non-parallel hyperplanes. It combines kernel learning with soft clustering logic by modeling confidence scores for both classes.

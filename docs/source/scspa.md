@@ -1,7 +1,5 @@
 # SCSPA Algorithm Documentation
 
----
-
 ## 🔍Overview
 The Soft CSPA (sCSPA) is a consensus clustering algorithm designed to combine multiple soft clustering results using similarity-based vector space modeling. It is the soft version of the classic CSPA algorithm.
 

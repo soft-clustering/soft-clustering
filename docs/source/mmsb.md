@@ -1,6 +1,5 @@
 #  MMSB (Mixed Membership Stochastic Blockmodel) Documentation
 
----
 
 ## 🔍 Overview
 MMSB is a probabilistic generative model for graph data where each node is represented by a distribution over latent communities (blocks). Each edge is generated based on sampled community assignments from Dirichlet-distributed memberships and a block interaction matrix B.
