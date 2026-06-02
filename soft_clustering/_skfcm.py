@@ -1,4 +1,5 @@
 import numpy as np
+from typing import Tuple
 from sklearn.metrics.pairwise import rbf_kernel
 from scipy.ndimage import uniform_filter
 from typeguard import typechecked
