@@ -1,3 +1,7 @@
+"""Soft Clustering - A library of soft and fuzzy clustering algorithms."""
+
+__version__ = "0.0.1"
+
 from ._afcm import AFCM
 from ._afcmadaptive import AFCMAdaptive
 from ._afcmSimple import AFCMSimple
