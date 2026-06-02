@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from typeguard import typechecked
 
 class RoughKMeans:
@@ -9,7 +9,8 @@ class RoughKMeans:
         n_clusters: int = 2,
         weight_lower: float = 0.7,
         max_iter: int = 100,
-        tol: float = 1e-4
+        tol: float = 1e-4,
+        random_state: Optional[int] = None
     ):
         """
         Rough K-Means clustering with interval-set (lower/upper) approximations.
@@ -24,11 +25,14 @@ class RoughKMeans:
             Maximum number of iterations.
         tol : float
             Convergence tolerance for centroid changes.
+        random_state : int, optional
+            Random seed for reproducibility.
         """
         self.n_clusters = n_clusters
         self.weight_lower = weight_lower
         self.max_iter = max_iter
         self.tol = tol
+        self.random_state = random_state
 
     def _euclidean(self, a: np.ndarray, b: np.ndarray) -> float:
         """Compute Euclidean distance between two points."""
@@ -62,7 +66,7 @@ class RoughKMeans:
             raise ValueError("Not enough samples for the number of clusters.")
 
         # Initialize centroids using random samples
-        rng = np.random.default_rng()
+        rng = np.random.default_rng(self.random_state)
         initial_idx = rng.choice(n_samples, size=self.n_clusters, replace=False)
         centroids = X[initial_idx].astype(float)
 
