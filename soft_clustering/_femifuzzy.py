@@ -17,7 +17,7 @@ class _MIFuzzy:
         c_clusters: int,
         n_imputations: int = 5,
         n_samples: int = 0,
-        fuzzifier: int = 0,
+        fuzzifier: float = 2.0,
         random_state: Optional[int] = None,
         max_iter: int = 0,
     ):  
@@ -55,8 +55,8 @@ class _MIFuzzy:
             for j in range(self.C):
                 denominator = 0.0
                 for _ in range(self.C):
-                    dist = (self.X[i] - V[j]) ** 2
-                    denominator += dist ** (2 / self.m - 1) / dist
+                    dist = np.sum((self.X[i] - V[j]) ** 2)
+                    denominator += dist ** (2 / self.m - 1) / (dist + 1e-12)
                 U[i, j] = 1 / denominator
         return U
     
@@ -190,13 +190,14 @@ class FeMIFuzzy:
         return Y
 
     def _xie_beni(self, X, U, V, N, m=2.0):
+        C = U.shape[1]
         num = 0.0
-        pairwise = np.zeros((self.C, self.C))
+        pairwise = np.zeros((C, C))
 
-        for j in range(self.C):
+        for j in range(C):
             for i in range(N):
                 num += U[i, j] ** m * np.sum((X[i] - V[j]) ** 2)
-            for k in range(self.C):
+            for k in range(C):
                     pairwise[k, j] = np.sum((V[k] - V[j]) ** 2)
         np.fill_diagonal(pairwise, np.inf)
         min_sep = pairwise.min()
@@ -222,18 +223,15 @@ class FeMIFuzzy:
         return np.array(signature)
 
     def _match_centroids(self, X_ref, U_ref, X_new, U_new):
-        """
-        Match clusters between two imputations using Hungarian algorithm on
-        signature vectors.
-        """
-        sig_ref = np.array([self._cluster_signature(X_ref, U_ref, j) for j in range(self.C)])
-        sig_new = np.array([self._cluster_signature(X_new, U_new, j) for j in range(self.C)])
+        C = U_ref.shape[1]
+        sig_ref = np.array([self._cluster_signature(X_ref, U_ref, j) for j in range(C)])
+        sig_new = np.array([self._cluster_signature(X_new, U_new, j) for j in range(C)])
 
         dist_matrix = np.linalg.norm(sig_ref[:, None, :] - sig_new[None, :, :], axis=2)
         row_ind, col_ind = linear_sum_assignment(dist_matrix)
         return col_ind
 
-    def fit_predict(self, clients: List[np.ndarray], features) -> np.ndarray:
+    def fit_predict(self, clients: List[np.ndarray], features) -> list:
         clients = self._align_clients_features(clients, features)
         C_global = 0.0
         N = []
@@ -255,19 +253,23 @@ class FeMIFuzzy:
                 U_set.append(mifuzzy.membership_matrices)
                 V_set.append(mifuzzy.cluster_centers)
 
-                for V_n, U_n in zip(V_set, U_set):
+            for V_n_list, U_n_list in zip(V_set, U_set):
+                for V_n, U_n in zip(V_n_list, U_n_list):
                     xb_set.append(self._xie_beni(X, U_n, V_n, n))
-                    #sil = silhouette_score(X, np.argmax(U_final, axis=1))
 
-            best_k = np.argmin(xb_set)
+            n_imp = len(V_set[0])
+            best_flat = np.argmin(xb_set)
+            best_k_idx = best_flat // n_imp
+            best_imp_idx = best_flat % n_imp
 
-            V_1 = V_set[best_k - 1][0]
-            U_1 = U_set[best_k - 1][0]
+            V_1 = V_set[best_k_idx][best_imp_idx]
+            U_1 = U_set[best_k_idx][best_imp_idx]
 
             aligned_centers = [V_1]
             aligned_memberships = [U_1]
 
-            for V_n, U_n in zip(V_set[best_k - 1][1:], U_set[best_k - 1][1:]):
+            for V_n, U_n in zip(V_set[best_k_idx][:best_imp_idx] + V_set[best_k_idx][best_imp_idx+1:],
+                                U_set[best_k_idx][:best_imp_idx] + U_set[best_k_idx][best_imp_idx+1:]):
                 mapping = self._match_centroids(X, U_1, X, U_n)
                 aligned_centers.append(V_n[mapping])
                 aligned_memberships.append(U_n[:, mapping])
@@ -276,7 +278,7 @@ class FeMIFuzzy:
             U_final = np.mean(aligned_memberships, axis=0)
             centroids.append(V_final)
 
-            C_global += n * best_k
+            C_global += n * (best_k_idx + 1)
 
         C_global = int(round(C_global / sum(N)))
         V_global = [np.zeros_like(centroids[0][j]) for j in range(int(C_global))]
