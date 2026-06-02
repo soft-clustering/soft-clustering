@@ -41,8 +41,9 @@ Basic use with the package API:
    from soft_clustering import FCM
 
    X = np.array([[1.0, 2.0], [1.1, 2.1], [8.0, 8.1], [8.2, 7.9]])
-   model = FCM(c=2, m=2.0, max_iter=150, tol=1e-5)
-   memberships, centers = model.fit_predict(X)
+   model = FCM(m=2.0, max_iter=150, tol=1e-5)
+   memberships = model.fit_predict(X, K=2)
+   centers = model.centers_
 
    print("Soft membership shape:", memberships.shape)
    print("Cluster centers:", centers)
