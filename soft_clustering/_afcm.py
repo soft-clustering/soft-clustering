@@ -36,7 +36,7 @@ class AFCM:
         L = self._compute_laplacian(X)
         B = np.eye(N) - U @ np.linalg.pinv(U.T @ U) @ U.T
         M = L + self.lambda_ * B
-        eigvals, eigvecs = eigh(M, eigvals=(0, self.c - 1))
+        eigvals, eigvecs = eigh(M, subset_by_index=(0, self.c - 1))
         return eigvecs
 
     def fit_predict(self, X: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
