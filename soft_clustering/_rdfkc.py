@@ -189,7 +189,7 @@ class RDFKC:
                 S[i, j] = torch.exp(-distances[j] / 0.5)
         return (S + S.T) / 2
 
-    def _compute_ki(self, dist: float) -> float:
+    def _compute_ki(self, dist) -> torch.Tensor:
         """Compute the robustness coefficient k_i for adaptive loss."""
         numerator = (1 + self.tau) * (dist + 2 * self.tau)
         denominator = 2 * (dist + self.tau) ** 2
