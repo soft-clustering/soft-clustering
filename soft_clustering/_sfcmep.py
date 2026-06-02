@@ -46,7 +46,7 @@ class SFCMEP:
         """
         V_0 = np.zeros((self.C, X.shape[1]))
 
-        if y is None or np.all(y == None):  # fully unsupervised
+        if y is None or np.all(y is None):  # fully unsupervised
             idx = self.rng.choice(len(X), size=self.C, replace=False)
             V_0 = X[idx]
         else:
