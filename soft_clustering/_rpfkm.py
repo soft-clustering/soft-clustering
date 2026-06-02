@@ -1,11 +1,12 @@
 import numpy as np
-from typing import Tuple
+from typing import Tuple, Optional
 from typeguard import typechecked
 
 
 @typechecked
 class RPFKM:
-    def __init__(self, c: int, d: int, gamma: float = 0.1, beta: float = 1.0, max_iter: int = 50) -> None:
+    def __init__(self, c: int, d: int, gamma: float = 0.1, beta: float = 1.0, max_iter: int = 50,
+                 random_state: Optional[int] = None) -> None:
         """
         Initializes the RPFKM algorithm with given hyperparameters.
 
@@ -15,12 +16,14 @@ class RPFKM:
         - gamma (float): Regularization for fuzzy membership
         - beta (float): Regularization for data reconstruction
         - max_iter (int): Number of iterations
+        - random_state (int, optional): Random seed for reproducibility
         """
         self.c = c
         self.d = d
         self.gamma = gamma
         self.beta = beta
         self.max_iter = max_iter
+        self.random_state = random_state
 
     def fit_predict(self, X: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
@@ -45,9 +48,9 @@ class RPFKM:
 
     def _initialize_variables(self, X: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         D, N = X.shape
-        np.random.seed(0)
-        W = np.linalg.qr(np.random.randn(D, self.d))[0]
-        U = np.random.dirichlet(np.ones(self.c), size=N).T
+        rng = np.random.default_rng(self.random_state)
+        W = np.linalg.qr(rng.standard_normal((D, self.d)))[0]
+        U = rng.dirichlet(np.ones(self.c), size=N).T
         p = np.ones((self.c, N))
         return W, U, p
 
