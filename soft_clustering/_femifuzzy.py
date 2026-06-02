@@ -1,6 +1,6 @@
 import numpy as np
 from typeguard import typechecked
-from typing import Optional
+from typing import Optional, List
 from sklearn.metrics import silhouette_score
 from scipy.optimize import linear_sum_assignment
 
@@ -233,7 +233,7 @@ class FeMIFuzzy:
         row_ind, col_ind = linear_sum_assignment(dist_matrix)
         return col_ind
 
-    def fit_predict(self, clients: np.ndarray, features) -> np.ndarray:
+    def fit_predict(self, clients: List[np.ndarray], features) -> np.ndarray:
         clients = self._align_clients_features(clients, features)
         C_global = 0.0
         N = []
