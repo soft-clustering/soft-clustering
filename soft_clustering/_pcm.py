@@ -1,4 +1,3 @@
-import torch
 import random
 import numpy as np
 import scipy.sparse as sp
@@ -89,11 +88,6 @@ class PossibilisticCMeans:
                  init: str = 'kmeans++'):
         self.random_state = random_state
         if random_state is not None:
-            torch.manual_seed(random_state)
-            torch.cuda.manual_seed(random_state)
-            torch.cuda.manual_seed_all(random_state)
-            torch.backends.cudnn.deterministic = True
-            torch.use_deterministic_algorithms(True)
             np.random.seed(random_state)
             random.seed(random_state)
 
