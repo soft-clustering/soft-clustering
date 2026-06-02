@@ -9,7 +9,7 @@ if __name__ == '__main__':
 
     np.random.seed(0)
 
-    # ساخت داده‌های Beta برای 2 خوشه
+    # Generate Beta data for 2 clusters
     X1 = np.random.beta(2, 5, size=(50, 2))
     X2 = np.random.beta(5, 2, size=(50, 2))
     X = np.vstack([X1, X2])

@@ -13,7 +13,7 @@ if __name__ == '__main__':
     image = np.zeros((64, 64))
     image[:32, :] = 0.3
     image[32:, :] = 0.7
-    image += np.random.normal(0, 0.05, image.shape)  # نویز
+    image += np.random.normal(0, 0.05, image.shape)  # noise
 
     model = AFCMAdaptive(n_clusters=2, m=2.0, k1=0.1, k2=0.1, max_iter=50)
     model.fit(image)

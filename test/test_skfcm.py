@@ -13,7 +13,7 @@ if __name__ == '__main__':
     image = np.zeros((50, 50))
     image[:25, :] = 0.2
     image[25:, :] = 0.8
-    image += np.random.normal(0, 0.05, image.shape)  # نویز
+    image += np.random.normal(0, 0.05, image.shape)  # noise
 
     X = image.reshape(-1, 1)
     shape = image.shape
