@@ -1,8 +1,12 @@
+from os import path
+import sys
 import numpy as np
-from soft_clustering._afcm._afcm import AFCM
 
+if __name__ == '__main__':
+    base_dir = path.dirname(path.realpath(__file__))
+    sys.path.append(base_dir[:-4])
+    from soft_clustering import AFCM
 
-def test_afcm_graph_embedding():
     # Generate synthetic data with 2 clusters
     N = 100
     D = 2
@@ -16,7 +20,3 @@ def test_afcm_graph_embedding():
 
     print("Consensus Cluster Labels:", labels)
     print("Membership Matrix U:", U)
-
-
-if __name__ == "__main__":
-    test_afcm_graph_embedding()

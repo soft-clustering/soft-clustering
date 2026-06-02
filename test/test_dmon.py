@@ -1,10 +1,11 @@
+from os import path
+import sys
 import torch
-import torch.nn.functional as F
-from torch_geometric.data import Data
-from soft_clustering._dmon._dmon import DMoN
 
-
-def test_dmon():
+if __name__ == '__main__':
+    base_dir = path.dirname(path.realpath(__file__))
+    sys.path.append(base_dir[:-4])
+    from soft_clustering import DMoN
 
     edge_index = torch.tensor([[0, 1, 1, 2, 3, 4, 4, 5],
                                [1, 0, 2, 1, 4, 3, 5, 4]], dtype=torch.long)
@@ -20,7 +21,3 @@ def test_dmon():
     print("Soft assignments:")
     print(soft_assign)
     print("Loss:", loss.item())
-
-
-if __name__ == "__main__":
-    test_dmon()

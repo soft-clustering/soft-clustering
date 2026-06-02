@@ -1,9 +1,13 @@
+from os import path
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
-from soft_clustering._skfcm._skfcm import SKFCM
 
+if __name__ == '__main__':
+    base_dir = path.dirname(path.realpath(__file__))
+    sys.path.append(base_dir[:-4])
+    from soft_clustering import SKFCM
 
-def test_skfcm():
     np.random.seed(0)
 
     image = np.zeros((50, 50))
@@ -38,7 +42,3 @@ def test_skfcm():
 
     plt.tight_layout()
     plt.show()
-
-
-if __name__ == "__main__":
-    test_skfcm()

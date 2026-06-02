@@ -1,8 +1,11 @@
+from os import path
+import sys
 import numpy as np
-from rpfkm import RPFKM  # Assuming RPFKM class is saved in rpfkm.py
 
-
-def test_rpfkm_basic():
+if __name__ == '__main__':
+    base_dir = path.dirname(path.realpath(__file__))
+    sys.path.append(base_dir[:-4])
+    from soft_clustering import RPFKM
     from sklearn.datasets import make_blobs
 
     # Generate synthetic dataset
@@ -16,7 +19,3 @@ def test_rpfkm_basic():
     print("Cluster labels:", labels)
     print("Membership matrix U shape:", U.shape)
     print("Projection matrix W shape:", W.shape)
-
-
-if __name__ == "__main__":
-    test_rpfkm_basic()

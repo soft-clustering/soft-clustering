@@ -1,8 +1,12 @@
+from os import path
+import sys
 import numpy as np
-from soft_clustering._cafhfcm._cafhfcm import CAFHFCM
 
+if __name__ == '__main__':
+    base_dir = path.dirname(path.realpath(__file__))
+    sys.path.append(base_dir[:-4])
+    from soft_clustering import CAFHFCM
 
-def test_cafhfcm_basic():
     # Two simulated clusters in 2D space
     np.random.seed(42)
     cluster1 = np.random.normal(loc=[1, 1], scale=0.5, size=(50, 2))
@@ -14,7 +18,3 @@ def test_cafhfcm_basic():
 
     print("Cluster Labels:", labels)
     print("Membership Matrix Shape:", memberships.shape)
-
-
-if __name__ == "__main__":
-    test_cafhfcm_basic()

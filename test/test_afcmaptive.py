@@ -1,9 +1,13 @@
+from os import path
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
-from soft_clustering._afcm_adaptive._afcm_adaptive import AFCMAdaptive
 
+if __name__ == '__main__':
+    base_dir = path.dirname(path.realpath(__file__))
+    sys.path.append(base_dir[:-4])
+    from soft_clustering import AFCMAdaptive
 
-def test_afcm_adaptive():
     np.random.seed(0)
 
     image = np.zeros((64, 64))
@@ -35,7 +39,3 @@ def test_afcm_adaptive():
 
     plt.tight_layout()
     plt.show()
-
-
-if __name__ == "__main__":
-    test_afcm_adaptive()

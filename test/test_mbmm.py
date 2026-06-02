@@ -1,8 +1,12 @@
+from os import path
+import sys
 import numpy as np
-from soft_clustering._mbmm._mbmm import MBMM
 
+if __name__ == '__main__':
+    base_dir = path.dirname(path.realpath(__file__))
+    sys.path.append(base_dir[:-4])
+    from soft_clustering import MBMM
 
-def test_mbmm():
     np.random.seed(0)
 
     # ساخت داده‌های Beta برای 2 خوشه
@@ -21,7 +25,3 @@ def test_mbmm():
 
     print("\nMembership Probabilities:")
     print(probs)
-
-
-if __name__ == "__main__":
-    test_mbmm()

@@ -1,8 +1,11 @@
+from os import path
+import sys
 import numpy as np
-from soft_clustering._cafcm._cafcm import CAFCM
 
-
-def test_cafcm_basic():
+if __name__ == '__main__':
+    base_dir = path.dirname(path.realpath(__file__))
+    sys.path.append(base_dir[:-4])
+    from soft_clustering import CAFCM
 
     np.random.seed(0)
     cluster1 = np.random.normal(loc=[0, 0], scale=0.5, size=(50, 2))
@@ -14,7 +17,3 @@ def test_cafcm_basic():
 
     print("Labels:", labels)
     print("Memberships shape:", U.shape)
-
-
-if __name__ == "__main__":
-    test_cafcm_basic()

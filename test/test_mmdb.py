@@ -1,8 +1,12 @@
+from os import path
+import sys
 import torch
-from soft_clustering._mmsb._mmsb import MMSB
 
+if __name__ == '__main__':
+    base_dir = path.dirname(path.realpath(__file__))
+    sys.path.append(base_dir[:-4])
+    from soft_clustering import MMSB
 
-def test_mmsb():
     n_nodes = 6
     n_blocks = 3
     model = MMSB(n_nodes=n_nodes, n_blocks=n_blocks, alpha=0.5)
@@ -19,7 +23,3 @@ def test_mmsb():
 
     print("\nBlock Probability Matrix (B):")
     print(B)
-
-
-if __name__ == "__main__":
-    test_mmsb()

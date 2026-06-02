@@ -1,8 +1,12 @@
+from os import path
+import sys
 import numpy as np
-from soft_clustering._ecm._ecm import ECM
 
+if __name__ == '__main__':
+    base_dir = path.dirname(path.realpath(__file__))
+    sys.path.append(base_dir[:-4])
+    from soft_clustering import ECM
 
-def test_ecm():
     # Sample 2D data (6 samples)
     X = np.array([
         [1.0, 2.0],
@@ -19,7 +23,3 @@ def test_ecm():
 
     print("Mass Matrix (including noise cluster):")
     print(mass)
-
-
-if __name__ == "__main__":
-    test_ecm()

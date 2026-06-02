@@ -1,8 +1,12 @@
+from os import path
+import sys
 import numpy as np
-from soft_clustering._kmart._kmart import KMART
 
+if __name__ == '__main__':
+    base_dir = path.dirname(path.realpath(__file__))
+    sys.path.append(base_dir[:-4])
+    from soft_clustering import KMART
 
-def test_kmart_basic():
     # Generate synthetic data
     N = 100
     D = 4
@@ -11,12 +15,8 @@ def test_kmart_basic():
         np.random.uniform(0.5, 1.5, size=(N // 2, D))
     ])
 
-    model = KMART(vigilance=0.75, learning_rate=0.5)
+    model = KMART(vigilance_param=0.75, learning_rate=0.5)
     labels, memberships = model.fit_predict(X)
 
     print("Cluster Labels:", labels)
     print("Membership Matrix (shape):", memberships.shape)
-
-
-if __name__ == "__main__":
-    test_kmart_basic()

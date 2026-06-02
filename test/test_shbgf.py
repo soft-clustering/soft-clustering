@@ -1,8 +1,12 @@
+from os import path
+import sys
 import numpy as np
-from soft_clustering._shbgf._shbgf import SHBGF
 
+if __name__ == '__main__':
+    base_dir = path.dirname(path.realpath(__file__))
+    sys.path.append(base_dir[:-4])
+    from soft_clustering import SHBGF
 
-def test_shbgf_basic():
     # Simulate 3 soft clustering matrices for 100 samples and 3 clusters each
     N = 100
     soft1 = np.random.dirichlet(np.ones(3), size=N)
@@ -13,7 +17,3 @@ def test_shbgf_basic():
     labels = model.fit_predict([soft1, soft2, soft3])
 
     print("Consensus cluster labels:", labels)
-
-
-if __name__ == "__main__":
-    test_shbgf_basic()

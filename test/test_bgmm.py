@@ -1,8 +1,12 @@
+from os import path
+import sys
 import numpy as np
-from soft_clustering._bgmm._bgmm import BGMM
 
+if __name__ == '__main__':
+    base_dir = path.dirname(path.realpath(__file__))
+    sys.path.append(base_dir[:-4])
+    from soft_clustering import BGMM
 
-def test_bgmm():
     np.random.seed(0)
 
     Xg = np.concatenate([
@@ -26,7 +30,3 @@ def test_bgmm():
 
     print("\nMembership Probabilities:")
     print(probs)
-
-
-if __name__ == "__main__":
-    test_bgmm()

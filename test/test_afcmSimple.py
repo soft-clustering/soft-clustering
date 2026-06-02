@@ -1,8 +1,12 @@
+from os import path
+import sys
 import numpy as np
-from soft_clustering._afcm_simple._afcm_simple import AFCMSimple
 
+if __name__ == '__main__':
+    base_dir = path.dirname(path.realpath(__file__))
+    sys.path.append(base_dir[:-4])
+    from soft_clustering import AFCMSimple
 
-def test_afcm_simple_basic():
     # Generate synthetic data
     N = 100
     D = 2
@@ -16,7 +20,3 @@ def test_afcm_simple_basic():
 
     print("Cluster labels:", labels)
     print("Membership matrix U:", U)
-
-
-if __name__ == "__main__":
-    test_afcm_simple_basic()

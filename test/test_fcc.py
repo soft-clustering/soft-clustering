@@ -1,9 +1,12 @@
+from os import path
+import sys
 import numpy as np
-from soft_clustering._fcc._fcc import FCC
 
+if __name__ == '__main__':
+    base_dir = path.dirname(path.realpath(__file__))
+    sys.path.append(base_dir[:-4])
+    from soft_clustering import FCC
 
-def test_fcc_color_clustering():
-    
     np.random.seed(0)
     cluster1 = np.random.normal(loc=[50, 20, 20], scale=5.0, size=(50, 3))
     cluster2 = np.random.normal(loc=[70, -10, 30], scale=5.0, size=(50, 3))
@@ -14,7 +17,3 @@ def test_fcc_color_clustering():
 
     print("Labels:", labels)
     print("Membership matrix shape:", memberships.shape)
-
-
-if __name__ == "__main__":
-    test_fcc_color_clustering()

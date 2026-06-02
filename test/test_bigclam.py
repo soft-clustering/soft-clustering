@@ -1,8 +1,11 @@
+from os import path
+import sys
 import numpy as np
-from soft_clustering._bigclam._bigclam import BIGCLAM
 
-
-def test_bigclam():
+if __name__ == '__main__':
+    base_dir = path.dirname(path.realpath(__file__))
+    sys.path.append(base_dir[:-4])
+    from soft_clustering import BIGCLAM
 
     adj = np.array([
         [0, 1, 0, 0, 0, 0],
@@ -20,7 +23,3 @@ def test_bigclam():
 
     print("Membership Matrix (F):")
     print(F)
-
-
-if __name__ == "__main__":
-    test_bigclam()

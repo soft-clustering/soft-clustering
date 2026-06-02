@@ -1,8 +1,11 @@
+from os import path
+import sys
 import numpy as np
-from soft_clustering._soft_dbscan_gm._soft_dbscan_gm import SoftDBSCANGM
 
-
-def test_soft_dbscan_gm():
+if __name__ == '__main__':
+    base_dir = path.dirname(path.realpath(__file__))
+    sys.path.append(base_dir[:-4])
+    from soft_clustering import SoftDBSCANGM
     from sklearn.datasets import make_moons
 
     # ساخت دیتا با شکل پیچیده (مثل ماه‌ها)
@@ -19,7 +22,3 @@ def test_soft_dbscan_gm():
 
     print("\nFuzzy Membership Matrix:")
     print(U)
-
-
-if __name__ == "__main__":
-    test_soft_dbscan_gm()
