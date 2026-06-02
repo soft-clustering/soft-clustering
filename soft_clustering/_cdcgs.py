@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from typing import Tuple
 from typeguard import typechecked
 
 
@@ -14,7 +15,7 @@ class CDCGS(nn.Module):
 
         self.W_C = nn.Parameter(torch.randn(num_nodes, n_clusters))
 
-    def forward(self, adj: torch.Tensor) -> torch.Tensor:
+    def forward(self, adj: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         # W_C -> soft cluster assignment using Gumbel-Softmax
         soft_assign = F.gumbel_softmax(
             self.W_C, tau=self.tau, hard=False, dim=1)  # (n x k)
