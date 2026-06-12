@@ -10,6 +10,7 @@ dependencies = [
   "numpy",
   "scipy",
   "torch",
+  "torch_geometric",
   "typeguard",
   "myst_parser"
 ]
