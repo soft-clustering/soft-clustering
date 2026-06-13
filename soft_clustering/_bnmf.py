@@ -3,7 +3,7 @@ from typeguard import typechecked
 
 
 @typechecked
-class BNMF:
+class BayesianNMF:
     def __init__(self, n_clusters: int = 3, max_iter: int = 100, a: float = 1.0, b: float = 1.0, tol: float = 1e-5):
         """
         Parameters:

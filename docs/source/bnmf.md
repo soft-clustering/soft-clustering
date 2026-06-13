@@ -8,7 +8,7 @@ This algorithm performs overlapping community detection using Bayesian Non-negat
 
 
 ## ⚙️ Class Definition
-**Class Name:** `BNMF`
+**Class Name:** `BayesianNMF`
 
 This class implements a simple Bayesian NMF using multiplicative update rules and beta regularization.
 

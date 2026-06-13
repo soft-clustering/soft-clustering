@@ -7,7 +7,7 @@ from ._afcmadaptive import AFCMAdaptive
 from ._afcmSimple import AFCMSimple
 from ._bgmm import BGMM
 from ._bigclam import BIGCLAM
-from ._bnmf import BNMF
+from ._bnmf import BayesianNMF
 from ._cafcm import CAFCM
 from ._cafhfcm import CAFHFCM
 from ._cdcgs import CDCGS
@@ -49,7 +49,7 @@ __all__ = [
     "AFCMSimple",
     "BGMM",
     "BIGCLAM",
-    "BNMF",
+    "BayesianNMF",
     "CAFCM",
     "CAFHFCM",
     "CDCGS",

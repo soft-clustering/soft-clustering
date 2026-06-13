@@ -16,7 +16,7 @@ Features
 - Fuzzy clustering: `FCM`, `PCM`, `GK`, `SCM`, `SISC`, `KFCM`, `PFCM`, `CAFCM`, and related variants
 - Probabilistic and mixture models: `GMM`, `LDA`, `PLSI`, `MBMM`, `MMSB`, `BGMM`
 - Rough and possibilistic clustering: `RoughKMeans`, `WBSC`, `NOCD`, `DMon`, `RDFKC`
-- Nonnegative matrix factorization and graph clustering: `BNMF`, `BIGCLAM`, `CDCgS`, `SoftDBSCANGM`
+- Nonnegative matrix factorization and graph clustering: `BayesianNMF`, `BIGCLAM`, `CDCgS`, `SoftDBSCANGM`
 - Document and graph clustering methods: `KMART`, `SCSPA` and additional soft clustering algorithms
 
 
