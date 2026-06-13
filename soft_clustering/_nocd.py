@@ -69,10 +69,10 @@ def _seed_worker(worker_id):
     random.seed(worker_seed)
 
 
-def _get_edge_sampler(A, num_pos=1000, num_neg=1000, num_workers=2, random_seed=None):
+def _get_edge_sampler(A, num_pos=1000, num_neg=1000, num_workers=2, random_seed=None, device="cpu"):
     data_source = _EdgeSampler(A, num_pos, num_neg)
     if random_seed:
-        return torch.utils.data.DataLoader(data_source, num_workers=num_workers, collate_fn=_collate_fn, worker_init_fn=_seed_worker, generator=torch.Generator().manual_seed(random_seed))
+        return torch.utils.data.DataLoader(data_source, num_workers=num_workers, collate_fn=_collate_fn, worker_init_fn=_seed_worker, generator=torch.Generator(device=device).manual_seed(random_seed))
     return torch.utils.data.DataLoader(data_source, num_workers=num_workers, collate_fn=_collate_fn)
 
 
@@ -512,7 +512,7 @@ class NOCD:
         x_norm = sp.hstack([feature_matrix, adjacency_matrix])
         x_norm = _to_sparse_tensor(x_norm).to(device)
         sampler = _get_edge_sampler(adjacency_matrix, self.batch_size,
-                                    self.batch_size, num_workers=2, random_seed=self.random_state)
+                                    self.batch_size, num_workers=2, random_seed=self.random_state, device=device)
         gnn = _GCN(x_norm.shape[1], self.hidden_sizes, K,
                    dropout=self.dropout, batch_norm=self.batch_norm).to(device)
         adj_norm = gnn.normalize_adj(adjacency_matrix)
