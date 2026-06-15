@@ -2,7 +2,7 @@ Soft Clustering Python Package
 =================================
 
 
-.. image:: SCPP_poster.png
+.. image:: SCPP_Poster.png
 :alt: Soft Clustering Python Package Poster
 :width: 100%
 :align: center
