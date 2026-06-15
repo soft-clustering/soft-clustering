@@ -1,6 +1,12 @@
 Soft Clustering Python Package
 =================================
 
+
+.. image:: SCPP_poster.png
+:alt: Soft Clustering Python Package Poster
+:width: 100%
+:align: center
+
 Soft Clustering is a Python library for soft and fuzzy clustering algorithms. It provides a wide range of state-of-the-art methods for membership-based, possibilistic, evidential, graph, document, and deep clustering models.
 
 This package is installable via `pip` and is designed to support research and applied workflows for clustering with uncertainty, overlapping membership, and soft assignments.
