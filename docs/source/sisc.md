@@ -70,6 +70,7 @@ Runs the SISC clustering algorithm on the provided documents and returns the mem
   * `memberships` (`scipy.sparse.csr_matrix`, shape `(n_docs, n_clusters)`): A sparse matrix where a non-zero element indicates a document's membership in a cluster.
 
 [🔗 Source definition](https://github.com/soft-clustering/soft-clustering/blob/main/soft_clustering/_sisc.py#L252)
+
 -----
 
 ### 📝 Implementation Notes
