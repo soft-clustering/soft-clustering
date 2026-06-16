@@ -8,7 +8,7 @@ The Robust Projected Fuzzy K-Means (RPFKM) is a fuzzy clustering algorithm desig
 ## ⚙️ Class Definition
 **Class Name:** `RPFKM`
 
-Implements the RPFKM algorithm with projection learning and robust optimization. Exposes a `FeedPredict` method to run clustering on data.
+Implements the RPFKM algorithm with projection learning and robust optimization. Exposes a `fit_predict` method to run clustering on data.
 
 ```python
 class RPFKM(
@@ -30,6 +30,8 @@ class RPFKM(
 | `max_iter`  | `int`   | `100`   | Number of iterations                             |
 
 ## 🚀 Usage Examples
+
+```python
 import numpy as np
 from rpfkm import RPFKM  # Assuming RPFKM class is saved in rpfkm.py
 
@@ -50,8 +52,7 @@ def test_rpfkm_basic():
 
 if __name__ == "__main__":
     test_rpfkm_basic()
-
-
+```
 
 
 ## 🛠️ Methods
