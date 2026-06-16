@@ -7,7 +7,7 @@ Soft DBSCAN-GM is a fuzzy extension of the DBSCAN-GM algorithm. It combines dens
 ---
 
 ## ⚙️ Class Definition
-**Class Name:** `Soft DBSCAN-GM `
+**Class Name:** `SoftDBSCANGM`
 This class implements Soft DBSCAN-GM by first running DBSCAN and then refining membership degrees through fuzzy logic.
 ```python
 class SoftDBSCANGM:
