@@ -15,3 +15,20 @@ dependencies = [
   "myst_parser"
 ]
 
+[project.optional-dependencies]
+dev = [
+  "pytest>=7.0",
+  "pytest-cov>=4.0",
+  "scikit-learn",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--tb=short -q"
+
+[tool.coverage.run]
+source = ["soft_clustering"]
+omit = ["soft_clustering/test_*"]
+
+[tool.coverage.report]
+show_missing = true

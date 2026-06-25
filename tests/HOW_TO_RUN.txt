@@ -1,0 +1,23 @@
+HOW TO RUN THE TEST SUITE AND MEASURE COVERAGE
+================================================
+
+1. Install test dependencies:
+   pip install -e ".[dev]"
+
+2. Run all tests:
+   pytest
+
+3. Run tests with coverage report (terminal):
+   pytest --cov=soft_clustering --cov-report=term-missing
+
+4. Run tests with HTML coverage report:
+   pytest --cov=soft_clustering --cov-report=html
+   # Then open htmlcov/index.html in a browser
+
+5. Run a single test file:
+   pytest tests/test_fcm.py -v
+
+6. Run with verbose output:
+   pytest -v
+
+Expected: close to 100% line coverage across all soft_clustering modules.
