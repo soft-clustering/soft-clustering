@@ -1,10 +1,3 @@
-from soft_clustering.benchmarking import (
-    ClusteringBenchmark,
-    RuntimeBenchmark,
-    MemoryBenchmark,
-    ScalabilityBenchmark
-)
-
 """
 Benchmarking utilities for SCPP.
 
@@ -14,10 +7,11 @@ memory consumption, scalability, and clustering quality.
 """
 
 from .runner import ClusteringBenchmark
-from .benchmarks.runtime import RuntimeBenchmark
-from .benchmarks.memory_usage import MemoryBenchmark
-from .benchmarks.scalability import ScalabilityBenchmark
-from .benchmarks.clustering_quality import ClusteringQualityBenchmark
+from .benchmark.runtime import RuntimeBenchmark
+from .benchmark.memory_usage import MemoryBenchmark
+from .benchmark.scalability import ScalabilityBenchmark
+from .benchmark.clustering_quality import ClusteringQualityBenchmark
+from .adapter import BenchmarkAdapter
 
 __all__ = [
     "ClusteringBenchmark",
@@ -25,4 +19,5 @@ __all__ = [
     "MemoryBenchmark",
     "ScalabilityBenchmark",
     "ClusteringQualityBenchmark",
+    "BenchmarkAdapter",
 ]

@@ -24,18 +24,32 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 
-from sklearn.datasets import (
-    load_iris,
-    load_wine,
-    load_digits,
-    load_breast_cancer,
-    load_diabetes,
-    fetch_olivetti_faces,
-    fetch_openml,
-    make_blobs,
-    make_moons,
-    make_circles,
-)
+try:
+    from sklearn.datasets import (
+        load_iris,
+        load_wine,
+        load_digits,
+        load_breast_cancer,
+        load_diabetes,
+        fetch_olivetti_faces,
+        fetch_openml,
+        make_blobs,
+        make_moons,
+        make_circles,
+    )
+    _HAVE_SKLEARN = True
+except ImportError:
+    _HAVE_SKLEARN = False
+
+    def _sklearn_missing(*args, **kwargs):
+        raise ImportError(
+            "scikit-learn is required for dataset loading. "
+            "Install it with: pip install scikit-learn"
+        )
+
+    load_iris = load_wine = load_digits = load_breast_cancer = _sklearn_missing
+    load_diabetes = fetch_olivetti_faces = fetch_openml = _sklearn_missing
+    make_blobs = make_moons = make_circles = _sklearn_missing
 
 
 # ============================================================

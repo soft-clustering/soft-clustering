@@ -4,13 +4,17 @@ from typing import Dict, Optional
 
 import numpy as np
 
-from sklearn.metrics import (
-    adjusted_rand_score,
-    normalized_mutual_info_score,
-    silhouette_score,
-    calinski_harabasz_score,
-    davies_bouldin_score,
-)
+try:
+    from sklearn.metrics import (
+        adjusted_rand_score,
+        normalized_mutual_info_score,
+        silhouette_score,
+        calinski_harabasz_score,
+        davies_bouldin_score,
+    )
+    _HAVE_SKLEARN = True
+except ImportError:
+    _HAVE_SKLEARN = False
 
 
 # ============================================================
@@ -40,7 +44,7 @@ def clustering_metrics(
 
     results = {}
 
-    if len(np.unique(labels)) > 1:
+    if len(np.unique(labels)) > 1 and _HAVE_SKLEARN:
 
         results["silhouette"] = silhouette_score(
             X,
@@ -61,7 +65,7 @@ def clustering_metrics(
             )
         )
 
-    if y_true is not None:
+    if y_true is not None and _HAVE_SKLEARN:
 
         results["ari"] = adjusted_rand_score(
             y_true,
