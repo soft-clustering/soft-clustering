@@ -116,8 +116,8 @@ Please see our:
 - `Contributing Guidelines`_
 - `Code of Conduct`_
 
-.. _`Contributing Guidelines`: CONTRIBUTING.md
-.. _`Code of Conduct`: CODE_OF_CONDUCT.md
+.. _`Contributing Guidelines`: https://github.com/soft-clustering/soft-clustering/blob/main/CONTRIBUTING.md
+.. _`Code of Conduct`: https://github.com/soft-clustering/soft-clustering/blob/main/CODE_OF_CONDUCT.md
 
 
 License
