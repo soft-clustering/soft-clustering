@@ -28,13 +28,13 @@ Installation
 
 The complete package, including deep learning-based algorithms, can be installed from PyPI using:
 
-.. code-block:: console
+.. code-block:: bash
 
    pip install soft-clustering[deep]
 
 For users who only need the core algorithms (without deep learning dependencies), install the base version:
 
-.. code-block:: console
+.. code-block:: bash
 
    pip install soft-clustering
 
@@ -73,7 +73,7 @@ The project includes a comprehensive test suite in the `tests/`_ directory, cove
 
 To run the tests:
 
-.. code-block:: console
+.. code-block:: bash
 
    pip install -e ".[deep,dev]"   # Install in development mode
    pytest
