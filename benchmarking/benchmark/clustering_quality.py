@@ -3,8 +3,10 @@ from __future__ import annotations
 from typing import Any, Dict, Optional
 
 import numpy as np
+
 try:
     import scipy.sparse as sp
+
     _HAVE_SCIPY = True
 except ImportError:
     sp = None  # type: ignore[assignment]
@@ -18,6 +20,7 @@ try:
         calinski_harabasz_score,
         davies_bouldin_score,
     )
+
     _HAVE_SKLEARN = True
 except ImportError:
     _HAVE_SKLEARN = False
@@ -27,12 +30,12 @@ from ..base import BaseBenchmark
 # All attribute names where soft_clustering models store the membership matrix.
 # Checked in priority order; the first 2-D ndarray found wins.
 _MEMBERSHIP_ATTRS = (
-    "membership_",         # BenchmarkAdapter (standardised)
-    "memberships_",        # FCM, GK
-    "typicalities_",       # PCM
-    "responsibilities_",   # GMM
-    "membership_matrix",   # PFCM (may be c×n — handled below)
-    "U",                   # CAFCM, KFCM (KFCM: may be K×n — handled below)
+    "membership_",  # BenchmarkAdapter (standardised)
+    "memberships_",  # FCM, GK
+    "typicalities_",  # PCM
+    "responsibilities_",  # GMM
+    "membership_matrix",  # PFCM (may be c×n — handled below)
+    "U",  # CAFCM, KFCM (KFCM: may be K×n — handled below)
 )
 
 
@@ -99,32 +102,20 @@ class ClusteringQualityBenchmark(BaseBenchmark):
         n_clusters = int(len(np.unique(labels)))
 
         if n_clusters > 1 and _HAVE_SKLEARN:
-            results["silhouette"] = float(
-                silhouette_score(X, labels)
-            )
-            results["calinski_harabasz"] = float(
-                calinski_harabasz_score(X, labels)
-            )
-            results["davies_bouldin"] = float(
-                davies_bouldin_score(X, labels)
-            )
+            results["silhouette"] = float(silhouette_score(X, labels))
+            results["calinski_harabasz"] = float(calinski_harabasz_score(X, labels))
+            results["davies_bouldin"] = float(davies_bouldin_score(X, labels))
 
         if y is not None and _HAVE_SKLEARN:
-            results["ari"] = float(
-                adjusted_rand_score(y, labels)
-            )
-            results["nmi"] = float(
-                normalized_mutual_info_score(y, labels)
-            )
+            results["ari"] = float(adjusted_rand_score(y, labels))
+            results["nmi"] = float(normalized_mutual_info_score(y, labels))
 
         # ----------------------------------------------------------------
         # Soft clustering metrics
         # ----------------------------------------------------------------
         U = _find_membership(model, n_samples)
         if U is not None:
-            results["partition_coefficient"] = float(
-                np.mean(np.sum(U ** 2, axis=1))
-            )
+            results["partition_coefficient"] = float(np.mean(np.sum(U**2, axis=1)))
             results["partition_entropy"] = float(
                 np.mean(-np.sum(U * np.log(U + 1e-12), axis=1))
             )
@@ -135,6 +126,7 @@ class ClusteringQualityBenchmark(BaseBenchmark):
 # ------------------------------------------------------------------
 # Helper
 # ------------------------------------------------------------------
+
 
 def _find_membership(
     model: Any,

@@ -1,4 +1,5 @@
 """Unit and integration tests for CDCGS (Cluster Detection via Gumbel-Softmax)."""
+
 import pytest
 import torch
 from soft_clustering import CDCGS

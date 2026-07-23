@@ -1,4 +1,5 @@
 """Unit and integration tests for GaussianMixtureEM (GMM)."""
+
 import numpy as np
 import pytest
 from soft_clustering import GMM
@@ -7,8 +8,9 @@ from soft_clustering import GMM
 @pytest.fixture
 def X():
     rng = np.random.default_rng(2)
-    return np.vstack([rng.normal([0, 0], 0.5, (40, 2)),
-                      rng.normal([6, 0], 0.5, (40, 2))])
+    return np.vstack(
+        [rng.normal([0, 0], 0.5, (40, 2)), rng.normal([6, 0], 0.5, (40, 2))]
+    )
 
 
 def test_fit_predict_returns_labels(X):

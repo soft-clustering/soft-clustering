@@ -1,4 +1,5 @@
 """Unit and integration tests for LDA (Latent Dirichlet Allocation)."""
+
 import numpy as np
 import pytest
 import scipy.sparse as sp

@@ -1,4 +1,5 @@
 """Unit and integration tests for SoftKSC (Soft Kernel Semi-supervised Clustering)."""
+
 import numpy as np
 import pytest
 from soft_clustering import SoftKSC

@@ -1,4 +1,5 @@
 """Unit and integration tests for RPFKM (Robust Projection Fuzzy K-Means)."""
+
 import numpy as np
 import pytest
 from soft_clustering import RPFKM
@@ -8,8 +9,9 @@ from soft_clustering import RPFKM
 def X():
     # RPFKM expects X of shape (D, N) — features x samples
     rng = np.random.default_rng(17)
-    X_data = np.vstack([rng.normal([0, 0], 0.4, (25, 4)),
-                        rng.normal([5, 5], 0.4, (25, 4))])
+    X_data = np.vstack(
+        [rng.normal([0, 0], 0.4, (25, 4)), rng.normal([5, 5], 0.4, (25, 4))]
+    )
     return X_data.T  # (4, 50)
 
 

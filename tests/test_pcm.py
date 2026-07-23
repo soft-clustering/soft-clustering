@@ -1,4 +1,5 @@
 """Unit and integration tests for PossibilisticCMeans (PCM)."""
+
 import numpy as np
 import pytest
 import scipy.sparse as sp
@@ -8,8 +9,9 @@ from soft_clustering import PCM
 @pytest.fixture
 def X():
     rng = np.random.default_rng(0)
-    return np.vstack([rng.normal([0, 0], 0.3, (30, 2)),
-                      rng.normal([5, 5], 0.3, (30, 2))])
+    return np.vstack(
+        [rng.normal([0, 0], 0.3, (30, 2)), rng.normal([5, 5], 0.3, (30, 2))]
+    )
 
 
 def test_output_shape(X):

@@ -1,4 +1,5 @@
 """Unit and integration tests for SoftDBSCANGM."""
+
 import numpy as np
 import pytest
 from soft_clustering import SoftDBSCANGM
@@ -7,8 +8,9 @@ from soft_clustering import SoftDBSCANGM
 @pytest.fixture
 def X():
     rng = np.random.default_rng(19)
-    return np.vstack([rng.normal([0, 0], 0.3, (20, 2)),
-                      rng.normal([4, 4], 0.3, (20, 2))])
+    return np.vstack(
+        [rng.normal([0, 0], 0.3, (20, 2)), rng.normal([4, 4], 0.3, (20, 2))]
+    )
 
 
 def test_fit_runs(X):

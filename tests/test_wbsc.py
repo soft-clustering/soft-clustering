@@ -1,4 +1,5 @@
 """Unit and integration tests for WBSC (Word-Based Soft Clustering)."""
+
 import pytest
 import scipy.sparse as sp
 from soft_clustering import WBSC

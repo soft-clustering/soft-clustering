@@ -1,4 +1,5 @@
 """Unit and integration tests for KFCCL."""
+
 import numpy as np
 import pytest
 from soft_clustering import KFCCL
@@ -7,8 +8,9 @@ from soft_clustering import KFCCL
 @pytest.fixture
 def X():
     rng = np.random.default_rng(6)
-    return np.vstack([rng.normal([0, 0], 0.5, (15, 2)),
-                      rng.normal([4, 4], 0.5, (15, 2))])
+    return np.vstack(
+        [rng.normal([0, 0], 0.5, (15, 2)), rng.normal([4, 4], 0.5, (15, 2))]
+    )
 
 
 def test_fit_returns_labels(X):

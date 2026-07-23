@@ -1,4 +1,5 @@
 """Unit and integration tests for FCC (Fuzzy Color Clustering)."""
+
 import numpy as np
 import pytest
 from soft_clustering import FCC

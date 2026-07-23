@@ -1,4 +1,5 @@
 """Tests for package-level imports and __init__.py."""
+
 import soft_clustering
 
 
@@ -9,12 +10,46 @@ def test_version():
 
 def test_all_symbols_importable():
     expected = [
-        "AFCM", "AFCMAdaptive", "AFCMSimple", "BGMM", "BIGCLAM",
-        "BayesianNMF", "CAFCM", "CAFHFCM", "CDCGS", "DMoN", "ECM",
-        "ENTROPYFCM", "FCC", "FCM", "FeMIFuzzy", "GK", "GMM", "KFCCL",
-        "KFCM", "KMART", "LDA", "MBMM", "MMSB", "NOCD", "PCM", "PFCM",
-        "PLSI", "RDFKC", "RoughKMeans", "RPFKM", "SCM", "SCSPA", "SFCMEP",
-        "SHBGF", "SISC", "SKFCM", "SMCLA", "SoftDBSCANGM", "SoftKSC", "WBSC",
+        "AFCM",
+        "AFCMAdaptive",
+        "AFCMSimple",
+        "BGMM",
+        "BIGCLAM",
+        "BayesianNMF",
+        "CAFCM",
+        "CAFHFCM",
+        "CDCGS",
+        "DMoN",
+        "ECM",
+        "ENTROPYFCM",
+        "FCC",
+        "FCM",
+        "FeMIFuzzy",
+        "GK",
+        "GMM",
+        "KFCCL",
+        "KFCM",
+        "KMART",
+        "LDA",
+        "MBMM",
+        "MMSB",
+        "NOCD",
+        "PCM",
+        "PFCM",
+        "PLSI",
+        "RDFKC",
+        "RoughKMeans",
+        "RPFKM",
+        "SCM",
+        "SCSPA",
+        "SFCMEP",
+        "SHBGF",
+        "SISC",
+        "SKFCM",
+        "SMCLA",
+        "SoftDBSCANGM",
+        "SoftKSC",
+        "WBSC",
     ]
     for name in expected:
         assert hasattr(soft_clustering, name), f"{name} not exported"

@@ -1,4 +1,5 @@
 """Unit and integration tests for SFCMEP (Semi-supervised FCM with Membership Prior)."""
+
 import numpy as np
 import pytest
 from soft_clustering import SFCMEP
@@ -7,10 +8,9 @@ from soft_clustering import SFCMEP
 @pytest.fixture
 def Xy():
     rng = np.random.default_rng(31)
-    X = np.vstack([rng.normal([0, 0], 0.4, (20, 2)),
-                   rng.normal([5, 5], 0.4, (20, 2))])
+    X = np.vstack([rng.normal([0, 0], 0.4, (20, 2)), rng.normal([5, 5], 0.4, (20, 2))])
     # Label first 5 samples of each cluster; rest = None
-    y = np.array([0]*5 + [None]*15 + [1]*5 + [None]*15, dtype=object)
+    y = np.array([0] * 5 + [None] * 15 + [1] * 5 + [None] * 15, dtype=object)
     return X, y
 
 

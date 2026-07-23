@@ -1,4 +1,5 @@
 """Unit and integration tests for MBMM (Multivariate Beta Mixture Model)."""
+
 import numpy as np
 import pytest
 from soft_clustering import MBMM

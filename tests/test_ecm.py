@@ -1,4 +1,5 @@
 """Unit and integration tests for ECM (Evidential C-Means)."""
+
 import numpy as np
 import pytest
 from soft_clustering import ECM
@@ -7,8 +8,9 @@ from soft_clustering import ECM
 @pytest.fixture
 def X():
     rng = np.random.default_rng(7)
-    return np.vstack([rng.normal([0, 0], 0.5, (20, 2)),
-                      rng.normal([5, 5], 0.5, (20, 2))])
+    return np.vstack(
+        [rng.normal([0, 0], 0.5, (20, 2)), rng.normal([5, 5], 0.5, (20, 2))]
+    )
 
 
 def test_fit_runs(X):

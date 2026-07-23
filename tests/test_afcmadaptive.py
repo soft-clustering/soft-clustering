@@ -1,4 +1,5 @@
 """Unit and integration tests for AFCMAdaptive (image-based FCM)."""
+
 import numpy as np
 import pytest
 from soft_clustering import AFCMAdaptive

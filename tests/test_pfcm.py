@@ -1,4 +1,5 @@
 """Unit and integration tests for PFCM."""
+
 import numpy as np
 import pytest
 from soft_clustering import PFCM
@@ -7,8 +8,9 @@ from soft_clustering import PFCM
 @pytest.fixture
 def X():
     rng = np.random.default_rng(4)
-    return np.vstack([rng.normal([0, 0], 0.5, (25, 2)),
-                      rng.normal([6, 0], 0.5, (25, 2))])
+    return np.vstack(
+        [rng.normal([0, 0], 0.5, (25, 2)), rng.normal([6, 0], 0.5, (25, 2))]
+    )
 
 
 def test_fit_returns_self(X):

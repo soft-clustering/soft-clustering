@@ -1,4 +1,5 @@
 """Unit and integration tests for NOCD (Network Overlapping Community Detection)."""
+
 import numpy as np
 import pytest
 import scipy.sparse as sp

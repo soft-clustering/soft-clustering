@@ -1,4 +1,5 @@
 """Unit and integration tests for SCM (Subtractive Clustering)."""
+
 import numpy as np
 import pytest
 from soft_clustering import SCM
@@ -7,8 +8,9 @@ from soft_clustering import SCM
 @pytest.fixture
 def X():
     rng = np.random.default_rng(15)
-    return np.vstack([rng.normal([0, 0], 0.3, (20, 2)),
-                      rng.normal([5, 5], 0.3, (20, 2))])
+    return np.vstack(
+        [rng.normal([0, 0], 0.3, (20, 2)), rng.normal([5, 5], 0.3, (20, 2))]
+    )
 
 
 def test_fit_returns_centers(X):

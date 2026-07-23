@@ -1,4 +1,5 @@
 """Unit and integration tests for AFCM (Adaptive FCM with graph embedding)."""
+
 import numpy as np
 import pytest
 from soft_clustering import AFCM
@@ -7,8 +8,9 @@ from soft_clustering import AFCM
 @pytest.fixture
 def X():
     rng = np.random.default_rng(11)
-    return np.vstack([rng.normal([0, 0], 0.4, (20, 2)),
-                      rng.normal([5, 5], 0.4, (20, 2))])
+    return np.vstack(
+        [rng.normal([0, 0], 0.4, (20, 2)), rng.normal([5, 5], 0.4, (20, 2))]
+    )
 
 
 def test_returns_labels_and_memberships(X):

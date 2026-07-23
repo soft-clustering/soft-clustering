@@ -1,4 +1,5 @@
 """Unit and integration tests for SCSPA (Soft Consensus Spectral Partition Analysis)."""
+
 import numpy as np
 import pytest
 from soft_clustering import SCSPA

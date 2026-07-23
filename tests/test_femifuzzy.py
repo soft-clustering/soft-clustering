@@ -1,4 +1,5 @@
 """Unit and integration tests for FeMIFuzzy (Federated Fuzzy Clustering with MI)."""
+
 import numpy as np
 import pytest
 from soft_clustering import FeMIFuzzy

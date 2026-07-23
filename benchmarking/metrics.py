@@ -12,6 +12,7 @@ try:
         calinski_harabasz_score,
         davies_bouldin_score,
     )
+
     _HAVE_SKLEARN = True
 except ImportError:
     _HAVE_SKLEARN = False

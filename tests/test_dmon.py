@@ -1,4 +1,5 @@
 """Unit and integration tests for DMoN (Differentiable Graph Modularity)."""
+
 import pytest
 import torch
 from soft_clustering import DMoN

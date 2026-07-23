@@ -29,6 +29,7 @@ import numpy as np
 
 try:
     import scipy.sparse as sp
+
     _HAVE_SCIPY = True
 except ImportError:
     sp = None  # type: ignore[assignment]
@@ -38,20 +39,20 @@ except ImportError:
 # Attribute names where models store the soft membership matrix, in lookup
 # priority order.  The adapter checks each in turn.
 _MEMBERSHIP_ATTRS = (
-    "memberships_",        # FCM, GK
-    "typicalities_",       # PCM
-    "responsibilities_",   # GMM
-    "membership_matrix",   # PFCM  (stored as c×n — transposed)
-    "U",                   # CAFCM, KFCM  (KFCM: stored as K×n — transposed)
+    "memberships_",  # FCM, GK
+    "typicalities_",  # PCM
+    "responsibilities_",  # GMM
+    "membership_matrix",  # PFCM  (stored as c×n — transposed)
+    "U",  # CAFCM, KFCM  (KFCM: stored as K×n — transposed)
 )
 
 # Attribute names where models store cluster prototypes / centres.
 _CENTER_ATTRS = (
-    "centers_",            # FCM, PCM, GK
-    "means_",              # GMM
-    "centroids",           # CAFCM
-    "cluster_centroids",   # PFCM
-    "V",                   # KFCM  (n_clusters × n_features — normal)
+    "centers_",  # FCM, PCM, GK
+    "means_",  # GMM
+    "centroids",  # CAFCM
+    "cluster_centroids",  # PFCM
+    "V",  # KFCM  (n_clusters × n_features — normal)
 )
 
 

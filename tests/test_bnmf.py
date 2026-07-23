@@ -1,4 +1,5 @@
 """Unit and integration tests for BayesianNMF."""
+
 import numpy as np
 import pytest
 from soft_clustering import BayesianNMF

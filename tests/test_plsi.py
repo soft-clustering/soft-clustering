@@ -1,4 +1,5 @@
 """Unit and integration tests for PLSI (Probabilistic Latent Semantic Indexing)."""
+
 import numpy as np
 import pytest
 import scipy.sparse as sp

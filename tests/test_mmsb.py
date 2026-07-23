@@ -1,4 +1,5 @@
 """Unit and integration tests for MMSB (Mixed Membership Stochastic Blockmodel)."""
+
 import pytest
 import torch
 from soft_clustering import MMSB

@@ -37,6 +37,7 @@ try:
         make_moons,
         make_circles,
     )
+
     _HAVE_SKLEARN = True
 except ImportError:
     _HAVE_SKLEARN = False
