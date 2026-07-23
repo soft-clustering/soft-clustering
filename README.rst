@@ -65,8 +65,19 @@ Research & Citation
 
 This package is part of an academic research project submitted to the JMLR MLOSS journal. A publication is forthcoming.
 
-- Paper link: *TBD*
-- Citation: *TBD*
+- Paper link: https://arxiv.org/abs/2607.19620
+- Citation:
+
+.. code-block:: plaintext
+    @misc{rezaee2026scppunifiedpythonlibrary,
+          title={SCPP: A Unified Python Library for Soft Clustering}, 
+          author={Kiyan Rezaee and Morteza Ziabakhsh and Artin Bahrampour and Seyed Mohammad Ghoreishi and Asal Khaje and Ali Sajedifar and Manny Chalak and Ava Zerafatangiz and Sadegh Eskandari},
+          year={2026},
+          eprint={2607.19620},
+          archivePrefix={arXiv},
+          primaryClass={cs.LG},
+          url={https://arxiv.org/abs/2607.19620}, 
+    }
 
 
 Contributing
