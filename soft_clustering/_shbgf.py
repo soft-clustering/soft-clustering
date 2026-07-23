@@ -35,8 +35,12 @@ class SHBGF:
         concatenated /= concatenated.sum(axis=1, keepdims=True) + 1e-8
 
         # Run KMeans on concatenated soft assignments
-        kmeans = KMeans(n_clusters=self.n_clusters,
-                        max_iter=self.max_iter, n_init=10, random_state=42)
+        kmeans = KMeans(
+            n_clusters=self.n_clusters,
+            max_iter=self.max_iter,
+            n_init=10,
+            random_state=42,
+        )
         labels = kmeans.fit_predict(concatenated)
 
         return labels

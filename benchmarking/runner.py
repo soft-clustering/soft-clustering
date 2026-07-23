@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
 import pandas as pd
 
@@ -32,21 +32,14 @@ class ClusteringBenchmark:
 
             model_name = model.__class__.__name__
 
-            row = {
-                "model": model_name
-            }
+            row = {"model": model_name}
 
             for benchmark in self.benchmarks:
 
-                result = benchmark.evaluate(
-                    model=model,
-                    X=X,
-                    y=y
-                )
+                result = benchmark.evaluate(model=model, X=X, y=y)
 
                 row.update(result)
 
             records.append(row)
 
         return pd.DataFrame(records)
-        

@@ -51,7 +51,6 @@ except ImportError:
     load_diabetes = fetch_olivetti_faces = fetch_openml = _sklearn_missing
     make_blobs = make_moons = make_circles = _sklearn_missing
 
-
 # ============================================================
 # Dataset Registry
 # ============================================================
@@ -103,6 +102,7 @@ OPENML_DATASETS = {
 # Public API
 # ============================================================
 
+
 def available_datasets() -> List[str]:
     """
     Return all available datasets.
@@ -128,8 +128,7 @@ def datasets_in_group(group: str) -> List[str]:
     """
     if group not in DATASET_GROUPS:
         raise ValueError(
-            f"Unknown group '{group}'. "
-            f"Available groups: {available_groups()}"
+            f"Unknown group '{group}'. " f"Available groups: {available_groups()}"
         )
 
     return DATASET_GROUPS[group]
@@ -138,6 +137,7 @@ def datasets_in_group(group: str) -> List[str]:
 # ============================================================
 # Main Loader
 # ============================================================
+
 
 def get_dataset(
     name: str,
@@ -281,14 +281,14 @@ def get_dataset(
         return X, y
 
     raise ValueError(
-        f"Unknown dataset '{name}'. "
-        f"Available datasets: {available_datasets()}"
+        f"Unknown dataset '{name}'. " f"Available datasets: {available_datasets()}"
     )
 
 
 # ============================================================
 # Dataset Metadata
 # ============================================================
+
 
 def dataset_info(name: str) -> Dict:
     """
@@ -301,11 +301,7 @@ def dataset_info(name: str) -> Dict:
         "name": name,
         "n_samples": int(X.shape[0]),
         "n_features": int(X.shape[1]),
-        "n_classes": (
-            len(np.unique(y))
-            if y is not None
-            else None
-        ),
+        "n_classes": (len(np.unique(y)) if y is not None else None),
     }
 
 

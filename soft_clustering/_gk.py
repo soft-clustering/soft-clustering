@@ -32,9 +32,9 @@ def _compute_covariances(X, U, centers, m, reg_covar=1e-6):
     n, d = X.shape
     K = centers.shape[0]
     C = np.empty((K, d, d), dtype=np.float64)
-    Um = U ** m
+    Um = U**m
     for k in range(K):
-        w = Um[:, k:k+1]
+        w = Um[:, k : k + 1]
         diff = X - centers[k]
         Nk = float(np.sum(w)) + 1e-12
         S = (diff * w).T @ diff / Nk
@@ -72,27 +72,29 @@ def _update_U_from_d2(d2, m, eps=1e-12):
     """Update memberships given GK distances."""
     inv = 1.0 / (d2 + eps)
     power = 1.0 / (m - 1.0)
-    inv_pow = inv ** power
+    inv_pow = inv**power
     denom = np.sum(inv_pow, axis=1, keepdims=True)
     U = inv_pow / (denom + eps)
     U = np.maximum(U, eps)
-    U /= (np.sum(U, axis=1, keepdims=True) + eps)
+    U /= np.sum(U, axis=1, keepdims=True) + eps
     return U
 
 
 def _objective(U, d2, m):
-    return float(np.sum((U ** m) * d2))
+    return float(np.sum((U**m) * d2))
 
 
 @typechecked
 class GustafsonKessel:
-    def __init__(self,
-                 random_state: Optional[int] = None,
-                 m: float = 2.0,
-                 max_iter: int = 300,
-                 tol: float = 1e-5,
-                 init: str = 'kmeans++',
-                 reg_covar: float = 1e-6):
+    def __init__(
+        self,
+        random_state: Optional[int] = None,
+        m: float = 2.0,
+        max_iter: int = 300,
+        tol: float = 1e-5,
+        init: str = "kmeans++",
+        reg_covar: float = 1e-6,
+    ):
         self.random_state = random_state
         if random_state is not None:
             np.random.seed(random_state)
@@ -131,13 +133,13 @@ class GustafsonKessel:
 
         rng = np.random.default_rng(self.random_state)
 
-        if self.init == 'kmeans++':
+        if self.init == "kmeans++":
             centers = _kmeanspp_init(X, K, rng)
             U = np.full((n, K), 1.0 / K, dtype=np.float64)
-        elif self.init == 'random':
+        elif self.init == "random":
             U = rng.random((n, K))
             U = U / (np.sum(U, axis=1, keepdims=True) + 1e-12)
-            Um = U ** self.m
+            Um = U**self.m
             denom = np.sum(Um, axis=0, keepdims=True).T
             centers = (Um.T @ X) / (denom + 1e-12)
         else:
@@ -149,7 +151,7 @@ class GustafsonKessel:
             C = _compute_covariances(X, U, centers, self.m, reg_covar=self.reg_covar)
             d2 = _estimate_gk_dist2(X, centers, C)
             U = _update_U_from_d2(d2, self.m)
-            Um = U ** self.m
+            Um = U**self.m
             denom = np.sum(Um, axis=0, keepdims=True).T
             centers = (Um.T @ X) / (denom + 1e-12)
             obj = _objective(U, d2, self.m)

@@ -2,7 +2,7 @@ from os import path
 import sys
 import numpy as np
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     base_dir = path.dirname(path.realpath(__file__))
     sys.path.append(base_dir[:-4])
     from soft_clustering import GMM
@@ -15,6 +15,8 @@ if __name__ == '__main__':
 
     K = 2  # number of mixture components
 
-    model = GMM(random_state=42, max_iter=100, covariance_type='full', init_params='kmeans++')
+    model = GMM(
+        random_state=42, max_iter=100, covariance_type="full", init_params="kmeans++"
+    )
     responsibilities = model.fit_predict(X, K)
     print("Responsibilities matrix:\n", responsibilities)

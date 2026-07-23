@@ -3,8 +3,7 @@ from os import path
 import sys
 import numpy as np
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     base_dir = path.dirname(path.realpath(__file__))
     sys.path.append(base_dir[:-4])
     from soft_clustering import PCM
@@ -18,7 +17,7 @@ if __name__ == '__main__':
     K = 2  # number of clusters
 
     # Initialize and fit the model
-    model = PCM(random_state=42, max_iter=100, m=2.0, alpha=1.0, init='kmeans++')
+    model = PCM(random_state=42, max_iter=100, m=2.0, alpha=1.0, init="kmeans++")
 
     typicalities = model.fit_predict(X, K)
     print("Typicality matrix:\n", typicalities)

@@ -17,8 +17,8 @@ class MBMM:
         self.tol = tol
         self.weights = None
         self.alpha = None  # (K, D)
-        self.beta = None   # (K, D)
-        self.resp = None   # (N, K)
+        self.beta = None  # (K, D)
+        self.resp = None  # (N, K)
 
     def _initialize_params(self, X: np.ndarray):
         N, D = X.shape
@@ -83,8 +83,7 @@ class MBMM:
             for k in range(self.n_components):
                 log_prob = np.log(self.weights[k] + 1e-10)
                 for d in range(X.shape[1]):
-                    log_prob += beta.logpdf(X[:, d],
-                                            self.alpha[k, d], self.beta[k, d])
+                    log_prob += beta.logpdf(X[:, d], self.alpha[k, d], self.beta[k, d])
                 ll += np.sum(self.resp[:, k] * log_prob)
 
             if np.abs(ll - prev_ll) < self.tol:

@@ -4,7 +4,14 @@ from typeguard import typechecked
 
 @typechecked
 class BayesianNMF:
-    def __init__(self, n_clusters: int = 3, max_iter: int = 100, a: float = 1.0, b: float = 1.0, tol: float = 1e-5):
+    def __init__(
+        self,
+        n_clusters: int = 3,
+        max_iter: int = 100,
+        a: float = 1.0,
+        b: float = 1.0,
+        tol: float = 1e-5,
+    ):
         """
         Parameters:
         - n_clusters (int): Number of latent communities (K)
@@ -37,16 +44,14 @@ class BayesianNMF:
 
             # Update H
             numerator_H = np.dot(W.T, V_div_WH)
-            denominator_H = np.dot(W.T, np.ones((N, N))) + \
-                H * beta[:, np.newaxis]
+            denominator_H = np.dot(W.T, np.ones((N, N))) + H * beta[:, np.newaxis]
             H *= numerator_H / (denominator_H + 1e-10)
 
             # Update W
             WH = np.dot(W, H) + 1e-10
             V_div_WH = V / WH
             numerator_W = np.dot(V_div_WH, H.T)
-            denominator_W = np.dot(np.ones((N, N)), H.T) + \
-                W * beta[np.newaxis, :]
+            denominator_W = np.dot(np.ones((N, N)), H.T) + W * beta[np.newaxis, :]
             W *= numerator_W / (denominator_W + 1e-10)
 
             # Update beta

@@ -4,7 +4,13 @@ from typeguard import typechecked
 
 @typechecked
 class BIGCLAM:
-    def __init__(self, n_nodes: int, n_communities: int, max_iter: int = 100, learning_rate: float = 0.01):
+    def __init__(
+        self,
+        n_nodes: int,
+        n_communities: int,
+        max_iter: int = 100,
+        learning_rate: float = 0.01,
+    ):
         """
         Parameters:
         - n_nodes (int): Number of nodes in the graph

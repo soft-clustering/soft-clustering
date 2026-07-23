@@ -5,8 +5,14 @@ from typeguard import typechecked
 
 @typechecked
 class ENTROPYFCM:
-    def __init__(self, c: int, m: float = 2.0, entropy_weight: float = 1.0,
-                 max_iter: int = 100, tol: float = 1e-5) -> None:
+    def __init__(
+        self,
+        c: int,
+        m: float = 2.0,
+        entropy_weight: float = 1.0,
+        max_iter: int = 100,
+        tol: float = 1e-5,
+    ) -> None:
         """
         Parameters:
         - c (int): Number of clusters
@@ -29,19 +35,19 @@ class ENTROPYFCM:
         self.centroids = X[np.random.choice(N, self.c, replace=False)]
 
     def _update_centroids(self, X: np.ndarray) -> np.ndarray:
-        um = self.U ** self.m
+        um = self.U**self.m
         return (um.T @ X) / np.sum(um.T, axis=1, keepdims=True)
 
     def _update_memberships(self, X: np.ndarray) -> np.ndarray:
-        dist = np.linalg.norm(
-            X[:, None, :] - self.centroids[None, :, :], axis=2) + 1e-8
+        dist = np.linalg.norm(X[:, None, :] - self.centroids[None, :, :], axis=2) + 1e-8
         inv_dist = dist ** (-2 / (self.m - 1))
         return inv_dist / np.sum(inv_dist, axis=1, keepdims=True)
 
     def _objective(self, X: np.ndarray) -> Tuple[float, float]:
-        um = self.U ** self.m
+        um = self.U**self.m
         compactness = np.sum(
-            um * np.linalg.norm(X[:, None, :] - self.centroids[None, :, :], axis=2) ** 2)
+            um * np.linalg.norm(X[:, None, :] - self.centroids[None, :, :], axis=2) ** 2
+        )
         entropy = -np.sum(self.U * np.log(self.U + 1e-8))
         return compactness, entropy
 

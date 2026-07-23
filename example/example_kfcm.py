@@ -2,36 +2,41 @@ from os import path
 import sys
 import numpy as np
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     base_dir = path.dirname(path.realpath(__file__))
     sys.path.append(base_dir[:-4])
     from soft_clustering import KFCM
 
     test_data_list = [
-        [1.2, 1.1], [1.6, 2.0], [1.0, 1.3], [1.4, 1.9], # Cluster 1
-        [6.1, 6.3], [6.6, 7.0], [6.0, 6.2], [6.9, 6.4], # Cluster 2
-        [9.5, 2.1], [10.1, 2.6], [9.9, 1.9], [9.0, 2.3]  # Cluster 3
+        [1.2, 1.1],
+        [1.6, 2.0],
+        [1.0, 1.3],
+        [1.4, 1.9],  # Cluster 1
+        [6.1, 6.3],
+        [6.6, 7.0],
+        [6.0, 6.2],
+        [6.9, 6.4],  # Cluster 2
+        [9.5, 2.1],
+        [10.1, 2.6],
+        [9.9, 1.9],
+        [9.0, 2.3],  # Cluster 3
     ]
     # The KFCM class expects a NumPy array as input
     X = np.array(test_data_list)
     np.random.shuffle(X)
-    print(f"\nCreated a test dataset with {X.shape[0]} points and {X.shape[1]} features.")
+    print(
+        f"\nCreated a test dataset with {X.shape[0]} points and {X.shape[1]} features."
+    )
 
     # Instantiate and run the KFCM algorithm from your library
     print("Instantiating and fitting the KFCM model...")
-    kfcm_instance = KFCM(
-        n_clusters=3,
-        m=2.0,
-        sigma=3.0,
-        epsilon=0.001,
-        max_iter=100
-    )
-        
+    kfcm_instance = KFCM(n_clusters=3, m=2.0, sigma=3.0, epsilon=0.001, max_iter=100)
+
     predicted_labels = kfcm_instance.fit(X)
 
     # Display the results
     print("\n--- KFCM Test Results ---")
-        
+
     # Print the final calculated cluster centers
     print("\nFinal Cluster Centers (V):")
     if kfcm_instance.V is not None:
@@ -52,5 +57,5 @@ if __name__ == '__main__':
         for point in points:
             point_str = ", ".join([f"{coord:.2f}" for coord in point])
             print(f"    Point [{point_str}]")
-            
+
     print("\n--- Test Run Finished ---")

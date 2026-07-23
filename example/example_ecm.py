@@ -2,20 +2,15 @@ from os import path
 import sys
 import numpy as np
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     base_dir = path.dirname(path.realpath(__file__))
     sys.path.append(base_dir[:-4])
     from soft_clustering import ECM
 
     # Sample 2D data (6 samples)
-    X = np.array([
-        [1.0, 2.0],
-        [1.5, 1.8],
-        [5.0, 8.0],
-        [8.0, 8.0],
-        [1.0, 0.6],
-        [9.0, 11.0]
-    ])
+    X = np.array(
+        [[1.0, 2.0], [1.5, 1.8], [5.0, 8.0], [8.0, 8.0], [1.0, 0.6], [9.0, 11.0]]
+    )
 
     model = ECM(n_clusters=2, m=2.0, delta=5.0, max_iter=100)
     model.fit(X)

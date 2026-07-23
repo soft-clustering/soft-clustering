@@ -18,7 +18,8 @@ class CDCGS(nn.Module):
     def forward(self, adj: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         # W_C -> soft cluster assignment using Gumbel-Softmax
         soft_assign = F.gumbel_softmax(
-            self.W_C, tau=self.tau, hard=False, dim=1)  # (n x k)
+            self.W_C, tau=self.tau, hard=False, dim=1
+        )  # (n x k)
 
         # Compute R = W_C^T A W_C
         R = soft_assign.T @ adj @ soft_assign  # (k x k)

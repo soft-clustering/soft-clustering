@@ -31,11 +31,8 @@ class BaseBenchmark(ABC):
     @staticmethod
     def validate_result(result: Dict[str, Any]) -> None:
         if not isinstance(result, dict):
-            raise TypeError(
-                "Benchmark results must be returned as a dictionary."
-            )
+            raise TypeError("Benchmark results must be returned as a dictionary.")
 
     @staticmethod
     def to_dataframe(results):
         return pd.DataFrame(results)
-        

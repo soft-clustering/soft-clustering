@@ -3,17 +3,13 @@ import sys
 from sklearn.feature_extraction.text import CountVectorizer
 from scipy.sparse import csr_matrix
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     base_dir = path.dirname(path.realpath(__file__))
     sys.path.append(base_dir[:-4])
-    from soft_clustering import PLSI  
-    
+    from soft_clustering import PLSI
+
     # Example 1: Simple list of documents
-    docs = [
-        "apple banana apple",
-        "banana fruit apple",
-        "fruit banana banana"
-    ]
+    docs = ["apple banana apple", "banana fruit apple", "fruit banana banana"]
     model1 = PLSI(n_topics=2, max_iter=30, tempered=True, random_state=42)
     model1.fit_predict(docs)
     print("Example 1: Perplexity:", model1.perplexity)

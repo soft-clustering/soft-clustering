@@ -63,8 +63,9 @@ def _estimate_log_gaussian_prob_diag(X, means, covariances, eps=1e-6):
     for k in range(K):
         var = covariances[k] + eps
         diff = X - means[k]
-        log_prob[:, k] = -0.5 * (np.sum(np.log(2.0 * np.pi * var)) +
-                                 np.sum((diff * diff) / var, axis=1))
+        log_prob[:, k] = -0.5 * (
+            np.sum(np.log(2.0 * np.pi * var)) + np.sum((diff * diff) / var, axis=1)
+        )
     return log_prob
 
 
@@ -76,17 +77,18 @@ def _estimate_log_gaussian_prob_spherical(X, means, covariances, eps=1e-6):
     for k in range(K):
         var = covariances[k] + eps
         diff = X - means[k]
-        log_prob[:, k] = -0.5 * (d * np.log(2.0 * np.pi * var) +
-                                 np.sum(diff * diff, axis=1) / var)
+        log_prob[:, k] = -0.5 * (
+            d * np.log(2.0 * np.pi * var) + np.sum(diff * diff, axis=1) / var
+        )
     return log_prob
 
 
 def _estimate_log_gaussian_prob(X, means, covariances, covariance_type, eps=1e-6):
-    if covariance_type == 'full':
+    if covariance_type == "full":
         return _estimate_log_gaussian_prob_full(X, means, covariances, eps)
-    if covariance_type == 'diag':
+    if covariance_type == "diag":
         return _estimate_log_gaussian_prob_diag(X, means, covariances, eps)
-    if covariance_type == 'spherical':
+    if covariance_type == "spherical":
         return _estimate_log_gaussian_prob_spherical(X, means, covariances, eps)
     raise ValueError(f"Unknown covariance_type='{covariance_type}'.")
 
@@ -99,22 +101,26 @@ def _m_step(X, resp, covariance_type, reg_covar):
     weights = Nk / n
     means = (resp.T @ X) / Nk[:, None]
 
-    if covariance_type == 'full':
+    if covariance_type == "full":
         covariances = np.empty((K, d, d), dtype=np.float64)
         for k in range(K):
             diff = X - means[k]
             covariances[k] = (diff * resp[:, [k]]).T @ diff / Nk[k]
             covariances[k].flat[:: d + 1] += reg_covar
-    elif covariance_type == 'diag':
+    elif covariance_type == "diag":
         covariances = np.empty((K, d), dtype=np.float64)
         for k in range(K):
             diff = X - means[k]
-            covariances[k] = (resp[:, [k]] * (diff * diff)).sum(axis=0) / Nk[k] + reg_covar
-    elif covariance_type == 'spherical':
+            covariances[k] = (resp[:, [k]] * (diff * diff)).sum(axis=0) / Nk[
+                k
+            ] + reg_covar
+    elif covariance_type == "spherical":
         covariances = np.empty((K,), dtype=np.float64)
         for k in range(K):
             diff = X - means[k]
-            covariances[k] = (resp[:, k] * np.sum(diff * diff, axis=1)).sum() / (Nk[k] * d) + reg_covar
+            covariances[k] = (resp[:, k] * np.sum(diff * diff, axis=1)).sum() / (
+                Nk[k] * d
+            ) + reg_covar
     else:
         raise ValueError(f"Unknown covariance_type='{covariance_type}'.")
     return weights, means, covariances
@@ -122,13 +128,15 @@ def _m_step(X, resp, covariance_type, reg_covar):
 
 @typechecked
 class GaussianMixtureEM:
-    def __init__(self,
-                 covariance_type: str = 'full',
-                 reg_covar: float = 1e-6,
-                 max_iter: int = 100,
-                 tol: float = 1e-3,
-                 init_params: str = 'kmeans++',
-                 random_state: Optional[int] = None):
+    def __init__(
+        self,
+        covariance_type: str = "full",
+        reg_covar: float = 1e-6,
+        max_iter: int = 100,
+        tol: float = 1e-3,
+        init_params: str = "kmeans++",
+        random_state: Optional[int] = None,
+    ):
         self.covariance_type = covariance_type
         self.reg_covar = float(reg_covar)
         self.max_iter = int(max_iter)
@@ -167,9 +175,9 @@ class GaussianMixtureEM:
         rng = np.random.default_rng(self.random_state)
 
         # initialization
-        if self.init_params == 'kmeans++':
+        if self.init_params == "kmeans++":
             means = _kmeanspp_init(X, K, rng)
-        elif self.init_params == 'random':
+        elif self.init_params == "random":
             idx = rng.integers(0, n, size=K)
             means = X[idx].copy()
         else:
@@ -180,12 +188,14 @@ class GaussianMixtureEM:
         # initial covariances from global variance
         Xc = X - np.mean(X, axis=0, keepdims=True)
         S = (Xc.T @ Xc) / max(n - 1, 1)
-        if self.covariance_type == 'full':
-            covariances = np.array([S + self.reg_covar * np.eye(d) for _ in range(K)], dtype=np.float64)
-        elif self.covariance_type == 'diag':
+        if self.covariance_type == "full":
+            covariances = np.array(
+                [S + self.reg_covar * np.eye(d) for _ in range(K)], dtype=np.float64
+            )
+        elif self.covariance_type == "diag":
             diag = np.diag(S) + self.reg_covar
             covariances = np.tile(diag, (K, 1))
-        elif self.covariance_type == 'spherical':
+        elif self.covariance_type == "spherical":
             var = np.mean(np.diag(S)) + self.reg_covar
             covariances = np.full(K, var, dtype=np.float64)
         else:
@@ -204,10 +214,12 @@ class GaussianMixtureEM:
             ll_trace.append(ll)
             log_resp = log_prob - log_norm
             resp = np.exp(log_resp)
-            resp /= (resp.sum(axis=1, keepdims=True) + 1e-12)
+            resp /= resp.sum(axis=1, keepdims=True) + 1e-12
 
             # M-step
-            weights, means, covariances = _m_step(X, resp, self.covariance_type, self.reg_covar)
+            weights, means, covariances = _m_step(
+                X, resp, self.covariance_type, self.reg_covar
+            )
 
             # convergence
             if abs(ll - ll_old) <= self.tol:

@@ -5,14 +5,18 @@ from sklearn.feature_extraction.text import CountVectorizer
 from typeguard import typechecked
 from typing import Optional
 
+
 class LDA:
     @typechecked
-    def __init__(self, n_topics: int = 10,
-                 alpha: Optional[float] = None,
-                 beta: float = 0.01,
-                 max_iter: int = 100,
-                 var_max_iter: int = 20,
-                 tol: float = 1e-4):
+    def __init__(
+        self,
+        n_topics: int = 10,
+        alpha: Optional[float] = None,
+        beta: float = 0.01,
+        max_iter: int = 100,
+        var_max_iter: int = 20,
+        tol: float = 1e-4,
+    ):
         """
         Latent Dirichlet Allocation (LDA) with variational EM inference.
 
@@ -45,10 +49,12 @@ class LDA:
         D, V = X.shape
 
         # Gamma: document-topic Dirichlet parameters
-        self.gamma = np.random.gamma(100., 1./100., (D, self.n_topics))
+        self.gamma = np.random.gamma(100.0, 1.0 / 100.0, (D, self.n_topics))
 
         # Lambda: topic-word Dirichlet parameters
-        self.lambda_ = np.random.gamma(100., 1./100., (self.n_topics, V)) + self.beta
+        self.lambda_ = (
+            np.random.gamma(100.0, 1.0 / 100.0, (self.n_topics, V)) + self.beta
+        )
 
         # Alpha vector: symmetric prior over topics
         self.alpha_vec = np.full(self.n_topics, self.alpha)
@@ -87,14 +93,16 @@ class LDA:
 
         # Begin EM iterations
         for em_iter in range(self.max_iter):
-            lambda_sum = self.lambda_.sum(axis=1)           # For digamma normalization
-            gamma_old = self.gamma.copy()                   # Save gamma for convergence check
-            accum_lambda = np.zeros_like(self.lambda_)      # Accumulator for expected word-topic counts
+            lambda_sum = self.lambda_.sum(axis=1)  # For digamma normalization
+            gamma_old = self.gamma.copy()  # Save gamma for convergence check
+            accum_lambda = np.zeros_like(
+                self.lambda_
+            )  # Accumulator for expected word-topic counts
 
             # ----------- E-Step -----------
             for d in range(X_csr.shape[0]):
-                ids = X_csr[d].indices                      # Word indices in doc d
-                counts = X_csr[d].data                      # Word counts in doc d
+                ids = X_csr[d].indices  # Word indices in doc d
+                counts = X_csr[d].data  # Word counts in doc d
 
                 # Initialize gamma_d and phi_dn uniformly
                 gamma_d = self.alpha_vec + np.sum(counts) / self.n_topics
@@ -116,7 +124,7 @@ class LDA:
                 self.gamma[d] = gamma_d
 
                 # Accumulate sufficient statistics for lambda update
-                accum_lambda[:, ids] += (phi_dn.T * counts)
+                accum_lambda[:, ids] += phi_dn.T * counts
 
             # ----------- M-Step -----------
             self.lambda_ = self.beta + accum_lambda

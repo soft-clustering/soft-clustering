@@ -2,11 +2,11 @@ import torch
 from os import path
 import sys
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     base_dir = path.dirname(path.realpath(__file__))
     sys.path.append(base_dir[:-4])
     from soft_clustering import RDFKC
+
     """
     Test the RDFKC clustering on synthetic grayscale image-like data (e.g., 32x32).
     The goal is to verify the end-to-end clustering pipeline executes without errors.
@@ -24,8 +24,3 @@ if __name__ == '__main__':
     cluster_labels = model.fit_predict(images)
 
     print(cluster_labels)
-
-
-
-
-

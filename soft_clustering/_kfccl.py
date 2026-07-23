@@ -19,20 +19,22 @@ class KFCCL:
     p_ik: Optional[np.ndarray]
     K: Optional[np.ndarray]
 
-    def __init__(self, 
-                 n_clusters: int = 2,
-                 lambda_: float = 10.0,
-                 gamma: float = 1.0,
-                 epsilon: float = 1e-4,
-                 max_iter: int = 100):
+    def __init__(
+        self,
+        n_clusters: int = 2,
+        lambda_: float = 10.0,
+        gamma: float = 1.0,
+        epsilon: float = 1e-4,
+        max_iter: int = 100,
+    ):
         self.n_clusters = n_clusters  # Number of clusters
-        self.lambda_ = lambda_        # Controls fuzziness level
-        self.gamma = gamma            # Gaussian kernel parameter
-        self.epsilon = epsilon        # Convergence threshold
-        self.max_iter = max_iter      # Maximum iterations
-        self.U: Optional[np.ndarray] = None   # Membership matrix
+        self.lambda_ = lambda_  # Controls fuzziness level
+        self.gamma = gamma  # Gaussian kernel parameter
+        self.epsilon = epsilon  # Convergence threshold
+        self.max_iter = max_iter  # Maximum iterations
+        self.U: Optional[np.ndarray] = None  # Membership matrix
         self.p_ik: Optional[np.ndarray] = None  # Inner products for clusters
-        self.K: Optional[np.ndarray] = None   # Kernel matrix
+        self.K: Optional[np.ndarray] = None  # Kernel matrix
 
     def _gaussian_kernel_matrix(self, X: np.ndarray) -> np.ndarray:
         """
@@ -46,7 +48,11 @@ class KFCCL:
         -------
         K : ndarray of shape (n_samples, n_samples)
         """
-        sq_dists = np.sum(X ** 2, axis=1, keepdims=True) + np.sum(X ** 2, axis=1) - 2 * np.dot(X, X.T)
+        sq_dists = (
+            np.sum(X**2, axis=1, keepdims=True)
+            + np.sum(X**2, axis=1)
+            - 2 * np.dot(X, X.T)
+        )
         return np.exp(-self.gamma * sq_dists)
 
     def fit(self, X: np.ndarray) -> np.ndarray:
@@ -81,7 +87,9 @@ class KFCCL:
             # Update inner products and center norms
             for i in range(self.n_clusters):
                 V_sq[i] += 2 * eta * np.sum(self.U[i] * self.p_ik[i])
-                V_sq[i] += eta ** 2 * np.sum((self.U[i][:, None] * self.U[i][None, :]) * self.K)
+                V_sq[i] += eta**2 * np.sum(
+                    (self.U[i][:, None] * self.U[i][None, :]) * self.K
+                )
 
                 for k in range(N):
                     kernel_norm: np.ndarray = self.K[:, k] / (K_diag * K_diag[k])
@@ -95,7 +103,3 @@ class KFCCL:
 
         # Return hard cluster assignments (winner cluster)
         return np.argmax(self.U, axis=0)
-
-
-
-

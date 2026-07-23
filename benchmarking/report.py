@@ -21,21 +21,14 @@ class BenchmarkReport:
         path: str,
     ) -> None:
 
-        self.results.to_csv(
-            path,
-            index=False
-        )
+        self.results.to_csv(path, index=False)
 
     def to_markdown(
         self,
         path: str,
     ) -> None:
 
-        Path(path).write_text(
-            self.results.to_markdown(
-                index=False
-            )
-        )
+        Path(path).write_text(self.results.to_markdown(index=False))
 
     def summary(self):
 

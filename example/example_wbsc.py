@@ -1,7 +1,7 @@
 from os import path
 import sys
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     base_dir = path.dirname(path.realpath(__file__))
     sys.path.append(base_dir[:-4])
     from soft_clustering import WBSC
@@ -13,7 +13,7 @@ if __name__ == '__main__':
         "the cat and the dog are friends",
         "my homework is about machine learning",
         "machine learning models need data",
-        "cat and dog are common pets"
+        "cat and dog are common pets",
     ]
 
     # Create an instance of the WBSC class

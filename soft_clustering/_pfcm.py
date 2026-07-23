@@ -2,18 +2,19 @@ import numpy as np
 from typeguard import typechecked
 from typing import Union, Optional, List
 
+
 @typechecked
 class PFCM:
     def __init__(
         self,
-        n_clusters: int,             # Number of clusters
-        membership_fuzzifier: float = 2.0,              # Fuzzifier for memberships (typically m > 1)
-        typicality_fuzzifier: float = 2.0,            # Fuzzifier for typicalities
-        membership_weight: float = 1.0,              # Weight for membership term
-        typicality_weight: float = 1.0,              # Weight for typicality term
-        max_iter: int = 150,         # Maximum number of iterations
-        tol: float = 1e-5,           # Tolerance for convergence
-        random_state: Optional[int] = None  # Random seed for reproducibility
+        n_clusters: int,  # Number of clusters
+        membership_fuzzifier: float = 2.0,  # Fuzzifier for memberships (typically m > 1)
+        typicality_fuzzifier: float = 2.0,  # Fuzzifier for typicalities
+        membership_weight: float = 1.0,  # Weight for membership term
+        typicality_weight: float = 1.0,  # Weight for typicality term
+        max_iter: int = 150,  # Maximum number of iterations
+        tol: float = 1e-5,  # Tolerance for convergence
+        random_state: Optional[int] = None,  # Random seed for reproducibility
     ):
         # Store parameters
         self.n_clusters = n_clusters
@@ -26,10 +27,10 @@ class PFCM:
         self.random_state = random_state
 
         # Will be set during training
-        self.membership_matrix: Optional[np.ndarray] = None     # Membership matrix (c x n)
-        self.typicality_matrix: Optional[np.ndarray] = None     # Typicality matrix (c x n)
-        self.cluster_centroids: Optional[np.ndarray] = None     # Cluster centroids (c x d)
-        self.gamma: Optional[np.ndarray] = None # Cluster-wise scaling for typicalities
+        self.membership_matrix: Optional[np.ndarray] = None  # Membership matrix (c x n)
+        self.typicality_matrix: Optional[np.ndarray] = None  # Typicality matrix (c x n)
+        self.cluster_centroids: Optional[np.ndarray] = None  # Cluster centroids (c x d)
+        self.gamma: Optional[np.ndarray] = None  # Cluster-wise scaling for typicalities
 
     def _initialize_centroids(self, X: np.ndarray) -> None:
         """
@@ -46,7 +47,9 @@ class PFCM:
         """
         distances = np.zeros((self.n_clusters, X.shape[0]))
         for i, v in enumerate(self.cluster_centroids):
-            distances[i] = np.linalg.norm(X - v, axis=1) ** 2 + 1e-10  # Add small constant to avoid division by zero
+            distances[i] = (
+                np.linalg.norm(X - v, axis=1) ** 2 + 1e-10
+            )  # Add small constant to avoid division by zero
         return distances
 
     def _update_memberships(self, distances: np.ndarray) -> None:
@@ -89,8 +92,8 @@ class PFCM:
             u_term = self.a * (self.membership_matrix[i] ** self.m)
             t_term = self.b * (self.typicality_matrix[i] ** self.eta)
             weights = u_term + t_term
-            weighted_sum = np.dot(weights, X)             # Weighted average of points
-            new_cluster_centroids[i] = weighted_sum / np.sum(weights)     # New centroid
+            weighted_sum = np.dot(weights, X)  # Weighted average of points
+            new_cluster_centroids[i] = weighted_sum / np.sum(weights)  # New centroid
         return new_cluster_centroids
 
     def fit(self, X: Union[np.ndarray, List[List[float]]]) -> "PFCM":
@@ -109,14 +112,18 @@ class PFCM:
             new_cluster_centroids = self._update_centroids(X)
 
             # Convergence: check max L2 change in centroids
-            max_change = np.max(np.linalg.norm(self.cluster_centroids - new_cluster_centroids, axis=1))
+            max_change = np.max(
+                np.linalg.norm(self.cluster_centroids - new_cluster_centroids, axis=1)
+            )
             self.cluster_centroids = new_cluster_centroids
             if max_change < self.tol:
                 break
 
         return self
 
-    def predict_memberships(self, X: Union[np.ndarray, List[List[float]]]) -> np.ndarray:
+    def predict_memberships(
+        self, X: Union[np.ndarray, List[List[float]]]
+    ) -> np.ndarray:
         """
         Predict fuzzy memberships for new data points.
         Returns a (c x n_new) membership matrix.
@@ -127,7 +134,9 @@ class PFCM:
         denom = np.sum((distances[:, None, :] / distances[None, :, :]) ** power, axis=1)
         return 1.0 / denom
 
-    def predict_typicalities(self, X: Union[np.ndarray, List[List[float]]]) -> np.ndarray:
+    def predict_typicalities(
+        self, X: Union[np.ndarray, List[List[float]]]
+    ) -> np.ndarray:
         """
         Predict typicality values for new data points.
         Returns a (c x n_new) typicality matrix.

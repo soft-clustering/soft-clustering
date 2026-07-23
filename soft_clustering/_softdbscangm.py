@@ -7,8 +7,14 @@ from typeguard import typechecked
 
 @typechecked
 class SoftDBSCANGM:
-    def __init__(self, eps: float = 0.5, min_samples: int = 5, m: float = 2.0,
-                 max_iter: int = 100, tol: float = 1e-4):
+    def __init__(
+        self,
+        eps: float = 0.5,
+        min_samples: int = 5,
+        m: float = 2.0,
+        max_iter: int = 100,
+        tol: float = 1e-4,
+    ):
         """
         Parameters:
         - eps (float): DBSCAN epsilon radius
@@ -54,7 +60,7 @@ class SoftDBSCANGM:
         self.cov_inv = [np.eye(D)] * k
 
         for iteration in range(self.max_iter):
-            U_m = self.U ** self.m
+            U_m = self.U**self.m
             prev_centers = self.centers.copy()
 
             # Step 3: update centers
@@ -66,7 +72,7 @@ class SoftDBSCANGM:
             # Step 4: update covariance inverses
             for j in range(k):
                 diff = X - self.centers[j]
-                weighted = (U_m[:, j][:, None] * diff)
+                weighted = U_m[:, j][:, None] * diff
                 cov = np.dot(weighted.T, diff) / (np.sum(U_m[:, j]) + 1e-10)
                 self.cov_inv[j] = inv(cov + np.eye(D) * 1e-6)
 
@@ -76,8 +82,14 @@ class SoftDBSCANGM:
                     d = mahalanobis(X[i], self.centers[j], self.cov_inv[j])
                     d = max(d, 1e-10)
                     denom = sum(
-                        (d / max(mahalanobis(X[i], self.centers[t],
-                         self.cov_inv[t]), 1e-10)) ** (2 / (self.m - 1))
+                        (
+                            d
+                            / max(
+                                mahalanobis(X[i], self.centers[t], self.cov_inv[t]),
+                                1e-10,
+                            )
+                        )
+                        ** (2 / (self.m - 1))
                         for t in range(k)
                     )
                     self.U[i, j] = 1.0 / denom

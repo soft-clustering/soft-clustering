@@ -35,8 +35,7 @@ class SMCLA:
         cluster_vectors = np.array(cluster_vectors)  # shape: (sum(Kq), N)
 
         # Step 2: Cluster the meta-clusters
-        kmeans_meta = KMeans(n_clusters=self.n_clusters,
-                             random_state=42, n_init=10)
+        kmeans_meta = KMeans(n_clusters=self.n_clusters, random_state=42, n_init=10)
         meta_labels = kmeans_meta.fit_predict(cluster_vectors)
 
         # Step 3: Aggregate memberships per object using meta-cluster assignment

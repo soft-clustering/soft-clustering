@@ -5,8 +5,15 @@ from typeguard import typechecked
 
 @typechecked
 class CAFCM:
-    def __init__(self, c: int, m_start: float = 2.0, m_end: float = 1.01,
-                 cooling_rate: float = 0.95, max_iter: int = 100, tol: float = 1e-5):
+    def __init__(
+        self,
+        c: int,
+        m_start: float = 2.0,
+        m_end: float = 1.01,
+        cooling_rate: float = 0.95,
+        max_iter: int = 100,
+        tol: float = 1e-5,
+    ):
         """
         Parameters:
         - c (int): Number of clusters
@@ -26,15 +33,14 @@ class CAFCM:
         self.U = None
 
     def _update_U(self, X: np.ndarray, centroids: np.ndarray, m: float) -> np.ndarray:
-        dist = np.linalg.norm(
-            X[:, None, :] - centroids[None, :, :], axis=2) + 1e-8
+        dist = np.linalg.norm(X[:, None, :] - centroids[None, :, :], axis=2) + 1e-8
         exponent = 2.0 / (m - 1.0)
         inv_dist = dist ** (-exponent)
         U = inv_dist / np.sum(inv_dist, axis=1, keepdims=True)
         return U
 
     def _update_centroids(self, X: np.ndarray, U: np.ndarray, m: float) -> np.ndarray:
-        um = U ** m
+        um = U**m
         centroids = (um.T @ X) / np.sum(um.T, axis=1, keepdims=True)
         return centroids
 

@@ -2,6 +2,7 @@ import numpy as np
 from typing import Dict, Any, Optional
 from typeguard import typechecked
 
+
 class RoughKMeans:
     @typechecked
     def __init__(
@@ -10,7 +11,7 @@ class RoughKMeans:
         weight_lower: float = 0.7,
         max_iter: int = 100,
         tol: float = 1e-4,
-        random_state: Optional[int] = None
+        random_state: Optional[int] = None,
     ):
         """
         Rough K-Means clustering with interval-set (lower/upper) approximations.
@@ -82,15 +83,17 @@ class RoughKMeans:
             # Calculate cluster thresholds (alpha_j)
             alpha = np.zeros(self.n_clusters)
             for j in range(self.n_clusters):
-                other_dists = [self._euclidean(centroids[j], centroids[m])
-                               for m in range(self.n_clusters) if m != j]
+                other_dists = [
+                    self._euclidean(centroids[j], centroids[m])
+                    for m in range(self.n_clusters)
+                    if m != j
+                ]
                 alpha[j] = 0.5 * min(other_dists) if other_dists else 0.0
 
             # Compute distance matrix between samples and centroids
-            dist_matrix = np.array([
-                [self._euclidean(x, mu) for mu in centroids]
-                for x in X
-            ])
+            dist_matrix = np.array(
+                [[self._euclidean(x, mu) for mu in centroids] for x in X]
+            )
 
             # Reset approximation sets for new iteration
             for j in range(self.n_clusters):
@@ -126,8 +129,7 @@ class RoughKMeans:
                     mu_L = X[lower_idxs].mean(axis=0)
                     mu_F = X[fringe_idxs].mean(axis=0)
                     new_centroids[j] = (
-                        self.weight_lower * mu_L +
-                        (1 - self.weight_lower) * mu_F
+                        self.weight_lower * mu_L + (1 - self.weight_lower) * mu_F
                     )
                 elif lower_idxs:
                     new_centroids[j] = X[lower_idxs].mean(axis=0)
@@ -153,8 +155,8 @@ class RoughKMeans:
                 upper_matrix[i, j] = 1
 
         return {
-            'lower_approx': lower_matrix,
-            'upper_approx': upper_matrix,
-            'centroids': centroids,
-            'n_iter': iter_count
+            "lower_approx": lower_matrix,
+            "upper_approx": upper_matrix,
+            "centroids": centroids,
+            "n_iter": iter_count,
         }

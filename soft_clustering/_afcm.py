@@ -7,7 +7,15 @@ from scipy.linalg import eigh
 
 @typechecked
 class AFCM:
-    def __init__(self, c: int, lambda_: float = 1.0, m: float = 2.0, max_iter: int = 100, tol: float = 1e-5, n_neighbors: int = 5) -> None:
+    def __init__(
+        self,
+        c: int,
+        lambda_: float = 1.0,
+        m: float = 2.0,
+        max_iter: int = 100,
+        tol: float = 1e-5,
+        n_neighbors: int = 5,
+    ) -> None:
         """
         Parameters:
         - c (int): Number of clusters
@@ -25,8 +33,9 @@ class AFCM:
         self.n_neighbors = n_neighbors
 
     def _compute_laplacian(self, X: np.ndarray) -> np.ndarray:
-        W = kneighbors_graph(X, self.n_neighbors,
-                             mode='connectivity', include_self=True).toarray()
+        W = kneighbors_graph(
+            X, self.n_neighbors, mode="connectivity", include_self=True
+        ).toarray()
         D = np.diag(W.sum(axis=1))
         L = D - W
         return L
@@ -58,7 +67,7 @@ class AFCM:
             X_tilde = self._graph_embedding(X, U)
 
             # Update cluster centers
-            um = U ** self.m
+            um = U**self.m
             V = (um.T @ X_tilde) / np.sum(um.T, axis=1, keepdims=True)
 
             # Update distances

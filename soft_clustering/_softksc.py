@@ -21,7 +21,9 @@ class SoftKSC:
     def _compute_kernel(self, X: np.ndarray, Y: np.ndarray) -> np.ndarray:
         return rbf_kernel(X, Y, gamma=self.gamma)
 
-    def fit(self, X_labeled: np.ndarray, y_labeled: np.ndarray, X_unlabeled: np.ndarray):
+    def fit(
+        self, X_labeled: np.ndarray, y_labeled: np.ndarray, X_unlabeled: np.ndarray
+    ):
         """
         Semi-supervised training on labeled and unlabeled data.
 

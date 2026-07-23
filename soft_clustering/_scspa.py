@@ -31,8 +31,7 @@ class SCSPA:
         concatenated = np.concatenate(soft_memberships, axis=1)
 
         # Step 2: Normalize each row
-        concatenated /= np.linalg.norm(concatenated,
-                                       axis=1, keepdims=True) + 1e-8
+        concatenated /= np.linalg.norm(concatenated, axis=1, keepdims=True) + 1e-8
 
         # Step 3: (Optional) Build cosine similarity matrix — not used directly
         _ = cosine_similarity(concatenated)

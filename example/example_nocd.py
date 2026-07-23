@@ -4,8 +4,7 @@ import sys
 import numpy as np
 from scipy.sparse import csr_matrix
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     base_dir = path.dirname(path.realpath(__file__))
     sys.path.append(base_dir[:-4])
     from soft_clustering import NOCD

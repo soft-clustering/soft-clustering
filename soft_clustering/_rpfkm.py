@@ -5,8 +5,15 @@ from typeguard import typechecked
 
 @typechecked
 class RPFKM:
-    def __init__(self, c: int, d: int, gamma: float = 0.1, beta: float = 1.0, max_iter: int = 50,
-                 random_state: Optional[int] = None) -> None:
+    def __init__(
+        self,
+        c: int,
+        d: int,
+        gamma: float = 0.1,
+        beta: float = 1.0,
+        max_iter: int = 50,
+        random_state: Optional[int] = None,
+    ) -> None:
         """
         Initializes the RPFKM algorithm with given hyperparameters.
 
@@ -46,7 +53,9 @@ class RPFKM:
         cluster_labels = np.argmax(U, axis=0)
         return cluster_labels, U, W
 
-    def _initialize_variables(self, X: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def _initialize_variables(
+        self, X: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         D, N = X.shape
         rng = np.random.default_rng(self.random_state)
         W = np.linalg.qr(rng.standard_normal((D, self.d)))[0]
@@ -54,7 +63,9 @@ class RPFKM:
         p = np.ones((self.c, N))
         return W, U, p
 
-    def _update_M(self, X: np.ndarray, W: np.ndarray, U: np.ndarray, p: np.ndarray) -> np.ndarray:
+    def _update_M(
+        self, X: np.ndarray, W: np.ndarray, U: np.ndarray, p: np.ndarray
+    ) -> np.ndarray:
         WX = W.T @ X
         M = np.zeros((self.d, self.c))
         for k in range(self.c):
@@ -89,11 +100,11 @@ class RPFKM:
         Xt = X - X_mean
         S_w = np.zeros((D, D))
         for k in range(self.c):
-            s = (p[k, :] * U[k, :])
+            s = p[k, :] * U[k, :]
             x_mean_k = np.sum(s * X, axis=1, keepdims=True) / np.sum(s)
             diff = X - x_mean_k
             S_w += diff @ np.diag(s) @ diff.T
         S_t = Xt @ Xt.T
         eigvals, eigvecs = np.linalg.eigh(self.beta * S_t - S_w)
-        W = eigvecs[:, -self.d:]
+        W = eigvecs[:, -self.d :]
         return W

@@ -4,7 +4,14 @@ from typeguard import typechecked
 
 @typechecked
 class ECM:
-    def __init__(self, n_clusters: int = 3, m: float = 2.0, delta: float = 10.0, max_iter: int = 100, tol: float = 1e-5):
+    def __init__(
+        self,
+        n_clusters: int = 3,
+        m: float = 2.0,
+        delta: float = 10.0,
+        max_iter: int = 100,
+        tol: float = 1e-5,
+    ):
         """
         Parameters:
         - n_clusters (int): Number of clusters
@@ -40,7 +47,7 @@ class ECM:
         for _ in range(self.max_iter):
             D = self._compute_distances(X)
             D = np.clip(D, 1e-10, None)  # Avoid division by zero
-            m1 = 1. / (self.m - 1)
+            m1 = 1.0 / (self.m - 1)
 
             # Last column = noise cluster
             M = np.zeros((N, self.n_clusters + 1))
@@ -48,7 +55,7 @@ class ECM:
             for i in range(N):
                 for k in range(self.n_clusters):
                     M[i, k] = (1.0 / D[i, k]) ** m1
-                M[i, -1] = (1.0 / self.delta ** 2) ** m1  # Noise mass
+                M[i, -1] = (1.0 / self.delta**2) ** m1  # Noise mass
                 M[i, :] = M[i, :] / np.sum(M[i, :])
 
             self.mass = M

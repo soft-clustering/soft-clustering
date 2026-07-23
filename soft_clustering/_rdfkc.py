@@ -10,9 +10,15 @@ from typing import Optional, Union
 class COIL20Encoder(nn.Module):
     def __init__(self):
         super().__init__()
-        self.conv1 = nn.Conv2d(1, 6, kernel_size=13, stride=1, padding=0)  # → (6, 20, 20)
-        self.conv2 = nn.Conv2d(6, 12, kernel_size=11, stride=1, padding=0) # → (12, 10, 10)
-        self.conv3 = nn.Conv2d(12, 16, kernel_size=5, stride=1, padding=0) # → (16, 6, 6)
+        self.conv1 = nn.Conv2d(
+            1, 6, kernel_size=13, stride=1, padding=0
+        )  # → (6, 20, 20)
+        self.conv2 = nn.Conv2d(
+            6, 12, kernel_size=11, stride=1, padding=0
+        )  # → (12, 10, 10)
+        self.conv3 = nn.Conv2d(
+            12, 16, kernel_size=5, stride=1, padding=0
+        )  # → (16, 6, 6)
         self.fc = nn.Linear(16 * 6 * 6, 70)
         self._init_weights()
 
@@ -38,7 +44,7 @@ class COIL20Decoder(nn.Module):
         self.fc = nn.Linear(70, 16 * 6 * 6)
         self.deconv1 = nn.ConvTranspose2d(16, 12, kernel_size=5)  # → (12, 10, 10)
         self.deconv2 = nn.ConvTranspose2d(12, 6, kernel_size=11)  # → (6, 20, 20)
-        self.deconv3 = nn.ConvTranspose2d(6, 1, kernel_size=13)   # → (1, 32, 32)
+        self.deconv3 = nn.ConvTranspose2d(6, 1, kernel_size=13)  # → (1, 32, 32)
         self._init_weights()
 
     def _init_weights(self):
@@ -60,9 +66,15 @@ class COIL20Decoder(nn.Module):
 class FashionMNISTEncoder(nn.Module):
     def __init__(self):
         super().__init__()
-        self.conv1 = nn.Conv2d(1, 6, kernel_size=5, stride=1, padding=2)   # → (6, 32, 32)
-        self.conv2 = nn.Conv2d(6, 12, kernel_size=3, stride=1, padding=1)  # → (12, 32, 32)
-        self.conv3 = nn.Conv2d(12, 16, kernel_size=3, stride=1, padding=1) # → (16, 32, 32)
+        self.conv1 = nn.Conv2d(
+            1, 6, kernel_size=5, stride=1, padding=2
+        )  # → (6, 32, 32)
+        self.conv2 = nn.Conv2d(
+            6, 12, kernel_size=3, stride=1, padding=1
+        )  # → (12, 32, 32)
+        self.conv3 = nn.Conv2d(
+            12, 16, kernel_size=3, stride=1, padding=1
+        )  # → (16, 32, 32)
         self.fc = nn.Linear(16 * 32 * 32, 20)
         self._init_weights()
 
@@ -109,18 +121,20 @@ class FashionMNISTDecoder(nn.Module):
 
 @typechecked
 class RDFKC:
-    def __init__(self, 
-                K: int,
-                encoder: Optional[torch.nn.Module] = None,
-                decoder: Optional[torch.nn.Module] = None,
-                dataset: Optional[str] = None,
-                random_state: Optional[int] = None,
-                max_iter: int = 100,
-                batch_size: Optional[int] = None,
-                lr: float = 1e-4,
-                mu: float = 1.0,
-                gamma: float = 1e-4,
-                tau: float = 0.1):
+    def __init__(
+        self,
+        K: int,
+        encoder: Optional[torch.nn.Module] = None,
+        decoder: Optional[torch.nn.Module] = None,
+        dataset: Optional[str] = None,
+        random_state: Optional[int] = None,
+        max_iter: int = 100,
+        batch_size: Optional[int] = None,
+        lr: float = 1e-4,
+        mu: float = 1.0,
+        gamma: float = 1e-4,
+        tau: float = 0.1,
+    ):
         """
         Initialize the Robust Deep Fuzzy K-Means Clustering model.
 
@@ -160,14 +174,18 @@ class RDFKC:
             self.encoder = FashionMNISTEncoder()
             self.decoder = FashionMNISTDecoder()
         else:
-            raise ValueError("Either provide encoder/decoder or specify a known dataset.")
-        
-        self.optimizer = torch.optim.Adam(list(self.encoder.parameters()) + list(self.decoder.parameters()), lr=self.lr)
+            raise ValueError(
+                "Either provide encoder/decoder or specify a known dataset."
+            )
 
+        self.optimizer = torch.optim.Adam(
+            list(self.encoder.parameters()) + list(self.decoder.parameters()),
+            lr=self.lr,
+        )
 
     def _k_nearest_to_nth_sample(self, n: int, k: int = 10) -> list:
         distances = torch.norm(self.Z[n] - self.Z, dim=1)
-        neighbors = torch.argsort(distances)[1:k+1]
+        neighbors = torch.argsort(distances)[1 : k + 1]
         return neighbors.tolist()
 
     def _initialize_membership_matrix(self) -> torch.Tensor:
@@ -183,7 +201,9 @@ class RDFKC:
         """Construct the similarity matrix using k-nearest neighbors"""
         S = torch.zeros(self.N, self.N)
         for i in range(self.N):
-            distances = torch.tensor([torch.norm(self.Z[i] - self.Z[j]) for j in range(self.N)])
+            distances = torch.tensor(
+                [torch.norm(self.Z[i] - self.Z[j]) for j in range(self.N)]
+            )
             neighbors = self._k_nearest_to_nth_sample(i)
             for j in neighbors:
                 S[i, j] = torch.exp(-distances[j] / 0.5)
@@ -201,7 +221,9 @@ class RDFKC:
         self.decoder.train()
         self.optimizer.zero_grad()
 
-        loader = DataLoader(TensorDataset(self.X), batch_size=self.batch_size or 256, shuffle=False)
+        loader = DataLoader(
+            TensorDataset(self.X), batch_size=self.batch_size or 256, shuffle=False
+        )
         all_Z, all_X_recon = [], []
         for (x_batch,) in loader:
             z_batch = self.encoder(x_batch)
@@ -219,12 +241,12 @@ class RDFKC:
             for c in range(self.K):
                 dist = torch.norm(self.Z[n] - self.V[c])
                 k_i = self._compute_ki(dist)
-                cluster_loss += self.U[n, c] ** 2 * k_i * dist ** 2
+                cluster_loss += self.U[n, c] ** 2 * k_i * dist**2
 
         reg_loss = 0.0
         for module in list(self.encoder.modules()) + list(self.decoder.modules()):
             if hasattr(module, "weight") and module.weight is not None:
-                reg_loss += torch.norm(module.weight, p='fro') ** 2
+                reg_loss += torch.norm(module.weight, p="fro") ** 2
             if hasattr(module, "bias") and module.bias is not None:
                 reg_loss += torch.norm(module.bias, p=2) ** 2
         reg_loss *= self.gamma
@@ -263,7 +285,7 @@ class RDFKC:
             for c in range(self.K):
                 p[c] = 2 * self.mu * sum(self.S[n, j] * self.U[j, c] for j in neighbors)
                 dist = torch.norm(self.Z[n] - self.V[c]) + 1e-8
-                q[c] = ((1 + self.tau) * dist ** 2) / (dist + self.tau)
+                q[c] = ((1 + self.tau) * dist**2) / (dist + self.tau)
                 q[c] += self.mu * sum(self.S[n, j] for j in neighbors)
 
             lambda_n = (2 - torch.sum(p / q)) / (torch.sum(1 / q) + 1e-8)
@@ -272,7 +294,7 @@ class RDFKC:
 
         self.U = U_new
 
-    def fit_predict(self, X: Union[np.ndarray, torch.Tensor]) -> np.ndarray: 
+    def fit_predict(self, X: Union[np.ndarray, torch.Tensor]) -> np.ndarray:
         """Train the RD-FKC model and return soft cluster assignments."""
         if isinstance(X, np.ndarray):
             self.X = torch.tensor(X, dtype=torch.float32)

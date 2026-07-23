@@ -3,7 +3,7 @@ import sys
 import numpy as np
 import matplotlib.pyplot as plt
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     base_dir = path.dirname(path.realpath(__file__))
     sys.path.append(base_dir[:-4])
     from soft_clustering import AFCMAdaptive
@@ -24,18 +24,18 @@ if __name__ == '__main__':
     plt.figure(figsize=(10, 3))
     plt.subplot(1, 3, 1)
     plt.title("Original Image")
-    plt.imshow(image, cmap='gray')
-    plt.axis('off')
+    plt.imshow(image, cmap="gray")
+    plt.axis("off")
 
     plt.subplot(1, 3, 2)
     plt.title("Predicted Labels")
-    plt.imshow(labels, cmap='jet')
-    plt.axis('off')
+    plt.imshow(labels, cmap="jet")
+    plt.axis("off")
 
     plt.subplot(1, 3, 3)
     plt.title("Membership (Class 1)")
-    plt.imshow(membership[:, :, 0], cmap='hot')
-    plt.axis('off')
+    plt.imshow(membership[:, :, 0], cmap="hot")
+    plt.axis("off")
 
     plt.tight_layout()
     plt.show()

@@ -2,12 +2,13 @@ import sys
 from os import path
 import random
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     base_dir = path.dirname(path.realpath(__file__))
     sys.path.append(base_dir[:-4])
     from soft_clustering import PFCM
 
-#Create simple sample data (3 small groups of 2D points)
+
+# Create simple sample data (3 small groups of 2D points)
 def create_data():
     data = []
 
@@ -31,7 +32,8 @@ def create_data():
 
     return data
 
-#Run PFCM on the data and print results
+
+# Run PFCM on the data and print results
 def run_pfcm():
     data = create_data()
     model = PFCM(n_clusters=3, random_state=0)
@@ -43,12 +45,16 @@ def run_pfcm():
 
     print("\nMemberships for first 5 points:")
     for i in range(5):
-        memberships = [round(model.membership_matrix[j][i], 3) for j in range(model.n_clusters)]
+        memberships = [
+            round(model.membership_matrix[j][i], 3) for j in range(model.n_clusters)
+        ]
         print(f"Point {i + 1}: {memberships}")
 
     print("\nTypicalities for first 5 points:")
     for i in range(5):
-        typicalities = [round(model.typicality_matrix[j][i], 3) for j in range(model.n_clusters)]
+        typicalities = [
+            round(model.typicality_matrix[j][i], 3) for j in range(model.n_clusters)
+        ]
         print(f"Point {i + 1}: {typicalities}")
 
 

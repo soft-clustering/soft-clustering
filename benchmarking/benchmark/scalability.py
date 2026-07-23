@@ -42,9 +42,7 @@ class ScalabilityBenchmark(BaseBenchmark):
         y: Optional[np.ndarray] = None,
     ) -> Dict[str, float]:
 
-        rng = np.random.default_rng(
-            self.random_state
-        )
+        rng = np.random.default_rng(self.random_state)
 
         results = {}
 
@@ -65,21 +63,12 @@ class ScalabilityBenchmark(BaseBenchmark):
 
             start = time.perf_counter()
             model.fit(X_sub)
-            runtime = (
-                time.perf_counter()
-                - start
-            )
+            runtime = time.perf_counter() - start
 
             mem_after = self._memory_mb()
 
-            results[
-                f"runtime_{size}"
-            ] = runtime
+            results[f"runtime_{size}"] = runtime
 
-            results[
-                f"memory_{size}"
-            ] = (
-                mem_after - mem_before
-            )
+            results[f"memory_{size}"] = mem_after - mem_before
 
         return results

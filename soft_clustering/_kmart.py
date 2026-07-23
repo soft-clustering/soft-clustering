@@ -4,6 +4,7 @@ from scipy.sparse import lil_matrix, csr_matrix
 from collections import defaultdict
 from typing import List, Set, Dict, Tuple
 
+
 class KMART:
     """
     Implements a modified Fuzzy Adaptive Resonance Theory (Fuzzy ART) algorithm
@@ -40,13 +41,38 @@ class KMART:
         self.prototypes_: List[np.ndarray] = []
         self._unique_words: List[str] = []
         self.cluster_words_: List[Set[str]] = []
-        
+
         # Stop words are defined as a class attribute for reusability.
-        self._stop_words = set([
-            "the", "a", "an", "and", "or", "but", "in", "on", "with", "for",
-            "to", "of", "from", "at", "by", "is", "are", "be", "was", "were",
-            "it", "its", "that", "this", "these", "those"
-        ])
+        self._stop_words = set(
+            [
+                "the",
+                "a",
+                "an",
+                "and",
+                "or",
+                "but",
+                "in",
+                "on",
+                "with",
+                "for",
+                "to",
+                "of",
+                "from",
+                "at",
+                "by",
+                "is",
+                "are",
+                "be",
+                "was",
+                "were",
+                "it",
+                "its",
+                "that",
+                "this",
+                "these",
+                "those",
+            ]
+        )
 
     def _preprocess(self, docs: List[str]) -> Tuple[List[np.ndarray], List[str]]:
         """
@@ -77,7 +103,7 @@ class KMART:
         # Create a sorted list of unique words for consistent vector indexing
         self._unique_words = sorted(list(unique_words))
         word_to_idx = {word: i for i, word in enumerate(self._unique_words)}
-        
+
         # Second pass: Create document frequency vectors
         doc_vectors = []
         vocab_size = len(self._unique_words)
@@ -87,7 +113,7 @@ class KMART:
                 if word in word_to_idx:
                     vector[word_to_idx[word]] = count
             doc_vectors.append(vector)
-            
+
         return doc_vectors, self._unique_words
 
     def _fuzzy_and(self, vec1: np.ndarray, vec2: np.ndarray) -> np.ndarray:
@@ -108,10 +134,10 @@ class KMART:
         """
         Extracts representative keywords for each cluster by collecting all
         words from the documents within each final cluster, filtering out stop words.
-        
+
         Args:
             docs (List[str]): The original list of text documents.
-            
+
         Returns:
             List[Set[str]]: A list of sets, where each set contains the keywords
                             for a corresponding cluster.
@@ -125,7 +151,9 @@ class KMART:
                     # Filter out stop words here to ensure the final output is clean
                     if word not in self._stop_words:
                         word_counts[word] += 1
-            sorted_words = sorted(word_counts.keys(), key=lambda w: word_counts[w], reverse=True)
+            sorted_words = sorted(
+                word_counts.keys(), key=lambda w: word_counts[w], reverse=True
+            )
             cluster_keywords.append(set(sorted_words[:10]))
         return cluster_keywords
 
@@ -141,17 +169,19 @@ class KMART:
                         document membership in the final clusters.
         """
         doc_vectors, self._unique_words = self._preprocess(docs)
-        
+
         for i, doc_vector in enumerate(doc_vectors):
-            
+
             # Find all prototypes that pass the vigilance test
             passed_tests = []
             for j, prototype in enumerate(self.prototypes_):
                 fuzzy_and_result = self._fuzzy_and(doc_vector, prototype)
                 # Vigilance Test: ||I & P|| / ||I|| >= rho
                 # L1 norm is used for the vectors
-                vigilance_score = np.sum(fuzzy_and_result) / (np.sum(doc_vector) + 1e-9) # Add a small epsilon to avoid division by zero
-                
+                vigilance_score = np.sum(fuzzy_and_result) / (
+                    np.sum(doc_vector) + 1e-9
+                )  # Add a small epsilon to avoid division by zero
+
                 if vigilance_score >= self.vigilance_param:
                     passed_tests.append(j)
 
@@ -165,23 +195,26 @@ class KMART:
                 # If one or more prototypes pass, update all of them
                 for cluster_idx in passed_tests:
                     prototype = self.prototypes_[cluster_idx]
-                    
+
                     # Update rule: P_new = lambda * (I & P_old) + (1 - lambda) * P_old
-                    updated_prototype = self.learning_rate * self._fuzzy_and(doc_vector, prototype) + (1 - self.learning_rate) * prototype
+                    updated_prototype = (
+                        self.learning_rate * self._fuzzy_and(doc_vector, prototype)
+                        + (1 - self.learning_rate) * prototype
+                    )
                     self.prototypes_[cluster_idx] = updated_prototype
-                    
+
                     # Add the document to the corresponding cluster
                     self.clusters_[cluster_idx].add(i)
-        
+
         # Post-processing: Generate the output membership matrix and keywords
         self.cluster_words_ = self._extract_keywords(docs)
 
         num_docs = len(docs)
         num_clusters = len(self.clusters_)
         memberships = lil_matrix((num_docs, num_clusters), dtype=np.int8)
-        
+
         for cluster_idx, doc_set in enumerate(self.clusters_):
             for doc_idx in doc_set:
                 memberships[doc_idx, cluster_idx] = 1
-                
+
         return memberships.tocsr()

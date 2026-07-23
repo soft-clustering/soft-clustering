@@ -35,9 +35,7 @@ class RuntimeBenchmark(BaseBenchmark):
 
             start = time.perf_counter()
             model.fit(X)
-            fit_times.append(
-                time.perf_counter() - start
-            )
+            fit_times.append(time.perf_counter() - start)
 
             if hasattr(model, "predict"):
 
@@ -48,16 +46,12 @@ class RuntimeBenchmark(BaseBenchmark):
                 except Exception:
                     pass
 
-                predict_times.append(
-                    time.perf_counter() - start
-                )
+                predict_times.append(time.perf_counter() - start)
 
         return {
             "fit_time_sec": float(np.mean(fit_times)),
             "fit_time_std": float(np.std(fit_times)),
             "predict_time_sec": (
-                float(np.mean(predict_times))
-                if predict_times
-                else np.nan
+                float(np.mean(predict_times)) if predict_times else np.nan
             ),
         }

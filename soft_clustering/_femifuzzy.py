@@ -20,7 +20,7 @@ class _MIFuzzy:
         fuzzifier: float = 2.0,
         random_state: Optional[int] = None,
         max_iter: int = 0,
-    ):  
+    ):
         self.C = c_clusters
         self.n_imputations = n_imputations
         self.N = n_samples
@@ -35,19 +35,19 @@ class _MIFuzzy:
         # Create imputed datasets
         rng_master = np.random.default_rng(self.random_state)
         imputed_datasets = []
-        
+
         for _ in range(self.n_imputations):
             rng = np.random.default_rng(rng_master.integers(0, 2**31 - 1))
             X_imp = self.X.copy()
             mask = np.isnan(X_imp)
-            
+
             # Fill NaNs with mean + small Gaussian noise
             noise = rng.normal(scale=0.01, size=mask.sum())
             X_imp[mask] = np.take(self.col_means, np.where(mask)[1]) + noise
-            
+
             imputed_datasets.append(X_imp)
         return imputed_datasets
-    
+
     def generate_membership(self, V):
         U = np.zeros((self.N, self.C))
 
@@ -59,7 +59,7 @@ class _MIFuzzy:
                     denominator += dist ** (2 / self.m - 1) / (dist + 1e-12)
                 U[i, j] = 1 / denominator
         return U
-    
+
     def update_cluster_centers(self, U):
         V = np.zeros((self.C, self.X.shape[1]))
         for j in range(self.C):
@@ -74,12 +74,12 @@ class _MIFuzzy:
 
     def fit(self, X: np.ndarray):
         self.X = np.asarray(X, dtype=float)
-        
+
         # Drop fully-missing columns
         self.full_missing_mask = np.all(np.isnan(self.X), axis=0)
         if np.any(self.full_missing_mask):
             self.X = self.X[:, ~self.full_missing_mask]
-        
+
         imputed_datasets = self.multiple_imputer()
 
         rng = np.random.default_rng(self.random_state)
@@ -95,30 +95,31 @@ class _MIFuzzy:
             for _ in range(self.max_iter - 1):
                 V = self.update_cluster_centers(U)
                 U = self.generate_membership(V)
-            
+
             self.cluster_centers.append(V)
             self.membership_matrices.append(U)
 
     def transform(self, X):
         """Impute new data using learned means (single dataset)."""
         X = np.asarray(X, dtype=float)
-        
+
         # Drop same fully-missing columns
         X = X[:, ~self.full_missing_mask]
-        
+
         # Fill NaNs with learned means
         mask = np.isnan(X)
         X[mask] = np.take(self.col_means, np.where(mask)[1])
-        
+
         return X
-            
+
 
 @typechecked
 class FeMIFuzzy:
-    def __init__(self,
-                 random_state: Optional[int] = None,
-                 max_iter: int = 100,
-                 ):
+    def __init__(
+        self,
+        random_state: Optional[int] = None,
+        max_iter: int = 100,
+    ):
         self.random_state = random_state
         self.max_iter = max_iter
 
@@ -198,12 +199,12 @@ class FeMIFuzzy:
             for i in range(N):
                 num += U[i, j] ** m * np.sum((X[i] - V[j]) ** 2)
             for k in range(C):
-                    pairwise[k, j] = np.sum((V[k] - V[j]) ** 2)
+                pairwise[k, j] = np.sum((V[k] - V[j]) ** 2)
         np.fill_diagonal(pairwise, np.inf)
         min_sep = pairwise.min()
 
         return num / (N * min_sep)
-    
+
     def _cluster_signature(self, X, U, j):
         """
         Create a signature vector for cluster j.
@@ -213,12 +214,12 @@ class FeMIFuzzy:
             return np.zeros(X.shape[1] * 6 + 1)  # empty cluster
 
         signature = [
-            members.shape[0],                # number of observations
+            members.shape[0],  # number of observations
             *np.mean(members, axis=0),
             *np.min(members, axis=0),
             *np.max(members, axis=0),
             *np.std(members, axis=0),
-            *np.median(members, axis=0)
+            *np.median(members, axis=0),
         ]
         return np.array(signature)
 
@@ -248,7 +249,12 @@ class FeMIFuzzy:
 
             for k in range(1, max_k + 1):
                 self.C = k
-                mifuzzy = _MIFuzzy(c_clusters=self.C, n_samples=n, random_state=self.random_state, max_iter=self.max_iter)
+                mifuzzy = _MIFuzzy(
+                    c_clusters=self.C,
+                    n_samples=n,
+                    random_state=self.random_state,
+                    max_iter=self.max_iter,
+                )
                 mifuzzy.fit(X)
                 U_set.append(mifuzzy.membership_matrices)
                 V_set.append(mifuzzy.cluster_centers)
@@ -268,8 +274,12 @@ class FeMIFuzzy:
             aligned_centers = [V_1]
             aligned_memberships = [U_1]
 
-            for V_n, U_n in zip(V_set[best_k_idx][:best_imp_idx] + V_set[best_k_idx][best_imp_idx+1:],
-                                U_set[best_k_idx][:best_imp_idx] + U_set[best_k_idx][best_imp_idx+1:]):
+            for V_n, U_n in zip(
+                V_set[best_k_idx][:best_imp_idx]
+                + V_set[best_k_idx][best_imp_idx + 1 :],
+                U_set[best_k_idx][:best_imp_idx]
+                + U_set[best_k_idx][best_imp_idx + 1 :],
+            ):
                 mapping = self._match_centroids(X, U_1, X, U_n)
                 aligned_centers.append(V_n[mapping])
                 aligned_memberships.append(U_n[:, mapping])
@@ -284,6 +294,8 @@ class FeMIFuzzy:
         V_global = [np.zeros_like(centroids[0][j]) for j in range(int(C_global))]
 
         for j in range(C_global):
-            V_global[j] = sum(N[k] * centroids[k][j] for k in range(len(clients))) / sum(N)
+            V_global[j] = sum(
+                N[k] * centroids[k][j] for k in range(len(clients))
+            ) / sum(N)
 
         return V_global

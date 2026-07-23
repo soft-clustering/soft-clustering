@@ -53,7 +53,7 @@ def _update_T_from_centers(X, centers, etas, m, eps=1e-12):
 
 def _update_centers_from_T(X, T, m, eps=1e-12):
     """Update centers given typicalities."""
-    Tm = T ** m
+    Tm = T**m
     num = Tm.T @ X
     den = np.sum(Tm, axis=0, keepdims=True).T
     centers = num / (den + eps)
@@ -63,7 +63,7 @@ def _update_centers_from_T(X, T, m, eps=1e-12):
 def _update_etas(X, T, centers, m, alpha=1.0, eps=1e-12):
     """Update per-cluster eta as weighted intra-cluster variance."""
     d2 = _euclidean_dist2(X, centers)
-    Tm = T ** m
+    Tm = T**m
     num = np.sum(Tm * d2, axis=0)  # (K,)
     den = np.sum(Tm, axis=0) + eps  # (K,)
     etas = alpha * (num / den + eps)
@@ -72,20 +72,22 @@ def _update_etas(X, T, centers, m, alpha=1.0, eps=1e-12):
 
 def _objective_pcm(X, T, centers, etas, m):
     d2 = _euclidean_dist2(X, centers)
-    term1 = np.sum((T ** m) * d2)
+    term1 = np.sum((T**m) * d2)
     term2 = np.sum(etas[None, :] * ((1.0 - T) ** m))
     return float(term1 + term2)
 
 
 @typechecked
 class PossibilisticCMeans:
-    def __init__(self,
-                 random_state: Optional[int] = None,
-                 m: float = 2.0,
-                 alpha: float = 1.0,
-                 max_iter: int = 300,
-                 tol: float = 1e-5,
-                 init: str = 'kmeans++'):
+    def __init__(
+        self,
+        random_state: Optional[int] = None,
+        m: float = 2.0,
+        alpha: float = 1.0,
+        max_iter: int = 300,
+        tol: float = 1e-5,
+        init: str = "kmeans++",
+    ):
         self.random_state = random_state
         if random_state is not None:
             np.random.seed(random_state)
@@ -124,9 +126,9 @@ class PossibilisticCMeans:
         rng = np.random.default_rng(self.random_state)
 
         # initialize centers
-        if self.init == 'kmeans++':
+        if self.init == "kmeans++":
             centers = _init_centers_kpp(X, K, rng)
-        elif self.init == 'random':
+        elif self.init == "random":
             idx = rng.integers(0, n, size=K)
             centers = X[idx].copy()
         else:
@@ -138,7 +140,7 @@ class PossibilisticCMeans:
         etas = np.empty(K, dtype=np.float64)
         global_mean = np.mean(d2, axis=0)
         for k in range(K):
-            mask = (labels == k)
+            mask = labels == k
             if np.any(mask):
                 etas[k] = np.mean(d2[mask, k])
             else:

@@ -26,7 +26,7 @@ def _euclidean_dist2(X, centers):
 def _normalize_memberships(U, eps=1e-12):
     U = np.maximum(U, eps)
     U_sum = U.sum(axis=1, keepdims=True)
-    U /= (U_sum + eps)
+    U /= U_sum + eps
     return U
 
 
@@ -54,7 +54,7 @@ def _update_U_from_centers(X, centers, m, eps=1e-12):
     dist2 = _euclidean_dist2(X, centers) + eps
     inv_dist = 1.0 / dist2
     power = 1.0 / (m - 1.0)
-    inv_dist_pow = inv_dist ** power
+    inv_dist_pow = inv_dist**power
     denom = np.sum(inv_dist_pow, axis=1, keepdims=True)
     U = inv_dist_pow / (denom + eps)
     return _normalize_memberships(U, eps=eps)
@@ -62,7 +62,7 @@ def _update_U_from_centers(X, centers, m, eps=1e-12):
 
 def _update_centers_from_U(X, U, m, eps=1e-12):
     """Update centers given membership matrix."""
-    Um = U ** m
+    Um = U**m
     num = Um.T @ X
     den = np.sum(Um, axis=0, keepdims=True).T
     centers = num / (den + eps)
@@ -71,17 +71,19 @@ def _update_centers_from_U(X, U, m, eps=1e-12):
 
 def _objective(X, U, centers, m):
     dist2 = _euclidean_dist2(X, centers)
-    return float(np.sum((U ** m) * dist2))
+    return float(np.sum((U**m) * dist2))
 
 
 @typechecked
 class FuzzyCMeans:
-    def __init__(self,
-                 random_state: Optional[int] = None,
-                 m: float = 2.0,
-                 max_iter: int = 300,
-                 tol: float = 1e-5,
-                 init: str = 'kmeans++'):
+    def __init__(
+        self,
+        random_state: Optional[int] = None,
+        m: float = 2.0,
+        max_iter: int = 300,
+        tol: float = 1e-5,
+        init: str = "kmeans++",
+    ):
         self.random_state = random_state
         if random_state is not None:
             np.random.seed(random_state)
@@ -117,9 +119,9 @@ class FuzzyCMeans:
 
         rng = np.random.default_rng(self.random_state)
 
-        if self.init == 'kmeans++':
+        if self.init == "kmeans++":
             centers = _init_centers_kpp(X, K, rng)
-        elif self.init == 'random':
+        elif self.init == "random":
             U = _normalize_memberships(rng.random((n, K)))
             centers = _update_centers_from_U(X, U, self.m)
         else:

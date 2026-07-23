@@ -4,6 +4,7 @@ from collections import defaultdict
 from scipy.sparse import lil_matrix, csr_matrix
 from typing import List, Dict, Set, Union
 
+
 @typechecked
 class WBSC:
     """
@@ -21,10 +22,12 @@ class WBSC:
         cluster_words_ (List[Set[str]]): The representative words for each final cluster.
     """
 
-    def __init__(self,
-                 similarity_threshold: float = 0.33,
-                 min_doc_freq: int = 2,
-                 max_doc_freq_ratio: float = 0.5):
+    def __init__(
+        self,
+        similarity_threshold: float = 0.33,
+        min_doc_freq: int = 2,
+        max_doc_freq_ratio: float = 0.5,
+    ):
         """
         Initializes the algorithm's parameters.
 
@@ -41,7 +44,9 @@ class WBSC:
         self.clusters_: List[Set[int]] = []
         self.cluster_words_: List[Set[str]] = []
 
-    def _initialize_clusters(self, docs: List[str]) -> List[Dict[str, Union[Set[int], Set[str]]]]:
+    def _initialize_clusters(
+        self, docs: List[str]
+    ) -> List[Dict[str, Union[Set[int], Set[str]]]]:
         """
         Performs initial processing of documents, filters the vocabulary, and creates initial word-based clusters.
         """
@@ -60,13 +65,14 @@ class WBSC:
         # Filter vocabulary based on document frequency
         max_doc_freq = int(num_docs * self.max_doc_freq_ratio)
         filtered_vocabulary = {
-            word for word, count in word_doc_counts.items()
+            word
+            for word, count in word_doc_counts.items()
             if count >= self.min_doc_freq and count <= max_doc_freq
         }
 
         # Create an initial cluster for each word in the filtered vocabulary
         initial_clusters = [
-            {'docs': word_to_docs_map[word], 'words': {word}}
+            {"docs": word_to_docs_map[word], "words": {word}}
             for word in filtered_vocabulary
         ]
         return initial_clusters
@@ -104,52 +110,61 @@ class WBSC:
             while i < len(clusters):
                 j = i + 1
                 merged_indices = []
-                
+
                 # The base cluster for potential merges in this iteration
-                base_cluster_docs = clusters[i]['docs']
-                base_cluster_words = clusters[i]['words']
+                base_cluster_docs = clusters[i]["docs"]
+                base_cluster_words = clusters[i]["words"]
 
                 while j < len(clusters):
-                    other_cluster_docs = clusters[j]['docs']
-                    
+                    other_cluster_docs = clusters[j]["docs"]
+
                     # Merge if one cluster is a subset of the other
-                    is_subset = base_cluster_docs.issubset(other_cluster_docs) or other_cluster_docs.issubset(base_cluster_docs)
-                    
-                    # Or if Tanimoto similarity is above the threshold 
-                    similarity = self._calculate_tanimoto(base_cluster_docs, other_cluster_docs)
+                    is_subset = base_cluster_docs.issubset(
+                        other_cluster_docs
+                    ) or other_cluster_docs.issubset(base_cluster_docs)
+
+                    # Or if Tanimoto similarity is above the threshold
+                    similarity = self._calculate_tanimoto(
+                        base_cluster_docs, other_cluster_docs
+                    )
 
                     if is_subset or similarity > self.similarity_threshold:
                         # Perform the merge
                         base_cluster_docs = base_cluster_docs.union(other_cluster_docs)
-                        base_cluster_words = base_cluster_words.union(clusters[j]['words']) # New cluster acquires words from both
+                        base_cluster_words = base_cluster_words.union(
+                            clusters[j]["words"]
+                        )  # New cluster acquires words from both
                         merged_indices.append(j)
                         merged_in_pass = True
-                    
+
                     j += 1
-                
+
                 # If merges occurred, update the cluster list
                 if merged_indices:
-                    clusters[i] = {'docs': base_cluster_docs, 'words': base_cluster_words}
+                    clusters[i] = {
+                        "docs": base_cluster_docs,
+                        "words": base_cluster_words,
+                    }
                     # Delete merged clusters from the end to avoid index errors
                     for index in sorted(merged_indices, reverse=True):
                         del clusters[index]
                 i += 1
-            
+
             # If a full pass results in no merges, the process is complete
             if not merged_in_pass:
                 break
-        
+
         # Phase 3: Prepare the output
-        self.clusters_ = [c['docs'] for c in clusters]
-        self.cluster_words_ = [c['words'] for c in clusters]
-        
+        self.clusters_ = [c["docs"] for c in clusters]
+        self.cluster_words_ = [c["words"] for c in clusters]
+
         num_docs = len(docs)
         num_final_clusters = len(self.clusters_)
-        
+
         # Create a sparse membership matrix
         memberships = lil_matrix((num_docs, num_final_clusters), dtype=np.int8)
         for cluster_idx, doc_set in enumerate(self.clusters_):
             for doc_idx in doc_set:
                 memberships[doc_idx, cluster_idx] = 1
-                
+
         return memberships.tocsr()

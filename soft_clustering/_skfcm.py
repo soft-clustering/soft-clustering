@@ -7,8 +7,15 @@ from typeguard import typechecked
 
 @typechecked
 class SKFCM:
-    def __init__(self, n_clusters: int = 3, m: float = 2.0, gamma: float = 1.0,
-                 lambda_: float = 0.5, max_iter: int = 100, tol: float = 1e-5):
+    def __init__(
+        self,
+        n_clusters: int = 3,
+        m: float = 2.0,
+        gamma: float = 1.0,
+        lambda_: float = 0.5,
+        max_iter: int = 100,
+        tol: float = 1e-5,
+    ):
         """
         Parameters:
         - n_clusters (int): Number of clusters
@@ -43,20 +50,20 @@ class SKFCM:
         return spatial_U
 
     def _update_U(self, spatial_U: np.ndarray):
-        Um = self.U ** self.m
+        Um = self.U**self.m
         d = np.zeros((self.N, self.n_clusters))
 
         for k in range(self.n_clusters):
-            num = np.diag(self.K) \
-                - (2 / np.sum(Um[:, k])) * (self.K @ Um[:, k]) \
-                + (1 / np.sum(Um[:, k]) ** 2) * \
-                (Um[:, k].T @ self.K @ Um[:, k])
+            num = (
+                np.diag(self.K)
+                - (2 / np.sum(Um[:, k])) * (self.K @ Um[:, k])
+                + (1 / np.sum(Um[:, k]) ** 2) * (Um[:, k].T @ self.K @ Um[:, k])
+            )
             d[:, k] = num + self.lambda_ * (1 - spatial_U[:, k])
 
         d = np.clip(d, 1e-10, None)
         for i in range(self.N):
-            denom = np.sum((d[i, :] / d[i, :][:, None])
-                           ** (1 / (self.m - 1)), axis=0)
+            denom = np.sum((d[i, :] / d[i, :][:, None]) ** (1 / (self.m - 1)), axis=0)
             self.U[i, :] = 1.0 / denom
 
     def fit(self, X: np.ndarray, shape: Tuple[int, int]):

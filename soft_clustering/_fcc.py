@@ -5,7 +5,9 @@ from typeguard import typechecked
 
 @typechecked
 class FCC:
-    def __init__(self, c: int, jnd: float = 20.0, max_iter: int = 100, tol: float = 1e-5):
+    def __init__(
+        self, c: int, jnd: float = 20.0, max_iter: int = 100, tol: float = 1e-5
+    ):
         """
         Parameters:
         - c (int): Number of clusters

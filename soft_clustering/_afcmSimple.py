@@ -5,7 +5,9 @@ from typeguard import typechecked
 
 @typechecked
 class AFCMSimple:
-    def __init__(self, c: int, m: float = 2.0, max_iter: int = 100, tol: float = 1e-5) -> None:
+    def __init__(
+        self, c: int, m: float = 2.0, max_iter: int = 100, tol: float = 1e-5
+    ) -> None:
         """
         Parameters:
         - c (int): Number of clusters
@@ -35,7 +37,7 @@ class AFCMSimple:
 
         for iteration in range(self.max_iter):
             # Update cluster centers
-            um = U ** self.m
+            um = U**self.m
             V = (um.T @ X) / np.sum(um.T, axis=1, keepdims=True)
 
             # Update distances

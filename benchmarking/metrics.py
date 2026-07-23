@@ -16,10 +16,10 @@ try:
 except ImportError:
     _HAVE_SKLEARN = False
 
-
 # ============================================================
 # Hard Clustering Metrics
 # ============================================================
+
 
 def clustering_metrics(
     X: np.ndarray,
@@ -51,18 +51,14 @@ def clustering_metrics(
             labels,
         )
 
-        results["calinski_harabasz"] = (
-            calinski_harabasz_score(
-                X,
-                labels,
-            )
+        results["calinski_harabasz"] = calinski_harabasz_score(
+            X,
+            labels,
         )
 
-        results["davies_bouldin"] = (
-            davies_bouldin_score(
-                X,
-                labels,
-            )
+        results["davies_bouldin"] = davies_bouldin_score(
+            X,
+            labels,
         )
 
     if y_true is not None and _HAVE_SKLEARN:
@@ -83,6 +79,7 @@ def clustering_metrics(
 # ============================================================
 # Soft Clustering Metrics
 # ============================================================
+
 
 def partition_coefficient(
     U: np.ndarray,
@@ -111,9 +108,7 @@ def partition_entropy(
 
     n_samples = U.shape[0]
 
-    return -np.sum(
-        U * np.log(U + eps)
-    ) / n_samples
+    return -np.sum(U * np.log(U + eps)) / n_samples
 
 
 def modified_partition_coefficient(
@@ -132,11 +127,7 @@ def modified_partition_coefficient(
 
     pc = partition_coefficient(U)
 
-    return (
-        pc - (1.0 / n_clusters)
-    ) / (
-        1.0 - (1.0 / n_clusters)
-    )
+    return (pc - (1.0 / n_clusters)) / (1.0 - (1.0 / n_clusters))
 
 
 def fuzzy_hypervolume(
@@ -149,14 +140,13 @@ def fuzzy_hypervolume(
     more compact clusters.
     """
 
-    return np.mean(
-        np.prod(U, axis=1)
-    )
+    return np.mean(np.prod(U, axis=1))
 
 
 # ============================================================
 # Prototype-Based Metrics
 # ============================================================
+
 
 def xie_beni_index(
     X: np.ndarray,
@@ -177,28 +167,18 @@ def xie_beni_index(
         axis=2,
     )
 
-    numerator = np.sum(
-        (U**m) * (distances**2)
-    )
+    numerator = np.sum((U**m) * (distances**2))
 
     center_distances = np.linalg.norm(
-        centers[:, None, :]
-        - centers[None, :, :],
+        centers[:, None, :] - centers[None, :, :],
         axis=2,
     )
 
-    center_distances[
-        center_distances == 0
-    ] = np.inf
+    center_distances[center_distances == 0] = np.inf
 
-    min_center_distance = np.min(
-        center_distances
-    )
+    min_center_distance = np.min(center_distances)
 
-    denominator = (
-        n_samples
-        * min_center_distance**2
-    )
+    denominator = n_samples * min_center_distance**2
 
     return numerator / denominator
 
@@ -213,8 +193,7 @@ def fuzzy_separation_index(
     """
 
     distances = np.linalg.norm(
-        centers[:, None, :]
-        - centers[None, :, :],
+        centers[:, None, :] - centers[None, :, :],
         axis=2,
     )
 
@@ -223,9 +202,7 @@ def fuzzy_separation_index(
         dtype=bool,
     )
 
-    return np.mean(
-        distances[mask]
-    )
+    return np.mean(distances[mask])
 
 
 def fuzzy_compactness(
@@ -241,20 +218,17 @@ def fuzzy_compactness(
     """
 
     distances = np.linalg.norm(
-        X[:, None, :]
-        - centers[None, :, :],
+        X[:, None, :] - centers[None, :, :],
         axis=2,
     )
 
-    return np.sum(
-        (U**m)
-        * (distances**2)
-    )
+    return np.sum((U**m) * (distances**2))
 
 
 # ============================================================
 # Unified Soft Evaluation
 # ============================================================
+
 
 def soft_clustering_metrics(
     X: np.ndarray,
@@ -282,43 +256,28 @@ def soft_clustering_metrics(
     """
 
     results = {
-        "partition_coefficient":
-            partition_coefficient(U),
-
-        "modified_partition_coefficient":
-            modified_partition_coefficient(U),
-
-        "partition_entropy":
-            partition_entropy(U),
-
-        "fuzzy_hypervolume":
-            fuzzy_hypervolume(U),
+        "partition_coefficient": partition_coefficient(U),
+        "modified_partition_coefficient": modified_partition_coefficient(U),
+        "partition_entropy": partition_entropy(U),
+        "fuzzy_hypervolume": fuzzy_hypervolume(U),
     }
 
     if centers is not None:
 
-        results["xie_beni"] = (
-            xie_beni_index(
-                X,
-                U,
-                centers,
-                m,
-            )
+        results["xie_beni"] = xie_beni_index(
+            X,
+            U,
+            centers,
+            m,
         )
 
-        results["fuzzy_compactness"] = (
-            fuzzy_compactness(
-                X,
-                U,
-                centers,
-                m,
-            )
+        results["fuzzy_compactness"] = fuzzy_compactness(
+            X,
+            U,
+            centers,
+            m,
         )
 
-        results["fuzzy_separation"] = (
-            fuzzy_separation_index(
-                centers
-            )
-        )
+        results["fuzzy_separation"] = fuzzy_separation_index(centers)
 
     return results

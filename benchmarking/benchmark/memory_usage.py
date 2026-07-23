@@ -54,7 +54,7 @@ class MemoryBenchmark(BaseBenchmark):
     @staticmethod
     def _memory_mb() -> float:
         process = psutil.Process()
-        return process.memory_info().rss / (1024 ** 2)
+        return process.memory_info().rss / (1024**2)
 
     def evaluate(
         self,

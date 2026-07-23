@@ -7,9 +7,10 @@ from typeguard import typechecked
 from typing import Union, Optional, List
 
 
-def _to_sparse_tensor(matrix: Union[sp.spmatrix, torch.Tensor],
-                      cuda: bool = torch.cuda.is_available(),
-                      ) -> Union[torch.sparse.FloatTensor, torch.cuda.sparse.FloatTensor]:
+def _to_sparse_tensor(
+    matrix: Union[sp.spmatrix, torch.Tensor],
+    cuda: bool = torch.cuda.is_available(),
+) -> Union[torch.sparse.FloatTensor, torch.cuda.sparse.FloatTensor]:
     """Convert a scipy sparse matrix to a torch sparse tensor.
     Args:
     matrix: Sparse matrix to convert.
@@ -33,7 +34,8 @@ def _to_sparse_tensor(matrix: Union[sp.spmatrix, torch.Tensor],
         sparse_tensor = torch.sparse.FloatTensor(indices, values, shape)
     else:
         raise ValueError(
-            f"matrix must be scipy.sparse or torch.Tensor (got {type(matrix)} instead).")
+            f"matrix must be scipy.sparse or torch.Tensor (got {type(matrix)} instead)."
+        )
     if cuda:
         sparse_tensor = sparse_tensor.cuda()
     return sparse_tensor.coalesce()
@@ -41,8 +43,7 @@ def _to_sparse_tensor(matrix: Union[sp.spmatrix, torch.Tensor],
 
 def _sparse_or_dense_dropout(x, p=0.5, training=True):
     if isinstance(x, (torch.sparse.FloatTensor, torch.cuda.sparse.FloatTensor)):
-        new_values = torch.nn.functional.dropout(
-            x.values(), p=p, training=training)
+        new_values = torch.nn.functional.dropout(x.values(), p=p, training=training)
         if torch.cuda.is_available():
             return torch.cuda.sparse.FloatTensor(x.indices(), new_values, x.size())
         return torch.sparse.FloatTensor(x.indices(), new_values, x.size())
@@ -54,7 +55,7 @@ def _l2_reg_loss(model, scale=1e-5):
     """Get L2 loss for model weights."""
     loss = 0.0
     for w in model.get_weights():
-        loss += w.pow(2.).sum()
+        loss += w.pow(2.0).sum()
     return loss * scale
 
 
@@ -69,11 +70,21 @@ def _seed_worker(worker_id):
     random.seed(worker_seed)
 
 
-def _get_edge_sampler(A, num_pos=1000, num_neg=1000, num_workers=2, random_seed=None, device="cpu"):
+def _get_edge_sampler(
+    A, num_pos=1000, num_neg=1000, num_workers=2, random_seed=None, device="cpu"
+):
     data_source = _EdgeSampler(A, num_pos, num_neg)
     if random_seed:
-        return torch.utils.data.DataLoader(data_source, num_workers=num_workers, collate_fn=_collate_fn, worker_init_fn=_seed_worker, generator=torch.Generator(device=device).manual_seed(random_seed))
-    return torch.utils.data.DataLoader(data_source, num_workers=num_workers, collate_fn=_collate_fn)
+        return torch.utils.data.DataLoader(
+            data_source,
+            num_workers=num_workers,
+            collate_fn=_collate_fn,
+            worker_init_fn=_seed_worker,
+            generator=torch.Generator(device=device).manual_seed(random_seed),
+        )
+    return torch.utils.data.DataLoader(
+        data_source, num_workers=num_workers, collate_fn=_collate_fn
+    )
 
 
 class _EdgeSampler(torch.utils.data.Dataset):
@@ -96,17 +107,19 @@ class _EdgeSampler(torch.utils.data.Dataset):
     def __getitem__(self, key):
         np.random.seed(key)
         edges_idx = np.random.randint(
-            0, self.num_edges, size=self.num_pos, dtype=np.int64)
+            0, self.num_edges, size=self.num_pos, dtype=np.int64
+        )
         next_edges = self.edges[edges_idx, :]
 
         # Select num_neg non-edges
         generated = False
         while not generated:
             candidate_ne = np.random.randint(
-                0, self.num_nodes, size=(2*self.num_neg, 2), dtype=np.int64)
+                0, self.num_nodes, size=(2 * self.num_neg, 2), dtype=np.int64
+            )
             cne1, cne2 = candidate_ne[:, 0], candidate_ne[:, 1]
             to_keep = (1 - self.A[cne1, cne2]).astype(bool).A1 * (cne1 != cne2)
-            next_nonedges = candidate_ne[to_keep][:self.num_neg]
+            next_nonedges = candidate_ne[to_keep][: self.num_neg]
             generated = to_keep.sum() >= self.num_neg
         return torch.LongTensor(next_edges), torch.LongTensor(next_nonedges)
 
@@ -127,8 +140,7 @@ class _GraphConvolution(torch.nn.Module):
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
-        self.weight = torch.nn.Parameter(
-            torch.empty(in_features, out_features))
+        self.weight = torch.nn.Parameter(torch.empty(in_features, out_features))
         self.bias = torch.nn.Parameter(torch.empty(out_features))
         self.reset_parameters()
 
@@ -148,19 +160,19 @@ class _GCN(torch.nn.Module):
         Kipf and Welling, ICLR 2017
     """
 
-    def __init__(self, input_dim, hidden_dims, output_dim, dropout=0.5, batch_norm=False):
+    def __init__(
+        self, input_dim, hidden_dims, output_dim, dropout=0.5, batch_norm=False
+    ):
         super().__init__()
         self.dropout = dropout
-        layer_dims = np.concatenate(
-            [hidden_dims, [output_dim]]).astype(np.int32)
-        self.layers = torch.nn.ModuleList(
-            [_GraphConvolution(input_dim, layer_dims[0])])
+        layer_dims = np.concatenate([hidden_dims, [output_dim]]).astype(np.int32)
+        self.layers = torch.nn.ModuleList([_GraphConvolution(input_dim, layer_dims[0])])
         for idx in range(len(layer_dims) - 1):
-            self.layers.append(_GraphConvolution(
-                layer_dims[idx], layer_dims[idx + 1]))
+            self.layers.append(_GraphConvolution(layer_dims[idx], layer_dims[idx + 1]))
         if batch_norm:
             self.batch_norm = [
-                torch.nn.BatchNorm1d(dim, affine=False, track_running_stats=False) for dim in hidden_dims
+                torch.nn.BatchNorm1d(dim, affine=False, track_running_stats=False)
+                for dim in hidden_dims
             ]
         else:
             self.batch_norm = None
@@ -175,7 +187,8 @@ class _GCN(torch.nn.Module):
             deg = np.ravel(adj.sum(1))
             deg_sqrt_inv = 1 / np.sqrt(deg)
             adj_norm = adj.multiply(deg_sqrt_inv[:, None]).multiply(
-                deg_sqrt_inv[None, :])
+                deg_sqrt_inv[None, :]
+            )
         elif torch.is_tensor(adj):
             deg = adj.sum(1)
             deg_sqrt_inv = 1 / torch.sqrt(deg)
@@ -185,8 +198,7 @@ class _GCN(torch.nn.Module):
     def forward(self, x, adj):
         for idx, gcn in enumerate(self.layers):
             if self.dropout != 0:
-                x = _sparse_or_dense_dropout(
-                    x, p=self.dropout, training=self.training)
+                x = _sparse_or_dense_dropout(x, p=self.dropout, training=self.training)
             x = gcn(x, adj)
             if idx != len(self.layers) - 1:
                 x = torch.nn.functional.relu(x)
@@ -196,11 +208,11 @@ class _GCN(torch.nn.Module):
 
     def get_weights(self):
         """Return the weight matrices of the model."""
-        return [w for n, w in self.named_parameters() if 'bias' not in n]
+        return [w for n, w in self.named_parameters() if "bias" not in n]
 
     def get_biases(self):
         """Return the bias vectors of the model."""
-        return [w for n, w in self.named_parameters() if 'bias' in n]
+        return [w for n, w in self.named_parameters() if "bias" in n]
 
 
 class _BernoulliDecoder(torch.nn.Module):
@@ -292,8 +304,7 @@ class _BerpoDecoder(_BernoulliDecoder):
         # Loss for edges
         e1, e2 = ones_idx[:, 0], ones_idx[:, 1]
         edge_dots = torch.sum(emb[e1] * emb[e2], dim=1)
-        loss_edges = - \
-            torch.mean(torch.log(-torch.expm1(-self.eps - edge_dots)))
+        loss_edges = -torch.mean(torch.log(-torch.expm1(-self.eps - edge_dots)))
 
         # Loss for non-edges
         ne1, ne2 = zeros_idx[:, 0], zeros_idx[:, 1]
@@ -320,7 +331,9 @@ class _BerpoDecoder(_BernoulliDecoder):
             neg_scale = 1.0
         else:
             neg_scale = self.num_nonedges / self.num_edges
-        return (loss_edges / self.num_edges + neg_scale * loss_nonedges / self.num_nonedges) / (1 + neg_scale)
+        return (
+            loss_edges / self.num_edges + neg_scale * loss_nonedges / self.num_nonedges
+        ) / (1 + neg_scale)
 
 
 class _ModelSaver:
@@ -405,7 +418,9 @@ class _NoImprovementStopping(_EarlyStopping):
 
     """
 
-    def __init__(self, validation_fn, mode='min', patience=10, tolerance=0.0, relative=False):
+    def __init__(
+        self, validation_fn, mode="min", patience=10, tolerance=0.0, relative=False
+    ):
         super().__init__()
         self.validation_fn = validation_fn
         self.mode = mode
@@ -414,22 +429,21 @@ class _NoImprovementStopping(_EarlyStopping):
         self.relative = relative
         self.reset()
 
-        if mode not in ['min', 'max']:
+        if mode not in ["min", "max"]:
             raise ValueError(
-                f"Mode should be either 'min' or 'max' (got {mode} instead).")
+                f"Mode should be either 'min' or 'max' (got {mode} instead)."
+            )
 
         # Create the comparison function
         if relative:
-            if mode == 'min':
-                self._is_better = lambda new, best: new < best - \
-                    (best * tolerance)
-            if mode == 'max':
-                self._is_better = lambda new, best: new > best + \
-                    (best * tolerance)
+            if mode == "min":
+                self._is_better = lambda new, best: new < best - (best * tolerance)
+            if mode == "max":
+                self._is_better = lambda new, best: new > best + (best * tolerance)
         else:
-            if mode == 'min':
+            if mode == "min":
                 self._is_better = lambda new, best: new < best - tolerance
-            if mode == 'max':
+            if mode == "max":
                 self._is_better = lambda new, best: new > best + tolerance
 
     def reset(self):
@@ -463,16 +477,19 @@ class _NoImprovementStopping(_EarlyStopping):
 
 @typechecked
 class NOCD:
-    def __init__(self, random_state: Optional[int] = None,
-                 hidden_sizes: List[int] = [128],
-                 weight_decay: float = 1e-2,
-                 dropout: float = 0.5,
-                 batch_norm: bool = True,
-                 lr: float = 1e-3,
-                 max_epochs: int = 500,
-                 balance_loss: bool = True,
-                 stochastic_loss: bool = True,
-                 batch_size: int = 20000):
+    def __init__(
+        self,
+        random_state: Optional[int] = None,
+        hidden_sizes: List[int] = [128],
+        weight_decay: float = 1e-2,
+        dropout: float = 0.5,
+        batch_norm: bool = True,
+        lr: float = 1e-3,
+        max_epochs: int = 500,
+        balance_loss: bool = True,
+        stochastic_loss: bool = True,
+        batch_size: int = 20000,
+    ):
 
         self.random_state = random_state
         if random_state:
@@ -498,30 +515,47 @@ class NOCD:
 
     def fit_predict(self, adjacency_matrix, feature_matrix, K):
         """Train the model and compute community memberships.
-    Args:
-        adjacency_matrix: Adjacency matrix of the graph (scipy.sparse.csr_matrix).
-        feature_matrix: Feature matrix of the graph nodes (scipy.sparse.csr_matrix).
-        K: Number of communities (int).
+        Args:
+            adjacency_matrix: Adjacency matrix of the graph (scipy.sparse.csr_matrix).
+            feature_matrix: Feature matrix of the graph nodes (scipy.sparse.csr_matrix).
+            K: Number of communities (int).
 
-    Returns:
-        memberships: Community membership probabilities (numpy.ndarray, shape (num_nodes, K)).
-"""
-    # set torch device: cuda vs cpu
+        Returns:
+            memberships: Community membership probabilities (numpy.ndarray, shape (num_nodes, K)).
+        """
+        # set torch device: cuda vs cpu
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         torch.set_default_device(device)
         x_norm = sp.hstack([feature_matrix, adjacency_matrix])
         x_norm = _to_sparse_tensor(x_norm).to(device)
-        sampler = _get_edge_sampler(adjacency_matrix, self.batch_size,
-                                    self.batch_size, num_workers=2, random_seed=self.random_state, device=device)
-        gnn = _GCN(x_norm.shape[1], self.hidden_sizes, K,
-                   dropout=self.dropout, batch_norm=self.batch_norm).to(device)
+        sampler = _get_edge_sampler(
+            adjacency_matrix,
+            self.batch_size,
+            self.batch_size,
+            num_workers=2,
+            random_seed=self.random_state,
+            device=device,
+        )
+        gnn = _GCN(
+            x_norm.shape[1],
+            self.hidden_sizes,
+            K,
+            dropout=self.dropout,
+            batch_norm=self.batch_norm,
+        ).to(device)
         adj_norm = gnn.normalize_adj(adjacency_matrix)
         decoder = _BerpoDecoder(
-            adjacency_matrix.shape[0], adjacency_matrix.nnz, balance_loss=self.balance_loss)
+            adjacency_matrix.shape[0],
+            adjacency_matrix.nnz,
+            balance_loss=self.balance_loss,
+        )
         opt = torch.optim.Adam(gnn.parameters(), lr=self.lr)
 
         val_loss = np.inf
-        def validation_fn(): return val_loss
+
+        def validation_fn():
+            return val_loss
+
         early_stopping = _NoImprovementStopping(validation_fn, patience=10)
         model_saver = _ModelSaver(gnn)
 

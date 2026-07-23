@@ -17,14 +17,15 @@ class BGMM:
         self.tol = tol
         self.weights = None
         self.gaussian_params = None  # List of (mean, std)
-        self.beta_params = None      # List of (alpha, beta)
-        self.resp = None             # Responsibility matrix
+        self.beta_params = None  # List of (alpha, beta)
+        self.resp = None  # Responsibility matrix
 
     def _initialize_params(self, Xg: np.ndarray, Xb: np.ndarray):
         N = Xg.shape[0]
         self.weights = np.full(self.n_components, 1 / self.n_components)
-        self.gaussian_params = [(np.mean(Xg), np.std(Xg) + 1e-3)
-                                for _ in range(self.n_components)]
+        self.gaussian_params = [
+            (np.mean(Xg), np.std(Xg) + 1e-3) for _ in range(self.n_components)
+        ]
         self.beta_params = [(2.0, 2.0) for _ in range(self.n_components)]
         self.resp = np.full((N, self.n_components), 1 / self.n_components)
 
@@ -36,9 +37,9 @@ class BGMM:
             mu, sigma = self.gaussian_params[k]
             a, b = self.beta_params[k]
             log_prob = (
-                np.log(self.weights[k] + 1e-10) +
-                norm.logpdf(Xg, mu, sigma) +
-                beta.logpdf(Xb, a, b)
+                np.log(self.weights[k] + 1e-10)
+                + norm.logpdf(Xg, mu, sigma)
+                + beta.logpdf(Xb, a, b)
             )
             log_resp[:, k] = log_prob
 
@@ -92,10 +93,11 @@ class BGMM:
                 mu, sigma = self.gaussian_params[k]
                 a, b = self.beta_params[k]
                 log_likelihood += np.sum(
-                    self.resp[:, k] * (
-                        np.log(self.weights[k] + 1e-10) +
-                        norm.logpdf(Xg, mu, sigma) +
-                        beta.logpdf(Xb, a, b)
+                    self.resp[:, k]
+                    * (
+                        np.log(self.weights[k] + 1e-10)
+                        + norm.logpdf(Xg, mu, sigma)
+                        + beta.logpdf(Xb, a, b)
                     )
                 )
             if np.abs(log_likelihood - prev_ll) < self.tol:
