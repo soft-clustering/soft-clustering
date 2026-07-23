@@ -4,23 +4,39 @@ build-backend = "flit_core.buildapi"
 
 [project]
 name = "soft-clustering"
-authors = [{name = "Kiyan Rezaee", email = "kiyanrezaee17@gmail.com"}, {name = "Morteza Ziabakhsh", email = "morteza24mail@protonmail.com"}]
+authors = [
+  {name = "Kiyan Rezaee", email = "kiyanrezaee17@gmail.com"},
+  {name = "Morteza Ziabakhsh", email = "morteza24mail@protonmail.com"},
+]
+readme = "README.rst"
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Operating System :: OS Independent",
+]
+license = "MIT"
+license-files = ["LICENSE*"]
 dynamic = ["version", "description"]
 dependencies = [
   "numpy",
   "scipy",
-  "torch",
-  "torch_geometric",
   "typeguard",
   "myst_parser"
 ]
 
 [project.optional-dependencies]
+deep = [
+  "torch",
+  "torch_geometric",
+]
 dev = [
   "pytest>=7.0",
   "pytest-cov>=4.0",
   "scikit-learn",
 ]
+
+[project.urls]
+Homepage = "https://soft-clustering.readthedocs.io/en/latest/index.html"
+Issues = "https://github.com/soft-clustering/soft-clustering/issues"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
