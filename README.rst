@@ -66,6 +66,25 @@ Full API reference, examples, algorithm descriptions, and usage guides are avail
 https://soft-clustering.readthedocs.io/en/latest/index.html
 
 
+Testing
+-------
+
+The project includes a comprehensive test suite in the `tests/`_ directory, covering all implemented algorithms.
+
+To run the tests:
+
+.. code-block:: console
+
+   pip install -e ".[deep,dev]"   # Install in development mode
+   pytest
+
+See `tests/HOW_TO_RUN.txt`_ for more details.
+
+
+.. _`tests/`: https://github.com/soft-clustering/soft-clustering/tree/main/tests
+.. _`tests/HOW_TO_RUN.txt`: https://github.com/soft-clustering/soft-clustering/blob/main/tests/HOW_TO_RUN.txt
+
+
 Research & Citation
 -------------------
 
@@ -92,7 +111,13 @@ Contributing
 
 Contributions, bug reports, and feature requests are welcome. Please open issues or pull requests on the repository.
 
-Make sure to take a look at our [Contributing Guidelines](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md).
+Please see our:
+
+- `Contributing Guidelines`_
+- `Code of Conduct`_
+
+.. _`Contributing Guidelines`: CONTRIBUTING.md
+.. _`Code of Conduct`: CODE_OF_CONDUCT.md
 
 
 License
