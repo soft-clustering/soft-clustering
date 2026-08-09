@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+
 from soft_clustering import KFCM
 
 
@@ -14,12 +15,12 @@ def X():
 
 
 def test_fit_returns_labels(X):
-    labels = KFCM(n_clusters=2).fit(X)
+    labels = KFCM(n_clusters=2).fit(X).labels_
     assert labels.shape == (40,)
 
 
 def test_labels_valid_range(X):
-    labels = KFCM(n_clusters=2).fit(X)
+    labels = KFCM(n_clusters=2).fit(X).labels_
     assert set(labels).issubset({0, 1})
 
 
@@ -57,5 +58,5 @@ def test_empty_input_raises(X):
 
 
 def test_k3(X):
-    labels = KFCM(n_clusters=3).fit(X)
+    labels = KFCM(n_clusters=3).fit(X).labels_
     assert set(labels).issubset({0, 1, 2})

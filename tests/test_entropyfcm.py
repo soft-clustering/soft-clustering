@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+
 from soft_clustering import ENTROPYFCM
 
 

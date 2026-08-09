@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import pandas as pd
 
@@ -19,7 +19,7 @@ class BaseBenchmark(ABC):
         model: Any,
         X,
         y: Optional = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Evaluate a model and return benchmark results.
         """
@@ -29,7 +29,7 @@ class BaseBenchmark(ABC):
         return self.evaluate(model, X, y)
 
     @staticmethod
-    def validate_result(result: Dict[str, Any]) -> None:
+    def validate_result(result: dict[str, Any]) -> None:
         if not isinstance(result, dict):
             raise TypeError("Benchmark results must be returned as a dictionary.")
 

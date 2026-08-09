@@ -1,10 +1,12 @@
 import numpy as np
-from scipy.stats import norm, beta
+from scipy.stats import beta, norm
 from typeguard import typechecked
+
+from ._base import BaseSoftClusterer
 
 
 @typechecked
-class BGMM:
+class BGMM(BaseSoftClusterer):
     def __init__(self, n_components: int = 3, max_iter: int = 100, tol: float = 1e-5):
         """
         Parameters:

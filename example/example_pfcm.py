@@ -1,6 +1,6 @@
+import random
 import sys
 from os import path
-import random
 
 if __name__ == "__main__":
     base_dir = path.dirname(path.realpath(__file__))

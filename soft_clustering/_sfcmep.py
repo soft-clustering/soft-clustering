@@ -1,14 +1,15 @@
 import numpy as np
 from typeguard import typechecked
-from typing import Optional, Dict
+
+from ._base import BaseSoftClusterer
 
 
 @typechecked
-class SFCMEP:
+class SFCMEP(BaseSoftClusterer):
     def __init__(
         self,
         K: int,
-        random_state: Optional[int] = None,
+        random_state: int | None = None,
         max_iter: int = 200,
         rho: float = 0.5,
         lam: float = 1.0,
@@ -139,7 +140,7 @@ class SFCMEP:
                 U_new[:, j] = np.array(num) / den
         return U_new
 
-    def fit_predict(self, X: np.ndarray, y: np.ndarray) -> Dict:
+    def fit_predict(self, X: np.ndarray, y: np.ndarray) -> dict:
         """
         Perform clustering with prior membership constraints.
 

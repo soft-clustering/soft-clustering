@@ -1,10 +1,11 @@
 import numpy as np
-from typing import Tuple
 from typeguard import typechecked
+
+from ._base import BaseSoftClusterer
 
 
 @typechecked
-class CAFHFCM:
+class CAFHFCM(BaseSoftClusterer):
     def __init__(
         self,
         c: int,
@@ -49,7 +50,7 @@ class CAFHFCM:
         new_centroids = base - self.alpha * fusion_term
         return new_centroids
 
-    def fit_predict(self, X: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def fit_predict(self, X: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """
         Perform CAF-HFCM clustering.
 

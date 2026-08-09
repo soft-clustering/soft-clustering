@@ -2,6 +2,7 @@
 
 import pytest
 import torch
+
 from soft_clustering import DMoN
 
 

@@ -1,9 +1,10 @@
 import random
+
 import numpy as np
 import scipy.sparse as sp
-from copy import deepcopy
 from typeguard import typechecked
-from typing import Optional
+
+from ._base import BaseSoftClusterer
 
 
 def _logsumexp(a, axis=1):
@@ -127,7 +128,7 @@ def _m_step(X, resp, covariance_type, reg_covar):
 
 
 @typechecked
-class GaussianMixtureEM:
+class GaussianMixtureEM(BaseSoftClusterer):
     def __init__(
         self,
         covariance_type: str = "full",
@@ -135,7 +136,7 @@ class GaussianMixtureEM:
         max_iter: int = 100,
         tol: float = 1e-3,
         init_params: str = "kmeans++",
-        random_state: Optional[int] = None,
+        random_state: int | None = None,
     ):
         self.covariance_type = covariance_type
         self.reg_covar = float(reg_covar)
@@ -154,6 +155,8 @@ class GaussianMixtureEM:
         self.responsibilities_ = None
         self.lower_bound_ = None
         self.log_likelihood_trajectory_ = None
+        # Canonical name required by the estimator protocol (see _base.py).
+        self.objective_trajectory_ = None
 
     def fit_predict(self, X, K):
         """Fit the model with EM and return responsibilities.
@@ -232,4 +235,5 @@ class GaussianMixtureEM:
         self.responsibilities_ = resp
         self.lower_bound_ = ll
         self.log_likelihood_trajectory_ = np.array(ll_trace, dtype=np.float64)
+        self.objective_trajectory_ = self.log_likelihood_trajectory_
         return resp

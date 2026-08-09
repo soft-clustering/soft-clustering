@@ -1,11 +1,12 @@
 import numpy as np
 from scipy.sparse import csr_matrix, issparse
 from sklearn.feature_extraction.text import CountVectorizer
-from typing import Union, Optional, List
 from typeguard import typechecked
 
+from ._base import BaseSoftClusterer
 
-class PLSI:
+
+class PLSI(BaseSoftClusterer):
     @typechecked
     def __init__(
         self,
@@ -16,7 +17,7 @@ class PLSI:
         beta_start: float = 1.0,
         beta_step: float = 0.9,
         heldout_ratio: float = 0.1,
-        random_state: Optional[int] = None,
+        random_state: int | None = None,
     ):
         """
         Parameters
@@ -178,7 +179,7 @@ class PLSI:
         total = count.sum()
         return np.exp(-ll / total)
 
-    def fit_predict(self, data: Union[List[str], csr_matrix]):
+    def fit_predict(self, data: list[str] | csr_matrix):
         """
         Fit the PLSI model to a corpus.
 

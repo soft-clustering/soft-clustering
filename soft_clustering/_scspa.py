@@ -1,10 +1,11 @@
 import numpy as np
-from typing import List
 from typeguard import typechecked
+
+from ._base import BaseSoftClusterer
 
 
 @typechecked
-class SCSPA:
+class SCSPA(BaseSoftClusterer):
     def __init__(self, n_clusters: int) -> None:
         """
         Initializes the sCSPA algorithm.
@@ -14,7 +15,7 @@ class SCSPA:
         """
         self.n_clusters = n_clusters
 
-    def fit_predict(self, soft_memberships: List[np.ndarray]) -> np.ndarray:
+    def fit_predict(self, soft_memberships: list[np.ndarray]) -> np.ndarray:
         """
         Runs sCSPA on a list of soft clustering matrices.
 

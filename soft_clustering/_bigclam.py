@@ -1,9 +1,15 @@
 import numpy as np
 from typeguard import typechecked
 
+from ._base import BaseSoftClusterer
+
 
 @typechecked
-class BIGCLAM:
+class BIGCLAM(BaseSoftClusterer):
+    # affiliation strengths for overlapping communities; nodes may belong
+    # strongly to several or to none (Yang and Leskovec, 2013)
+    _partition_constrained = False
+
     def __init__(
         self,
         n_nodes: int,

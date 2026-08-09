@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+
 from soft_clustering import GMM
 
 
@@ -61,5 +62,5 @@ def test_k3(X):
 def test_log_likelihoods_non_empty(X):
     model = GMM(random_state=0)
     model.fit_predict(X, K=2)
-    assert hasattr(model, "log_likelihoods_")
-    assert len(model.log_likelihoods_) >= 1
+    assert hasattr(model, "objective_trajectory_")
+    assert len(model.objective_trajectory_) >= 1

@@ -23,7 +23,7 @@ of shape (n_samples, n_clusters).
 from __future__ import annotations
 
 import inspect
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 
@@ -76,18 +76,18 @@ class BenchmarkAdapter:
     labels_     : ndarray of shape (n_samples,)
     """
 
-    def __init__(self, model: Any, n_clusters: Optional[int] = None) -> None:
+    def __init__(self, model: Any, n_clusters: int | None = None) -> None:
         self.model = model
         self.n_clusters = n_clusters
-        self.membership_: Optional[np.ndarray] = None
-        self.centers_: Optional[np.ndarray] = None
-        self.labels_: Optional[np.ndarray] = None
+        self.membership_: np.ndarray | None = None
+        self.centers_: np.ndarray | None = None
+        self.labels_: np.ndarray | None = None
 
     # ------------------------------------------------------------------
     # sklearn-compatible interface required by the benchmarking backends
     # ------------------------------------------------------------------
 
-    def fit(self, X) -> "BenchmarkAdapter":
+    def fit(self, X) -> BenchmarkAdapter:
         """Fit the wrapped model and populate standardised attributes."""
         result = self._dispatch_fit(X)
         self._extract_membership(result, X)
@@ -165,7 +165,7 @@ class BenchmarkAdapter:
         and normalise it to shape (n_samples, n_clusters).
         """
         n_samples = X.shape[0] if hasattr(X, "shape") else len(X)
-        U: Optional[np.ndarray] = None
+        U: np.ndarray | None = None
 
         # --- 1. Try the return value of fit_predict ---
         if result is not None:

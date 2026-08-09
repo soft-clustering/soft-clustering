@@ -1,87 +1,93 @@
 """Soft Clustering - A library of soft and fuzzy clustering algorithms."""
 
-__version__ = "0.0.3"
+__version__ = "0.1.0"
 
-from ._afcm import AFCM
-from ._afcmadaptive import AFCMAdaptive
-from ._afcmSimple import AFCMSimple
-from ._bgmm import BGMM
-from ._bigclam import BIGCLAM
-from ._bnmf import BayesianNMF
-from ._cafcm import CAFCM
-from ._cafhfcm import CAFHFCM
-from ._cdcgs import CDCGS
-from ._dmon import DMoN
-from ._ecm import ECM
-from ._entropyfcm import ENTROPYFCM
-from ._fcc import FCC
-from ._fcm import FuzzyCMeans as FCM
-from ._femifuzzy import FeMIFuzzy
-from ._gk import GustafsonKessel as GK
-from ._gmm import GaussianMixtureEM as GMM
-from ._kfccl import KFCCL
-from ._kfcm import KFCM
-from ._kmart import KMART
-from ._lda import LDA
-from ._mbmm import MBMM
-from ._mmsb import MMSB
-from ._nocd import NOCD
-from ._pcm import PossibilisticCMeans as PCM
-from ._pfcm import PFCM
-from ._plsi import PLSI
-from ._rdfkc import RDFKC
-from ._rough_k_means import RoughKMeans
-from ._rpfkm import RPFKM
-from ._scm import SCM
-from ._scspa import SCSPA
-from ._sfcmep import SFCMEP
-from ._shbgf import SHBGF
-from ._sisc import SISC
-from ._skfcm import SKFCM
-from ._smcla import SMCLA
-from ._softdbscangm import SoftDBSCANGM
-from ._softksc import SoftKSC
-from ._wbsc import WBSC
+from ._base import BaseSoftClusterer
 
-__all__ = [
-    "AFCM",
-    "AFCMAdaptive",
-    "AFCMSimple",
-    "BGMM",
-    "BIGCLAM",
-    "BayesianNMF",
-    "CAFCM",
-    "CAFHFCM",
-    "CDCGS",
-    "DMoN",
-    "ECM",
-    "ENTROPYFCM",
-    "FCC",
-    "FCM",
-    "FeMIFuzzy",
-    "GK",
-    "GMM",
-    "KFCCL",
-    "KFCM",
-    "KMART",
-    "LDA",
-    "MBMM",
-    "MMSB",
-    "NOCD",
-    "PCM",
-    "PFCM",
-    "PLSI",
-    "RDFKC",
-    "RoughKMeans",
-    "RPFKM",
-    "SCM",
-    "SCSPA",
-    "SFCMEP",
-    "SHBGF",
-    "SISC",
-    "SKFCM",
-    "SMCLA",
-    "SoftDBSCANGM",
-    "SoftKSC",
-    "WBSC",
-]
+# Estimator name -> module that defines it. Imports are deferred (PEP 562) so
+# that `import soft_clustering` costs nothing for the models a user does not
+# touch, and so that the five PyTorch-backed estimators do not make torch a
+# hard dependency of the whole package.
+_ESTIMATORS = {
+    "AFCM": "._afcm",
+    "AFCMAdaptive": "._afcmadaptive",
+    "AFCMSimple": "._afcmSimple",
+    "BGMM": "._bgmm",
+    "BIGCLAM": "._bigclam",
+    "BayesianNMF": "._bnmf",
+    "CAFCM": "._cafcm",
+    "CAFHFCM": "._cafhfcm",
+    "CDCGS": "._cdcgs",
+    "DMoN": "._dmon",
+    "ECM": "._ecm",
+    "ENTROPYFCM": "._entropyfcm",
+    "FCC": "._fcc",
+    "FCM": "._fcm",
+    "FeMIFuzzy": "._femifuzzy",
+    "GK": "._gk",
+    "GMM": "._gmm",
+    "KFCCL": "._kfccl",
+    "KFCM": "._kfcm",
+    "KMART": "._kmart",
+    "LDA": "._lda",
+    "MBMM": "._mbmm",
+    "MMSB": "._mmsb",
+    "NOCD": "._nocd",
+    "PCM": "._pcm",
+    "PFCM": "._pfcm",
+    "PLSI": "._plsi",
+    "RDFKC": "._rdfkc",
+    "RoughKMeans": "._rough_k_means",
+    "RPFKM": "._rpfkm",
+    "SCM": "._scm",
+    "SCSPA": "._scspa",
+    "SFCMEP": "._sfcmep",
+    "SHBGF": "._shbgf",
+    "SISC": "._sisc",
+    "SKFCM": "._skfcm",
+    "SMCLA": "._smcla",
+    "SoftDBSCANGM": "._softdbscangm",
+    "SoftKSC": "._softksc",
+    "WBSC": "._wbsc",
+}
+
+# Names that differ between the module and the public API.
+_ALIASES = {
+    "FCM": "FuzzyCMeans",
+    "GK": "GustafsonKessel",
+    "GMM": "GaussianMixtureEM",
+    "PCM": "PossibilisticCMeans",
+}
+
+#: Estimators requiring the optional ``deep`` extra (torch, torch_geometric).
+DEEP_ESTIMATORS = frozenset({"CDCGS", "DMoN", "MMSB", "NOCD", "RDFKC"})
+
+
+def __getattr__(name):
+    """Import an estimator on first access (PEP 562)."""
+    module_path = _ESTIMATORS.get(name)
+    if module_path is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+    from importlib import import_module
+
+    try:
+        module = import_module(module_path, __name__)
+    except ImportError as exc:  # pragma: no cover - depends on the environment
+        if name in DEEP_ESTIMATORS:
+            raise ImportError(
+                f"{name} requires the optional deep-learning dependencies. "
+                f'Install them with: pip install "soft-clustering[deep]"'
+            ) from exc
+        raise
+
+    obj = getattr(module, _ALIASES.get(name, name))
+    globals()[name] = obj  # cache, so __getattr__ runs once per estimator
+    return obj
+
+
+def __dir__():
+    return sorted(list(globals()) + list(_ESTIMATORS))
+
+
+__all__ = sorted(_ESTIMATORS) + ["BaseSoftClusterer", "DEEP_ESTIMATORS"]

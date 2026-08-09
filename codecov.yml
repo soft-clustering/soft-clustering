@@ -1,0 +1,18 @@
+coverage:
+  precision: 1
+  round: down
+  range: "80...100"
+  status:
+    project:
+      default:
+        # Coverage must not regress by more than half a point on any pull request.
+        threshold: 0.5%
+    patch:
+      default:
+        # New or modified lines must be covered.
+        target: 90%
+
+comment:
+  layout: "reach, diff, flags, files"
+  behavior: default
+  require_changes: false

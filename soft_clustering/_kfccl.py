@@ -1,10 +1,11 @@
 import numpy as np
-from typing import Optional
 from typeguard import typechecked
+
+from ._base import BaseSoftClusterer
 
 
 @typechecked
-class KFCCL:
+class KFCCL(BaseSoftClusterer):
     """
     Kernel-based Fuzzy Competitive Learning Clustering (K-FCCL).
     """
@@ -15,9 +16,9 @@ class KFCCL:
     gamma: float
     epsilon: float
     max_iter: int
-    U: Optional[np.ndarray]
-    p_ik: Optional[np.ndarray]
-    K: Optional[np.ndarray]
+    U: np.ndarray | None
+    p_ik: np.ndarray | None
+    K: np.ndarray | None
 
     def __init__(
         self,
@@ -32,9 +33,9 @@ class KFCCL:
         self.gamma = gamma  # Gaussian kernel parameter
         self.epsilon = epsilon  # Convergence threshold
         self.max_iter = max_iter  # Maximum iterations
-        self.U: Optional[np.ndarray] = None  # Membership matrix
-        self.p_ik: Optional[np.ndarray] = None  # Inner products for clusters
-        self.K: Optional[np.ndarray] = None  # Kernel matrix
+        self.U: np.ndarray | None = None  # Membership matrix
+        self.p_ik: np.ndarray | None = None  # Inner products for clusters
+        self.K: np.ndarray | None = None  # Kernel matrix
 
     def _gaussian_kernel_matrix(self, X: np.ndarray) -> np.ndarray:
         """

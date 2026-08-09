@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import gc
 import time
-from typing import Any, Dict, Optional
+from typing import Any
 
 import numpy as np
 import psutil
@@ -60,8 +60,8 @@ class MemoryBenchmark(BaseBenchmark):
         self,
         model: Any,
         X,
-        y: Optional[np.ndarray] = None,
-    ) -> Dict[str, float]:
+        y: np.ndarray | None = None,
+    ) -> dict[str, float]:
 
         if self.warmup:
             gc.collect()

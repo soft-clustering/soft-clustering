@@ -2,12 +2,13 @@
 
 import pytest
 import torch
+
 from soft_clustering import CDCGS
 
 
 @pytest.fixture
 def adj():
-    rng = torch.manual_seed(0)
+    torch.manual_seed(0)
     A = (torch.rand(10, 10) > 0.5).float()
     A = torch.max(A, A.T)
     A.fill_diagonal_(0)

@@ -1,12 +1,18 @@
-import numpy as np
-from typeguard import typechecked
 from collections import defaultdict
-from scipy.sparse import lil_matrix, csr_matrix
-from typing import List, Dict, Set, Union
+
+import numpy as np
+from scipy.sparse import csr_matrix, lil_matrix
+from typeguard import typechecked
+
+from ._base import BaseSoftClusterer
 
 
 @typechecked
-class WBSC:
+class WBSC(BaseSoftClusterer):
+    # documents may belong to several word-based clusters to independent degrees
+    _partition_constrained = False
+    # Discovers the cluster count; see BaseSoftClusterer._determines_k.
+    _determines_k = True
     """
     Implements the Word-Based Soft Clustering (WBSC) algorithm.
 
@@ -41,12 +47,12 @@ class WBSC:
         self.min_doc_freq = min_doc_freq
         self.max_doc_freq_ratio = max_doc_freq_ratio
 
-        self.clusters_: List[Set[int]] = []
-        self.cluster_words_: List[Set[str]] = []
+        self.clusters_: list[set[int]] = []
+        self.cluster_words_: list[set[str]] = []
 
     def _initialize_clusters(
-        self, docs: List[str]
-    ) -> List[Dict[str, Union[Set[int], Set[str]]]]:
+        self, docs: list[str]
+    ) -> list[dict[str, set[int] | set[str]]]:
         """
         Performs initial processing of documents, filters the vocabulary, and creates initial word-based clusters.
         """
@@ -78,7 +84,7 @@ class WBSC:
         return initial_clusters
 
     @staticmethod
-    def _calculate_tanimoto(set1: Set, set2: Set) -> float:
+    def _calculate_tanimoto(set1: set, set2: set) -> float:
         """
         Calculates the Tanimoto similarity between two sets.
         This measure was settled on after trying different measures.
@@ -90,7 +96,7 @@ class WBSC:
         union_size = len(set1.union(set2))
         return intersection_size / union_size
 
-    def fit_predict(self, docs: List[str]) -> csr_matrix:
+    def fit_predict(self, docs: list[str]) -> csr_matrix:
         """
         Runs the clustering algorithm on a collection of documents.
 

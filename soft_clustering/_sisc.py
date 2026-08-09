@@ -1,11 +1,17 @@
-import numpy as np
 import random
-from scipy.sparse import lil_matrix, csr_matrix
 from collections import defaultdict
-from typing import List, Set, Dict, Tuple
+
+import numpy as np
+from scipy.sparse import csr_matrix, lil_matrix
+
+from ._base import BaseSoftClusterer
 
 
-class SISC:
+class SISC(BaseSoftClusterer):
+    # similarity-based assignment permits overlapping degrees that need not sum to one
+    _partition_constrained = False
+    # Discovers the cluster count; see BaseSoftClusterer._determines_k.
+    _determines_k = True
     """
     Implements the Similarity-based Soft Clustering (SISC) algorithm.
 
@@ -34,11 +40,11 @@ class SISC:
             2 * k
         )  # Start with twice the expected clusters to be more robust
         self.similarity_threshold = 0.0
-        self.centroids_: List[Set[int]] = []
-        self.clusters_: List[Set[int]] = []
-        self.cluster_words_: List[Set[str]] = []
+        self.centroids_: list[set[int]] = []
+        self.clusters_: list[set[int]] = []
+        self.cluster_words_: list[set[str]] = []
 
-    def _preprocess(self, docs: List[str]) -> List[Dict[str, int]]:
+    def _preprocess(self, docs: list[str]) -> list[dict[str, int]]:
         """
         Transforms documents into a simple bag-of-words representation by
         removing common English stop words and converting to lowercase.
@@ -94,7 +100,7 @@ class SISC:
 
     @staticmethod
     def _tanimoto_similarity(
-        doc1_words: Dict[str, int], doc2_words: Dict[str, int]
+        doc1_words: dict[str, int], doc2_words: dict[str, int]
     ) -> float:
         """
         Calculates the Tanimoto similarity between two documents based on their
@@ -121,8 +127,8 @@ class SISC:
         return m / denominator
 
     def _initialize_centroids(
-        self, processed_docs: List[Dict[str, int]]
-    ) -> List[Set[int]]:
+        self, processed_docs: list[dict[str, int]]
+    ) -> list[set[int]]:
         """
         Initializes cluster centroids by selecting documents that are far from
         each other. It also dynamically determines the similarity threshold (lambda)
@@ -209,7 +215,7 @@ class SISC:
         return valid_centroids
 
     def _calculate_membership_measure(
-        self, doc_idx: int, centroid: Set[int], processed_docs: List[Dict[str, int]]
+        self, doc_idx: int, centroid: set[int], processed_docs: list[dict[str, int]]
     ) -> float:
         """
         Calculates m(c, x), the average similarity of document x to a cluster centroid c.
@@ -231,7 +237,7 @@ class SISC:
         )
         return total_similarity / len(centroid)
 
-    def _merge_clusters(self, centroids: List[Set[int]]) -> List[Set[int]]:
+    def _merge_clusters(self, centroids: list[set[int]]) -> list[set[int]]:
         """
         Merges similar clusters based on set relationships or document overlap.
 
@@ -276,8 +282,8 @@ class SISC:
         return merged_centroids
 
     def _extract_keywords(
-        self, docs: List[str], final_clusters: List[Set[int]]
-    ) -> List[Set[str]]:
+        self, docs: list[str], final_clusters: list[set[int]]
+    ) -> list[set[str]]:
         """
         Extracts representative keywords for each cluster by collecting all
         words from the documents within each final cluster.
@@ -298,7 +304,7 @@ class SISC:
             cluster_keywords.append(all_cluster_words)
         return cluster_keywords
 
-    def fit_predict(self, docs: List[str]) -> csr_matrix:
+    def fit_predict(self, docs: list[str]) -> csr_matrix:
         """
         Runs the SISC algorithm on a collection of documents.
 

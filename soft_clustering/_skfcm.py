@@ -1,12 +1,13 @@
 import numpy as np
-from typing import Tuple
-from sklearn.metrics.pairwise import rbf_kernel
 from scipy.ndimage import uniform_filter
+from sklearn.metrics.pairwise import rbf_kernel
 from typeguard import typechecked
+
+from ._base import BaseSoftClusterer
 
 
 @typechecked
-class SKFCM:
+class SKFCM(BaseSoftClusterer):
     def __init__(
         self,
         n_clusters: int = 3,
@@ -42,7 +43,7 @@ class SKFCM:
     def _compute_kernel(self, X: np.ndarray):
         return rbf_kernel(X, gamma=self.gamma)
 
-    def _spatial_term(self, U: np.ndarray, shape: Tuple[int, int]):
+    def _spatial_term(self, U: np.ndarray, shape: tuple[int, int]):
         spatial_U = U.copy()
         for k in range(self.n_clusters):
             u_k = U[:, k].reshape(shape)
@@ -66,7 +67,7 @@ class SKFCM:
             denom = np.sum((d[i, :] / d[i, :][:, None]) ** (1 / (self.m - 1)), axis=0)
             self.U[i, :] = 1.0 / denom
 
-    def fit(self, X: np.ndarray, shape: Tuple[int, int]):
+    def fit(self, X: np.ndarray, shape: tuple[int, int]):
         self.N = X.shape[0]
         self.K = self._compute_kernel(X)
         self._initialize_U()

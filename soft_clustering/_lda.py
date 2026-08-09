@@ -3,15 +3,16 @@ from scipy.sparse import csr_matrix
 from scipy.special import psi
 from sklearn.feature_extraction.text import CountVectorizer
 from typeguard import typechecked
-from typing import Optional
+
+from ._base import BaseSoftClusterer
 
 
-class LDA:
+class LDA(BaseSoftClusterer):
     @typechecked
     def __init__(
         self,
         n_topics: int = 10,
-        alpha: Optional[float] = None,
+        alpha: float | None = None,
         beta: float = 0.01,
         max_iter: int = 100,
         var_max_iter: int = 20,

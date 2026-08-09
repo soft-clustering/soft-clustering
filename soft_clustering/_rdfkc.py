@@ -4,7 +4,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, TensorDataset
 from typeguard import typechecked
-from typing import Optional, Union
+
+from ._base import BaseSoftClusterer
 
 
 class COIL20Encoder(nn.Module):
@@ -64,18 +65,22 @@ class COIL20Decoder(nn.Module):
 
 
 class FashionMNISTEncoder(nn.Module):
-    def __init__(self):
+    """Convolutional encoder for single-channel images.
+
+    Every convolution is padded to preserve the spatial extent, so the flattened
+    width of the bottleneck is ``16 * image_size ** 2``. ``image_size`` defaults
+    to 28, the actual resolution of Fashion-MNIST; pass the matching value for
+    other inputs.
+    """
+
+    def __init__(self, image_size: int = 28, latent_dim: int = 20):
         super().__init__()
-        self.conv1 = nn.Conv2d(
-            1, 6, kernel_size=5, stride=1, padding=2
-        )  # → (6, 32, 32)
-        self.conv2 = nn.Conv2d(
-            6, 12, kernel_size=3, stride=1, padding=1
-        )  # → (12, 32, 32)
-        self.conv3 = nn.Conv2d(
-            12, 16, kernel_size=3, stride=1, padding=1
-        )  # → (16, 32, 32)
-        self.fc = nn.Linear(16 * 32 * 32, 20)
+        self.image_size = image_size
+        self.latent_dim = latent_dim
+        self.conv1 = nn.Conv2d(1, 6, kernel_size=5, stride=1, padding=2)
+        self.conv2 = nn.Conv2d(6, 12, kernel_size=3, stride=1, padding=1)
+        self.conv3 = nn.Conv2d(12, 16, kernel_size=3, stride=1, padding=1)
+        self.fc = nn.Linear(16 * image_size * image_size, latent_dim)
         self._init_weights()
 
     def _init_weights(self):
@@ -95,9 +100,12 @@ class FashionMNISTEncoder(nn.Module):
 
 
 class FashionMNISTDecoder(nn.Module):
-    def __init__(self):
+    """Mirror of :class:`FashionMNISTEncoder`; ``image_size`` must match it."""
+
+    def __init__(self, image_size: int = 28, latent_dim: int = 20):
         super().__init__()
-        self.fc = nn.Linear(20, 16 * 32 * 32)
+        self.image_size = image_size
+        self.fc = nn.Linear(latent_dim, 16 * image_size * image_size)
         self.deconv1 = nn.ConvTranspose2d(16, 12, kernel_size=3, stride=1, padding=1)
         self.deconv2 = nn.ConvTranspose2d(12, 6, kernel_size=3, stride=1, padding=1)
         self.deconv3 = nn.ConvTranspose2d(6, 1, kernel_size=5, stride=1, padding=2)
@@ -112,7 +120,7 @@ class FashionMNISTDecoder(nn.Module):
 
     def forward(self, z):
         x = self.fc(z)
-        x = x.view(-1, 16, 32, 32)
+        x = x.view(-1, 16, self.image_size, self.image_size)
         x = F.relu(self.deconv1(x))
         x = F.relu(self.deconv2(x))
         x = torch.sigmoid(self.deconv3(x))
@@ -120,16 +128,16 @@ class FashionMNISTDecoder(nn.Module):
 
 
 @typechecked
-class RDFKC:
+class RDFKC(BaseSoftClusterer):
     def __init__(
         self,
         K: int,
-        encoder: Optional[torch.nn.Module] = None,
-        decoder: Optional[torch.nn.Module] = None,
-        dataset: Optional[str] = None,
-        random_state: Optional[int] = None,
+        encoder: torch.nn.Module | None = None,
+        decoder: torch.nn.Module | None = None,
+        dataset: str | None = None,
+        random_state: int | None = None,
         max_iter: int = 100,
-        batch_size: Optional[int] = None,
+        batch_size: int | None = None,
         lr: float = 1e-4,
         mu: float = 1.0,
         gamma: float = 1e-4,
@@ -294,7 +302,7 @@ class RDFKC:
 
         self.U = U_new
 
-    def fit_predict(self, X: Union[np.ndarray, torch.Tensor]) -> np.ndarray:
+    def fit_predict(self, X: np.ndarray | torch.Tensor) -> np.ndarray:
         """Train the RD-FKC model and return soft cluster assignments."""
         if isinstance(X, np.ndarray):
             self.X = torch.tensor(X, dtype=torch.float32)

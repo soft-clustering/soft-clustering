@@ -1,12 +1,13 @@
 import numpy as np
-from typing import Tuple
-from typeguard import typechecked
-from sklearn.neighbors import kneighbors_graph
 from scipy.linalg import eigh
+from sklearn.neighbors import kneighbors_graph
+from typeguard import typechecked
+
+from ._base import BaseSoftClusterer
 
 
 @typechecked
-class AFCM:
+class AFCM(BaseSoftClusterer):
     def __init__(
         self,
         c: int,
@@ -48,7 +49,7 @@ class AFCM:
         eigvals, eigvecs = eigh(M, subset_by_index=(0, self.c - 1))
         return eigvecs
 
-    def fit_predict(self, X: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def fit_predict(self, X: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """
         Apply full AFCM with graph embedding.
 

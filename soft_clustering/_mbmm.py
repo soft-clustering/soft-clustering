@@ -2,9 +2,11 @@ import numpy as np
 from scipy.stats import beta
 from typeguard import typechecked
 
+from ._base import BaseSoftClusterer
+
 
 @typechecked
-class MBMM:
+class MBMM(BaseSoftClusterer):
     def __init__(self, n_components: int = 3, max_iter: int = 100, tol: float = 1e-5):
         """
         Parameters:
@@ -91,7 +93,9 @@ class MBMM:
             prev_ll = ll
 
     def predict_proba(self) -> np.ndarray:
+        self._check_fitted()
         return self.resp
 
     def predict(self) -> np.ndarray:
+        self._check_fitted()
         return np.argmax(self.resp, axis=1)

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from typing import Any, Dict, Optional
+from typing import Any
 
 import numpy as np
 
@@ -25,8 +25,8 @@ class RuntimeBenchmark(BaseBenchmark):
         self,
         model: Any,
         X,
-        y: Optional[np.ndarray] = None,
-    ) -> Dict[str, float]:
+        y: np.ndarray | None = None,
+    ) -> dict[str, float]:
 
         fit_times = []
         predict_times = []

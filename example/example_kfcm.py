@@ -1,5 +1,6 @@
-from os import path
 import sys
+from os import path
+
 import numpy as np
 
 if __name__ == "__main__":
@@ -32,7 +33,7 @@ if __name__ == "__main__":
     print("Instantiating and fitting the KFCM model...")
     kfcm_instance = KFCM(n_clusters=3, m=2.0, sigma=3.0, epsilon=0.001, max_iter=100)
 
-    predicted_labels = kfcm_instance.fit(X)
+    predicted_labels = kfcm_instance.fit(X).labels_
 
     # Display the results
     print("\n--- KFCM Test Results ---")

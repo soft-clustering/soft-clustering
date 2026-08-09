@@ -1,7 +1,7 @@
-from os import path
 import sys
+from os import path
+
 from sklearn.feature_extraction.text import CountVectorizer
-from scipy.sparse import csr_matrix
 
 if __name__ == "__main__":
     base_dir = path.dirname(path.realpath(__file__))

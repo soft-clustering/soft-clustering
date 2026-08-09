@@ -1,8 +1,8 @@
 import numpy as np
-from typeguard import typechecked
-from typing import Optional, List
-from sklearn.metrics import silhouette_score
 from scipy.optimize import linear_sum_assignment
+from typeguard import typechecked
+
+from ._base import BaseSoftClusterer
 
 
 class _MIFuzzy:
@@ -18,7 +18,7 @@ class _MIFuzzy:
         n_imputations: int = 5,
         n_samples: int = 0,
         fuzzifier: float = 2.0,
-        random_state: Optional[int] = None,
+        random_state: int | None = None,
         max_iter: int = 0,
     ):
         self.C = c_clusters
@@ -80,6 +80,16 @@ class _MIFuzzy:
         if np.any(self.full_missing_mask):
             self.X = self.X[:, ~self.full_missing_mask]
 
+        # The sample count is a property of the data, not a hyperparameter.
+        # Deriving it here keeps the estimator usable without the caller having
+        # to pass n_samples, which otherwise defaults to 0 and makes the
+        # centroid initialisation below fail.
+        self.N = self.X.shape[0]
+        if self.C > self.N:
+            raise ValueError(
+                f"c_clusters={self.C} exceeds the number of samples ({self.N})."
+            )
+
         imputed_datasets = self.multiple_imputer()
 
         rng = np.random.default_rng(self.random_state)
@@ -114,10 +124,10 @@ class _MIFuzzy:
 
 
 @typechecked
-class FeMIFuzzy:
+class FeMIFuzzy(BaseSoftClusterer):
     def __init__(
         self,
-        random_state: Optional[int] = None,
+        random_state: int | None = None,
         max_iter: int = 100,
     ):
         self.random_state = random_state
@@ -232,7 +242,7 @@ class FeMIFuzzy:
         row_ind, col_ind = linear_sum_assignment(dist_matrix)
         return col_ind
 
-    def fit_predict(self, clients: List[np.ndarray], features) -> list:
+    def fit_predict(self, clients: list[np.ndarray], features) -> list:
         clients = self._align_clients_features(clients, features)
         C_global = 0.0
         N = []
@@ -240,8 +250,11 @@ class FeMIFuzzy:
 
         for client in clients:
             X = self._sammon_mapping(client)
-            max_k = 10
             n = X.shape[0]
+            # The model-selection sweep cannot request more clusters than the
+            # client holds samples; centroid initialisation draws k distinct
+            # points without replacement.
+            max_k = min(10, n)
             N.append(n)
             xb_set = []
             V_set = []
@@ -285,7 +298,7 @@ class FeMIFuzzy:
                 aligned_memberships.append(U_n[:, mapping])
 
             V_final = np.mean(aligned_centers, axis=0)
-            U_final = np.mean(aligned_memberships, axis=0)
+            np.mean(aligned_memberships, axis=0)
             centroids.append(V_final)
 
             C_global += n * (best_k_idx + 1)

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import time
-from typing import Any, Dict, Iterable, Optional
+from collections.abc import Iterable
+from typing import Any
 
 import numpy as np
 import psutil
@@ -39,8 +40,8 @@ class ScalabilityBenchmark(BaseBenchmark):
         self,
         model: Any,
         X,
-        y: Optional[np.ndarray] = None,
-    ) -> Dict[str, float]:
+        y: np.ndarray | None = None,
+    ) -> dict[str, float]:
 
         rng = np.random.default_rng(self.random_state)
 

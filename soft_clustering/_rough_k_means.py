@@ -1,9 +1,15 @@
+from typing import Any
+
 import numpy as np
-from typing import Dict, Any, Optional
 from typeguard import typechecked
 
+from ._base import BaseSoftClusterer
 
-class RoughKMeans:
+
+class RoughKMeans(BaseSoftClusterer):
+    # an object lying outside every approximation yields an all-zero row
+    _partition_constrained = False
+
     @typechecked
     def __init__(
         self,
@@ -11,7 +17,7 @@ class RoughKMeans:
         weight_lower: float = 0.7,
         max_iter: int = 100,
         tol: float = 1e-4,
-        random_state: Optional[int] = None,
+        random_state: int | None = None,
     ):
         """
         Rough K-Means clustering with interval-set (lower/upper) approximations.
@@ -39,7 +45,7 @@ class RoughKMeans:
         """Compute Euclidean distance between two points."""
         return np.linalg.norm(a - b)
 
-    def fit_predict(self, X: np.ndarray) -> Dict[str, Any]:
+    def fit_predict(self, X: np.ndarray) -> dict[str, Any]:
         """
         Perform Rough K-Means clustering on the input data.
 
@@ -153,6 +159,18 @@ class RoughKMeans:
                 lower_matrix[i, j] = 1
             for i in U[j]:
                 upper_matrix[i, j] = 1
+
+        # Rough k-means yields interval sets rather than degrees. The estimator
+        # protocol requires a membership matrix, so we read one off the
+        # approximations: an object in a lower approximation belongs to that
+        # cluster alone, while an object lying only in upper approximations is
+        # shared uniformly among them (Lingras and West, 2004, Sec. 3).
+        region = np.where(
+            lower_matrix.sum(axis=1, keepdims=True) > 0, lower_matrix, upper_matrix
+        ).astype(float)
+        row_sums = region.sum(axis=1, keepdims=True)
+        self.memberships_ = region / np.maximum(row_sums, 1.0)
+        self.centers_ = centroids
 
         return {
             "lower_approx": lower_matrix,

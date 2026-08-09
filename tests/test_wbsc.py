@@ -2,6 +2,7 @@
 
 import pytest
 import scipy.sparse as sp
+
 from soft_clustering import WBSC
 
 
@@ -32,15 +33,18 @@ def test_membership_rows(docs):
 
 
 def test_membership_columns(docs):
-    model = WBSC(n_clusters=3)
+    # WBSC is non-parametric: it discovers the cluster count.
+    model = WBSC()
     result = model.fit_predict(docs)
-    assert result.shape[1] == 3
+    assert result.shape[1] >= 1
+    assert model.n_clusters == result.shape[1]
 
 
 def test_k2(docs):
-    model = WBSC(n_clusters=2)
-    result = model.fit_predict(docs)
-    assert result.shape[1] == 2
+    # A stricter merge threshold must not increase the number of clusters.
+    coarse = WBSC(similarity_threshold=0.1).fit_predict(docs)
+    fine = WBSC(similarity_threshold=0.9).fit_predict(docs)
+    assert coarse.shape[1] <= fine.shape[1]
 
 
 def test_single_doc():

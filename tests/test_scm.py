@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+
 from soft_clustering import SCM
 
 
@@ -15,7 +16,7 @@ def X():
 
 def test_fit_returns_centers(X):
     model = SCM()
-    centers = model.fit(X)
+    centers = model.fit(X).centers_
     assert centers is not None
     assert centers.ndim == 2
     assert centers.shape[1] == 2
@@ -29,13 +30,13 @@ def test_centers_stored(X):
 
 def test_at_least_one_center(X):
     model = SCM()
-    centers = model.fit(X)
+    centers = model.fit(X).centers_
     assert len(centers) >= 1
 
 
 def test_centers_within_data_range(X):
     model = SCM()
-    centers = model.fit(X)
+    centers = model.fit(X).centers_
     for center in centers:
         assert np.all(center >= X.min(axis=0) - 1)
         assert np.all(center <= X.max(axis=0) + 1)
@@ -44,7 +45,7 @@ def test_centers_within_data_range(X):
 def test_different_ra_values(X):
     for ra in [0.3, 0.5, 0.8]:
         model = SCM(ra=ra)
-        centers = model.fit(X)
+        centers = model.fit(X).centers_
         assert centers.shape[1] == 2
 
 
@@ -52,5 +53,5 @@ def test_3d_input():
     rng = np.random.default_rng(16)
     X = rng.normal(size=(30, 3))
     model = SCM()
-    centers = model.fit(X)
+    centers = model.fit(X).centers_
     assert centers.shape[1] == 3

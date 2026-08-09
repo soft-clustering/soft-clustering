@@ -1,6 +1,6 @@
 from .clustering_quality import ClusteringQualityBenchmark
-from .runtime import RuntimeBenchmark
 from .memory_usage import MemoryBenchmark
+from .runtime import RuntimeBenchmark
 from .scalability import ScalabilityBenchmark
 
 __all__ = [

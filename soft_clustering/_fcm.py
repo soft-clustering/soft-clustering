@@ -1,9 +1,10 @@
 import random
+
 import numpy as np
 import scipy.sparse as sp
-from copy import deepcopy
 from typeguard import typechecked
-from typing import Optional
+
+from ._base import BaseSoftClusterer
 
 
 def _euclidean_dist2(X, centers):
@@ -75,10 +76,10 @@ def _objective(X, U, centers, m):
 
 
 @typechecked
-class FuzzyCMeans:
+class FuzzyCMeans(BaseSoftClusterer):
     def __init__(
         self,
-        random_state: Optional[int] = None,
+        random_state: int | None = None,
         m: float = 2.0,
         max_iter: int = 300,
         tol: float = 1e-5,

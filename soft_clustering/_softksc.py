@@ -1,10 +1,12 @@
 import numpy as np
-from typeguard import typechecked
 from sklearn.metrics.pairwise import rbf_kernel
+from typeguard import typechecked
+
+from ._base import BaseSoftClusterer
 
 
 @typechecked
-class SoftKSC:
+class SoftKSC(BaseSoftClusterer):
     def __init__(self, gamma: float = 1.0, C: float = 1.0):
         """
         Parameters:

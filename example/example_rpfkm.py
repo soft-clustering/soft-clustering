@@ -1,12 +1,12 @@
-from os import path
 import sys
-import numpy as np
+from os import path
 
 if __name__ == "__main__":
     base_dir = path.dirname(path.realpath(__file__))
     sys.path.append(base_dir[:-4])
-    from soft_clustering import RPFKM
     from sklearn.datasets import make_blobs
+
+    from soft_clustering import RPFKM
 
     # Generate synthetic dataset
     X, _ = make_blobs(n_samples=100, centers=3, n_features=10, random_state=42)

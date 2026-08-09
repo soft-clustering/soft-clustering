@@ -1,8 +1,8 @@
 """Unit and integration tests for KMART (Fuzzy ART document clustering)."""
 
-import numpy as np
 import pytest
 import scipy.sparse as sp
+
 from soft_clustering import KMART
 
 

@@ -1,10 +1,11 @@
 import numpy as np
-from typing import Tuple
 from typeguard import typechecked
+
+from ._base import BaseSoftClusterer
 
 
 @typechecked
-class FCC:
+class FCC(BaseSoftClusterer):
     def __init__(
         self, c: int, jnd: float = 20.0, max_iter: int = 100, tol: float = 1e-5
     ):
@@ -35,7 +36,7 @@ class FCC:
 
         return memberships / memberships.sum()
 
-    def fit_predict(self, X: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def fit_predict(self, X: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """
         Perform Fuzzy Color Clustering.
 

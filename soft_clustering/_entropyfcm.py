@@ -1,10 +1,11 @@
 import numpy as np
-from typing import Tuple
 from typeguard import typechecked
+
+from ._base import BaseSoftClusterer
 
 
 @typechecked
-class ENTROPYFCM:
+class ENTROPYFCM(BaseSoftClusterer):
     def __init__(
         self,
         c: int,
@@ -43,7 +44,7 @@ class ENTROPYFCM:
         inv_dist = dist ** (-2 / (self.m - 1))
         return inv_dist / np.sum(inv_dist, axis=1, keepdims=True)
 
-    def _objective(self, X: np.ndarray) -> Tuple[float, float]:
+    def _objective(self, X: np.ndarray) -> tuple[float, float]:
         um = self.U**self.m
         compactness = np.sum(
             um * np.linalg.norm(X[:, None, :] - self.centroids[None, :, :], axis=2) ** 2
@@ -51,7 +52,7 @@ class ENTROPYFCM:
         entropy = -np.sum(self.U * np.log(self.U + 1e-8))
         return compactness, entropy
 
-    def fit_predict(self, X: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def fit_predict(self, X: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """
         Run ECM clustering (base mode, single run).
 

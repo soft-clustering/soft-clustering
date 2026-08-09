@@ -1,11 +1,16 @@
-import numpy as np
-import random
-from scipy.sparse import lil_matrix, csr_matrix
 from collections import defaultdict
-from typing import List, Set, Dict, Tuple
+
+import numpy as np
+from scipy.sparse import csr_matrix, lil_matrix
+
+from ._base import BaseSoftClusterer
 
 
-class KMART:
+class KMART(BaseSoftClusterer):
+    # ART vigilance yields independent per-category activations
+    _partition_constrained = False
+    # Discovers the cluster count; see BaseSoftClusterer._determines_k.
+    _determines_k = True
     """
     Implements a modified Fuzzy Adaptive Resonance Theory (Fuzzy ART) algorithm
     for soft document clustering.
@@ -37,10 +42,10 @@ class KMART:
         """
         self.vigilance_param = vigilance_param
         self.learning_rate = learning_rate
-        self.clusters_: List[Set[int]] = []
-        self.prototypes_: List[np.ndarray] = []
-        self._unique_words: List[str] = []
-        self.cluster_words_: List[Set[str]] = []
+        self.clusters_: list[set[int]] = []
+        self.prototypes_: list[np.ndarray] = []
+        self._unique_words: list[str] = []
+        self.cluster_words_: list[set[str]] = []
 
         # Stop words are defined as a class attribute for reusability.
         self._stop_words = set(
@@ -74,7 +79,7 @@ class KMART:
             ]
         )
 
-    def _preprocess(self, docs: List[str]) -> Tuple[List[np.ndarray], List[str]]:
+    def _preprocess(self, docs: list[str]) -> tuple[list[np.ndarray], list[str]]:
         """
         Transforms documents into a vector representation (bag-of-words).
         Removes stop words and creates a unique vocabulary.
@@ -130,7 +135,7 @@ class KMART:
         """
         return np.minimum(vec1, vec2)
 
-    def _extract_keywords(self, docs: List[str]) -> List[Set[str]]:
+    def _extract_keywords(self, docs: list[str]) -> list[set[str]]:
         """
         Extracts representative keywords for each cluster by collecting all
         words from the documents within each final cluster, filtering out stop words.
@@ -157,7 +162,7 @@ class KMART:
             cluster_keywords.append(set(sorted_words[:10]))
         return cluster_keywords
 
-    def fit_predict(self, docs: List[str]) -> csr_matrix:
+    def fit_predict(self, docs: list[str]) -> csr_matrix:
         """
         Runs the KMART clustering algorithm on a collection of documents.
 

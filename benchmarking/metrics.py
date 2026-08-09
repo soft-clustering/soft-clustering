@@ -1,16 +1,14 @@
 from __future__ import annotations
 
-from typing import Dict, Optional
-
 import numpy as np
 
 try:
     from sklearn.metrics import (
         adjusted_rand_score,
-        normalized_mutual_info_score,
-        silhouette_score,
         calinski_harabasz_score,
         davies_bouldin_score,
+        normalized_mutual_info_score,
+        silhouette_score,
     )
 
     _HAVE_SKLEARN = True
@@ -25,8 +23,8 @@ except ImportError:
 def clustering_metrics(
     X: np.ndarray,
     labels: np.ndarray,
-    y_true: Optional[np.ndarray] = None,
-) -> Dict[str, float]:
+    y_true: np.ndarray | None = None,
+) -> dict[str, float]:
     """
     Standard clustering metrics.
 
@@ -234,9 +232,9 @@ def fuzzy_compactness(
 def soft_clustering_metrics(
     X: np.ndarray,
     U: np.ndarray,
-    centers: Optional[np.ndarray] = None,
+    centers: np.ndarray | None = None,
     m: float = 2.0,
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """
     Compute all soft clustering metrics.
 

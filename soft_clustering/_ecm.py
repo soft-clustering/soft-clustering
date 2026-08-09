@@ -1,9 +1,11 @@
 import numpy as np
 from typeguard import typechecked
 
+from ._base import BaseSoftClusterer
+
 
 @typechecked
-class ECM:
+class ECM(BaseSoftClusterer):
     def __init__(
         self,
         n_clusters: int = 3,
@@ -70,6 +72,15 @@ class ECM:
             if np.linalg.norm(new_prototypes - self.prototypes) < self.tol:
                 break
             self.prototypes = new_prototypes
+
+        # ``mass`` carries one column per cluster plus a final column holding
+        # the mass assigned to the noise (empty) set. The membership matrix
+        # required by the estimator protocol is the credal-to-pignistic
+        # reduction: drop the noise column and renormalise over the clusters.
+        cluster_mass = self.mass[:, : self.n_clusters]
+        row_sums = cluster_mass.sum(axis=1, keepdims=True)
+        self.memberships_ = cluster_mass / np.maximum(row_sums, 1e-12)
+        self.centers_ = self.prototypes
 
     def get_membership(self) -> np.ndarray:
         """

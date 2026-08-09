@@ -1,10 +1,14 @@
 import numpy as np
 from typeguard import typechecked
-from typing import Union, Optional, List
+
+from ._base import BaseSoftClusterer
 
 
 @typechecked
-class PFCM:
+class PFCM(BaseSoftClusterer):
+    # combines memberships with unnormalised typicalities (Pal et al., 2005)
+    _partition_constrained = False
+
     def __init__(
         self,
         n_clusters: int,  # Number of clusters
@@ -14,7 +18,7 @@ class PFCM:
         typicality_weight: float = 1.0,  # Weight for typicality term
         max_iter: int = 150,  # Maximum number of iterations
         tol: float = 1e-5,  # Tolerance for convergence
-        random_state: Optional[int] = None,  # Random seed for reproducibility
+        random_state: int | None = None,  # Random seed for reproducibility
     ):
         # Store parameters
         self.n_clusters = n_clusters
@@ -27,10 +31,10 @@ class PFCM:
         self.random_state = random_state
 
         # Will be set during training
-        self.membership_matrix: Optional[np.ndarray] = None  # Membership matrix (c x n)
-        self.typicality_matrix: Optional[np.ndarray] = None  # Typicality matrix (c x n)
-        self.cluster_centroids: Optional[np.ndarray] = None  # Cluster centroids (c x d)
-        self.gamma: Optional[np.ndarray] = None  # Cluster-wise scaling for typicalities
+        self.membership_matrix: np.ndarray | None = None  # Membership matrix (c x n)
+        self.typicality_matrix: np.ndarray | None = None  # Typicality matrix (c x n)
+        self.cluster_centroids: np.ndarray | None = None  # Cluster centroids (c x d)
+        self.gamma: np.ndarray | None = None  # Cluster-wise scaling for typicalities
 
     def _initialize_centroids(self, X: np.ndarray) -> None:
         """
@@ -96,7 +100,7 @@ class PFCM:
             new_cluster_centroids[i] = weighted_sum / np.sum(weights)  # New centroid
         return new_cluster_centroids
 
-    def fit(self, X: Union[np.ndarray, List[List[float]]]) -> "PFCM":
+    def fit(self, X: np.ndarray | list[list[float]]) -> "PFCM":
         """
         Fit the PFCM model to data X.
         Returns self with updated membership_matrix, typicality_matrix, cluster_centroids.
@@ -121,9 +125,7 @@ class PFCM:
 
         return self
 
-    def predict_memberships(
-        self, X: Union[np.ndarray, List[List[float]]]
-    ) -> np.ndarray:
+    def predict_memberships(self, X: np.ndarray | list[list[float]]) -> np.ndarray:
         """
         Predict fuzzy memberships for new data points.
         Returns a (c x n_new) membership matrix.
@@ -134,9 +136,7 @@ class PFCM:
         denom = np.sum((distances[:, None, :] / distances[None, :, :]) ** power, axis=1)
         return 1.0 / denom
 
-    def predict_typicalities(
-        self, X: Union[np.ndarray, List[List[float]]]
-    ) -> np.ndarray:
+    def predict_typicalities(self, X: np.ndarray | list[list[float]]) -> np.ndarray:
         """
         Predict typicality values for new data points.
         Returns a (c x n_new) typicality matrix.

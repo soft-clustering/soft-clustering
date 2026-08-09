@@ -1,10 +1,11 @@
 import numpy as np
-from typing import Tuple
 from typeguard import typechecked
+
+from ._base import BaseSoftClusterer
 
 
 @typechecked
-class CAFCM:
+class CAFCM(BaseSoftClusterer):
     def __init__(
         self,
         c: int,
@@ -44,7 +45,7 @@ class CAFCM:
         centroids = (um.T @ X) / np.sum(um.T, axis=1, keepdims=True)
         return centroids
 
-    def fit_predict(self, X: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def fit_predict(self, X: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """
         Perform collaborative annealing fuzzy C-means clustering.
 

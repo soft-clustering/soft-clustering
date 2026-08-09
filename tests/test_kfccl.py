@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+
 from soft_clustering import KFCCL
 
 
@@ -14,12 +15,12 @@ def X():
 
 
 def test_fit_returns_labels(X):
-    labels = KFCCL(n_clusters=2).fit(X)
+    labels = KFCCL(n_clusters=2).fit(X).labels_
     assert labels.shape == (30,)
 
 
 def test_labels_in_range(X):
-    labels = KFCCL(n_clusters=2).fit(X)
+    labels = KFCCL(n_clusters=2).fit(X).labels_
     assert set(labels).issubset({0, 1})
 
 
@@ -37,5 +38,5 @@ def test_kernel_matrix_computed(X):
 
 
 def test_k3(X):
-    labels = KFCCL(n_clusters=3).fit(X)
+    labels = KFCCL(n_clusters=3).fit(X).labels_
     assert set(labels).issubset({0, 1, 2})

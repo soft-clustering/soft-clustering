@@ -1,12 +1,13 @@
 import torch
-import torch.nn.functional as F
-from torch.distributions.dirichlet import Dirichlet
 from torch.distributions.bernoulli import Bernoulli
+from torch.distributions.dirichlet import Dirichlet
 from typeguard import typechecked
+
+from ._base import BaseSoftClusterer
 
 
 @typechecked
-class MMSB:
+class MMSB(BaseSoftClusterer):
     def __init__(self, n_nodes: int, n_blocks: int, alpha: float = 0.5):
         """
         Parameters:

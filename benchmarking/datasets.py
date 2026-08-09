@@ -20,22 +20,20 @@ where:
 
 from __future__ import annotations
 
-from typing import Dict, List, Tuple
-
 import numpy as np
 
 try:
     from sklearn.datasets import (
-        load_iris,
-        load_wine,
-        load_digits,
-        load_breast_cancer,
-        load_diabetes,
         fetch_olivetti_faces,
         fetch_openml,
+        load_breast_cancer,
+        load_diabetes,
+        load_digits,
+        load_iris,
+        load_wine,
         make_blobs,
-        make_moons,
         make_circles,
+        make_moons,
     )
 
     _HAVE_SKLEARN = True
@@ -56,7 +54,7 @@ except ImportError:
 # Dataset Registry
 # ============================================================
 
-DATASET_GROUPS: Dict[str, List[str]] = {
+DATASET_GROUPS: dict[str, list[str]] = {
     "real": [
         "iris",
         "wine",
@@ -104,7 +102,7 @@ OPENML_DATASETS = {
 # ============================================================
 
 
-def available_datasets() -> List[str]:
+def available_datasets() -> list[str]:
     """
     Return all available datasets.
     """
@@ -116,14 +114,14 @@ def available_datasets() -> List[str]:
     return sorted(set(names))
 
 
-def available_groups() -> List[str]:
+def available_groups() -> list[str]:
     """
     Return available dataset groups.
     """
     return sorted(DATASET_GROUPS.keys())
 
 
-def datasets_in_group(group: str) -> List[str]:
+def datasets_in_group(group: str) -> list[str]:
     """
     Return datasets belonging to a group.
     """
@@ -143,7 +141,7 @@ def datasets_in_group(group: str) -> List[str]:
 def get_dataset(
     name: str,
     random_state: int = 42,
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Load a benchmark dataset.
 
@@ -291,7 +289,7 @@ def get_dataset(
 # ============================================================
 
 
-def dataset_info(name: str) -> Dict:
+def dataset_info(name: str) -> dict:
     """
     Return metadata for a dataset.
     """
@@ -308,7 +306,7 @@ def dataset_info(name: str) -> Dict:
 
 def benchmark_suite(
     group: str = "real",
-) -> Dict[str, Tuple[np.ndarray, np.ndarray]]:
+) -> dict[str, tuple[np.ndarray, np.ndarray]]:
     """
     Load a full benchmark suite.
 

@@ -1,12 +1,19 @@
 import numpy as np
-from sklearn.cluster import DBSCAN
-from scipy.spatial.distance import mahalanobis
 from scipy.linalg import inv
+from scipy.spatial.distance import mahalanobis
+from sklearn.cluster import DBSCAN
 from typeguard import typechecked
+
+from ._base import BaseSoftClusterer
 
 
 @typechecked
-class SoftDBSCANGM:
+class SoftDBSCANGM(BaseSoftClusterer):
+    # density-based degrees are not normalised across components
+    _partition_constrained = False
+    # Discovers the cluster count; see BaseSoftClusterer._determines_k.
+    _determines_k = True
+
     def __init__(
         self,
         eps: float = 0.5,
@@ -104,4 +111,5 @@ class SoftDBSCANGM:
         return self.U
 
     def predict(self) -> np.ndarray:
+        self._check_fitted()
         return self.labels_

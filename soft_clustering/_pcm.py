@@ -1,9 +1,10 @@
 import random
+
 import numpy as np
 import scipy.sparse as sp
-from copy import deepcopy
 from typeguard import typechecked
-from typing import Optional
+
+from ._base import BaseSoftClusterer
 
 
 def _euclidean_dist2(X, centers):
@@ -78,10 +79,13 @@ def _objective_pcm(X, T, centers, etas, m):
 
 
 @typechecked
-class PossibilisticCMeans:
+class PossibilisticCMeans(BaseSoftClusterer):
+    # typicalities are independent per cluster (Krishnapuram and Keller, 2002)
+    _partition_constrained = False
+
     def __init__(
         self,
-        random_state: Optional[int] = None,
+        random_state: int | None = None,
         m: float = 2.0,
         alpha: float = 1.0,
         max_iter: int = 300,

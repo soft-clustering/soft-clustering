@@ -1,12 +1,14 @@
-from os import path
 import sys
+from os import path
+
 import numpy as np
 
 if __name__ == "__main__":
     base_dir = path.dirname(path.realpath(__file__))
     sys.path.append(base_dir[:-4])
-    from soft_clustering import SoftKSC
     from sklearn.datasets import make_moons
+
+    from soft_clustering import SoftKSC
 
     X, y = make_moons(n_samples=200, noise=0.1, random_state=42)
     y = np.where(y == 0, -1, 1)

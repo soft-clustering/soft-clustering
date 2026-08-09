@@ -1,11 +1,12 @@
 import numpy as np
-from scipy.ndimage import laplace
-from scipy.ndimage import gaussian_filter
+from scipy.ndimage import gaussian_filter, laplace
 from typeguard import typechecked
+
+from ._base import BaseSoftClusterer
 
 
 @typechecked
-class AFCMAdaptive:
+class AFCMAdaptive(BaseSoftClusterer):
     def __init__(
         self,
         n_clusters: int = 3,

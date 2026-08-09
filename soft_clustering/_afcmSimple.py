@@ -1,10 +1,11 @@
 import numpy as np
-from typing import Tuple, List
 from typeguard import typechecked
+
+from ._base import BaseSoftClusterer
 
 
 @typechecked
-class AFCMSimple:
+class AFCMSimple(BaseSoftClusterer):
     def __init__(
         self, c: int, m: float = 2.0, max_iter: int = 100, tol: float = 1e-5
     ) -> None:
@@ -20,7 +21,7 @@ class AFCMSimple:
         self.max_iter = max_iter
         self.tol = tol
 
-    def fit_predict(self, X: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def fit_predict(self, X: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """
         Apply Adaptive FCM without graph embedding.
 

@@ -3,8 +3,9 @@
 import numpy as np
 import pytest
 import torch
+
 from soft_clustering import RDFKC
-from soft_clustering._rdfkc import FashionMNISTEncoder, FashionMNISTDecoder
+from soft_clustering._rdfkc import FashionMNISTDecoder, FashionMNISTEncoder
 
 
 @pytest.fixture

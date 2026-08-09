@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, List, Optional
+from typing import Any, Optional
 
 import pandas as pd
 
@@ -14,8 +14,8 @@ class ClusteringBenchmark:
 
     def __init__(
         self,
-        models: List[Any],
-        benchmarks: List[BaseBenchmark],
+        models: list[Any],
+        benchmarks: list[BaseBenchmark],
     ):
         self.models = models
         self.benchmarks = benchmarks

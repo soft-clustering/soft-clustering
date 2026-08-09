@@ -1,16 +1,18 @@
-import torch
 import random
+from copy import deepcopy
+
 import numpy as np
 import scipy.sparse as sp
-from copy import deepcopy
+import torch
 from typeguard import typechecked
-from typing import Union, Optional, List
+
+from ._base import BaseSoftClusterer
 
 
 def _to_sparse_tensor(
-    matrix: Union[sp.spmatrix, torch.Tensor],
+    matrix: sp.spmatrix | torch.Tensor,
     cuda: bool = torch.cuda.is_available(),
-) -> Union[torch.sparse.FloatTensor, torch.cuda.sparse.FloatTensor]:
+) -> torch.sparse.FloatTensor | torch.cuda.sparse.FloatTensor:
     """Convert a scipy sparse matrix to a torch sparse tensor.
     Args:
     matrix: Sparse matrix to convert.
@@ -71,8 +73,17 @@ def _seed_worker(worker_id):
 
 
 def _get_edge_sampler(
-    A, num_pos=1000, num_neg=1000, num_workers=2, random_seed=None, device="cpu"
+    A, num_pos=1000, num_neg=1000, num_workers=0, random_seed=None, device="cpu"
 ):
+    """Build a DataLoader over sampled edges and non-edges.
+
+    ``num_workers`` defaults to 0 (in-process loading). Worker processes are
+    started with the ``spawn`` method on macOS and Windows, which re-imports
+    the caller's ``__main__`` module; without an ``if __name__ == "__main__"``
+    guard — as when running under pytest or in a notebook — the workers fail
+    and the parent blocks on an empty queue. Sampling a batch is a few NumPy
+    operations, so in-process loading is also faster here.
+    """
     data_source = _EdgeSampler(A, num_pos, num_neg)
     if random_seed:
         return torch.utils.data.DataLoader(
@@ -476,11 +487,15 @@ class _NoImprovementStopping(_EarlyStopping):
 
 
 @typechecked
-class NOCD:
+class NOCD(BaseSoftClusterer):
+    # Bernoulli-Poisson affiliations for overlapping communities are independent
+    # per community (Shchur and Guennemann, 2019)
+    _partition_constrained = False
+
     def __init__(
         self,
-        random_state: Optional[int] = None,
-        hidden_sizes: List[int] = [128],
+        random_state: int | None = None,
+        hidden_sizes: list[int] = [128],
         weight_decay: float = 1e-2,
         dropout: float = 0.5,
         batch_norm: bool = True,
@@ -489,6 +504,7 @@ class NOCD:
         balance_loss: bool = True,
         stochastic_loss: bool = True,
         batch_size: int = 20000,
+        num_workers: int = 0,
     ):
 
         self.random_state = random_state
@@ -512,6 +528,8 @@ class NOCD:
         self.stochastic_loss = stochastic_loss
         # batch size (only for stochastic training)
         self.batch_size = batch_size
+        # DataLoader worker processes; 0 loads in-process (see _get_edge_sampler)
+        self.num_workers = num_workers
 
     def fit_predict(self, adjacency_matrix, feature_matrix, K):
         """Train the model and compute community memberships.
@@ -532,7 +550,7 @@ class NOCD:
             adjacency_matrix,
             self.batch_size,
             self.batch_size,
-            num_workers=2,
+            num_workers=self.num_workers,
             random_seed=self.random_state,
             device=device,
         )

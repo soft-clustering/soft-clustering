@@ -1,12 +1,12 @@
-from os import path
 import sys
-import numpy as np
+from os import path
 
 if __name__ == "__main__":
     base_dir = path.dirname(path.realpath(__file__))
     sys.path.append(base_dir[:-4])
-    from soft_clustering import SoftDBSCANGM
     from sklearn.datasets import make_moons
+
+    from soft_clustering import SoftDBSCANGM
 
     # Create data with complex shape (like moons)
     X, _ = make_moons(n_samples=100, noise=0.1, random_state=42)

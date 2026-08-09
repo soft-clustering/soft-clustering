@@ -1,10 +1,11 @@
 import numpy as np
-from typing import Optional
 from typeguard import typechecked
+
+from ._base import BaseSoftClusterer
 
 
 @typechecked
-class KFCM:
+class KFCM(BaseSoftClusterer):
     """
     An improved Python implementation of the Kernelized Fuzzy C-Means (KFCM) algorithm.
 
@@ -35,8 +36,8 @@ class KFCM:
         self.sigma: float = sigma
         self.epsilon: float = epsilon
         self.max_iter: int = max_iter
-        self.V: Optional[np.ndarray] = None
-        self.U: Optional[np.ndarray] = None
+        self.V: np.ndarray | None = None
+        self.U: np.ndarray | None = None
 
     def _initialize_centers_kmeans_pp(self, X: np.ndarray) -> np.ndarray:
         """

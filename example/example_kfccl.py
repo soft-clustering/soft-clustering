@@ -1,6 +1,6 @@
-from os import path
 import sys
-import numpy as np
+from os import path
+
 import matplotlib.pyplot as plt
 from sklearn.datasets import make_moons
 from sklearn.metrics import adjusted_rand_score
@@ -17,7 +17,7 @@ if __name__ == "__main__":
     model = KFCCL(n_clusters=2, lambda_=10.0, gamma=5.0, epsilon=1e-4, max_iter=100)
 
     # Fit the model and get labels
-    predicted_labels = model.fit(X)
+    predicted_labels = model.fit(X).labels_
 
     # Check output dimensions
     assert (

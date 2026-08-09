@@ -1,5 +1,6 @@
-from os import path
 import sys
+from os import path
+
 import torch
 
 if __name__ == "__main__":

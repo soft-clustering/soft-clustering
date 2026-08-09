@@ -1,6 +1,5 @@
-from os import path
 import sys
-import torch
+from os import path
 
 if __name__ == "__main__":
     base_dir = path.dirname(path.realpath(__file__))

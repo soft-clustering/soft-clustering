@@ -1,10 +1,14 @@
 import numpy as np
-from typing import Tuple, Optional
 from typeguard import typechecked
+
+from ._base import BaseSoftClusterer
 
 
 @typechecked
-class RPFKM:
+class RPFKM(BaseSoftClusterer):
+    # memberships are defined in the projected subspace and left unnormalised
+    _partition_constrained = False
+
     def __init__(
         self,
         c: int,
@@ -12,7 +16,7 @@ class RPFKM:
         gamma: float = 0.1,
         beta: float = 1.0,
         max_iter: int = 50,
-        random_state: Optional[int] = None,
+        random_state: int | None = None,
     ) -> None:
         """
         Initializes the RPFKM algorithm with given hyperparameters.
@@ -32,18 +36,22 @@ class RPFKM:
         self.max_iter = max_iter
         self.random_state = random_state
 
-    def fit_predict(self, X: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def fit_predict(self, X: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Runs the RPFKM algorithm on the given data matrix X.
 
         Parameters:
-        - X (np.ndarray): Data matrix of shape (D, N)
+        - X (np.ndarray): Data matrix of shape (n_samples, n_features), as for
+          every other feature-matrix estimator in SCPP. The internal updates
+          below follow the paper's convention of features-by-samples, so the
+          input is transposed once here.
 
         Returns:
-        - cluster_labels (np.ndarray): Final cluster assignments
-        - U (np.ndarray): Fuzzy membership matrix
+        - cluster_labels (np.ndarray): Final cluster assignments, shape (n_samples,)
+        - U (np.ndarray): Fuzzy membership matrix, shape (n_samples, n_clusters)
         - W (np.ndarray): Learned projection matrix
         """
+        X = np.asarray(X, dtype=float).T  # -> (n_features, n_samples)
         W, U, p = self._initialize_variables(X)
         for _ in range(self.max_iter):
             M = self._update_M(X, W, U, p)
@@ -51,11 +59,13 @@ class RPFKM:
             U = self._update_U(X, W, M)
             W = self._update_W(X, U, p)
         cluster_labels = np.argmax(U, axis=0)
-        return cluster_labels, U, W
+        # U is computed as (n_clusters, n_samples); return it samples-first so
+        # that it matches memberships_ and the rest of the library.
+        return cluster_labels, U.T, W
 
     def _initialize_variables(
         self, X: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         D, N = X.shape
         rng = np.random.default_rng(self.random_state)
         W = np.linalg.qr(rng.standard_normal((D, self.d)))[0]

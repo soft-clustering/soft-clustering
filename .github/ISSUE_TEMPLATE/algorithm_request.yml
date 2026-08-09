@@ -1,0 +1,43 @@
+name: Algorithm request
+description: Propose a soft clustering algorithm for inclusion in the library.
+labels: ["enhancement", "new algorithm"]
+body:
+  - type: input
+    id: reference
+    attributes:
+      label: Primary reference
+      description: Full citation and DOI or arXiv identifier of the paper defining the method.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: family
+    attributes:
+      label: Methodological family
+      options:
+        - Fuzzy / possibilistic
+        - Probabilistic / mixture model
+        - Graph and community detection
+        - Matrix factorization
+        - Deep learning
+        - Ensemble
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: interface
+    attributes:
+      label: Expected estimator interface
+      description: >-
+        Input representation (feature matrix X, affinity matrix A, or both), the
+        shape and semantics of the membership matrix, and any additional fitted
+        attributes the method should expose.
+    validations:
+      required: true
+
+  - type: textarea
+    id: existing
+    attributes:
+      label: Existing implementations
+      description: Reference implementations, if any, and their licenses.

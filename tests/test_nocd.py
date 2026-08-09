@@ -3,6 +3,7 @@
 import numpy as np
 import pytest
 import scipy.sparse as sp
+
 from soft_clustering import NOCD
 
 
@@ -20,27 +21,27 @@ def graph():
 
 def test_fit_predict_runs(graph):
     adj, features, n = graph
-    model = NOCD(random_state=0, max_epochs=5, hidden_sizes=[16])
+    model = NOCD(random_state=0, max_epochs=5, hidden_sizes=[16], batch_size=64)
     memberships = model.fit_predict(adj, features, K=3)
     assert memberships is not None
 
 
 def test_memberships_shape(graph):
     adj, features, n = graph
-    model = NOCD(random_state=0, max_epochs=5, hidden_sizes=[16])
+    model = NOCD(random_state=0, max_epochs=5, hidden_sizes=[16], batch_size=64)
     memberships = model.fit_predict(adj, features, K=3)
     assert memberships.shape == (n, 3)
 
 
 def test_memberships_nonneg(graph):
     adj, features, n = graph
-    model = NOCD(random_state=0, max_epochs=5, hidden_sizes=[16])
+    model = NOCD(random_state=0, max_epochs=5, hidden_sizes=[16], batch_size=64)
     memberships = model.fit_predict(adj, features, K=3)
     assert np.all(memberships >= 0)
 
 
 def test_k2(graph):
     adj, features, n = graph
-    model = NOCD(random_state=0, max_epochs=5, hidden_sizes=[16])
+    model = NOCD(random_state=0, max_epochs=5, hidden_sizes=[16], batch_size=64)
     memberships = model.fit_predict(adj, features, K=2)
     assert memberships.shape == (n, 2)

@@ -1,9 +1,14 @@
 import numpy as np
 from typeguard import typechecked
 
+from ._base import BaseSoftClusterer
+
 
 @typechecked
-class SCM:
+class SCM(BaseSoftClusterer):
+    # Discovers the cluster count; see BaseSoftClusterer._determines_k.
+    _determines_k = True
+
     def __init__(self, ra: float = 0.5, ea: float = 0.5, er: float = 0.15):
         """
         Initialize the Subtractive Clustering parameters.
@@ -72,4 +77,25 @@ class SCM:
             potentials = potentials - suppression
 
         self.centers_ = np.array(centers)
+
+        # Subtractive clustering locates prototypes; Chiu (1994, Sec. 3) derives
+        # the fuzzy membership of a point from the same Gaussian neighbourhood
+        # used for the potential, mu_ik ~ exp(-alpha ||x_i - v_k||^2). We
+        # normalise across clusters so that memberships_ satisfies the
+        # partition constraint declared by this estimator.
+        if len(centers) > 0:
+            centers_norm = (self.centers_ - X_min) / diff
+            dist_to_centers = (
+                np.sum(X_norm**2, axis=1, keepdims=True)
+                + np.sum(centers_norm**2, axis=1)
+                - 2.0 * X_norm.dot(centers_norm.T)
+            )
+            np.maximum(dist_to_centers, 0.0, out=dist_to_centers)
+            U = np.exp(-alpha * dist_to_centers)
+            self.memberships_ = U / np.maximum(
+                U.sum(axis=1, keepdims=True), np.finfo(float).tiny
+            )
+        else:  # pragma: no cover - only reachable for degenerate inputs
+            self.memberships_ = np.zeros((X.shape[0], 0))
+
         return self.centers_

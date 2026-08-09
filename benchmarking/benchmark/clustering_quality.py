@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 import numpy as np
 
@@ -15,10 +15,10 @@ except ImportError:
 try:
     from sklearn.metrics import (
         adjusted_rand_score,
-        normalized_mutual_info_score,
-        silhouette_score,
         calinski_harabasz_score,
         davies_bouldin_score,
+        normalized_mutual_info_score,
+        silhouette_score,
     )
 
     _HAVE_SKLEARN = True
@@ -62,8 +62,8 @@ class ClusteringQualityBenchmark(BaseBenchmark):
         self,
         model: Any,
         X,
-        y: Optional[np.ndarray] = None,
-    ) -> Dict[str, float]:
+        y: np.ndarray | None = None,
+    ) -> dict[str, float]:
 
         n_samples = X.shape[0] if hasattr(X, "shape") else len(X)
 
@@ -72,7 +72,7 @@ class ClusteringQualityBenchmark(BaseBenchmark):
         # ----------------------------------------------------------------
         # Obtain hard labels
         # ----------------------------------------------------------------
-        labels: Optional[np.ndarray] = None
+        labels: np.ndarray | None = None
 
         if hasattr(model, "predict"):
             try:
@@ -98,7 +98,7 @@ class ClusteringQualityBenchmark(BaseBenchmark):
         # ----------------------------------------------------------------
         # Hard clustering metrics
         # ----------------------------------------------------------------
-        results: Dict[str, float] = {}
+        results: dict[str, float] = {}
         n_clusters = int(len(np.unique(labels)))
 
         if n_clusters > 1 and _HAVE_SKLEARN:
@@ -131,7 +131,7 @@ class ClusteringQualityBenchmark(BaseBenchmark):
 def _find_membership(
     model: Any,
     n_samples: int,
-) -> Optional[np.ndarray]:
+) -> np.ndarray | None:
     """
     Search model attributes for a soft membership matrix of shape
     (n_samples, n_clusters).  Returns None if none is found.

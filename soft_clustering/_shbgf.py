@@ -1,10 +1,11 @@
 import numpy as np
-from typing import List
 from typeguard import typechecked
+
+from ._base import BaseSoftClusterer
 
 
 @typechecked
-class SHBGF:
+class SHBGF(BaseSoftClusterer):
     def __init__(self, n_clusters: int, max_iter: int = 10) -> None:
         """
         Initializes the sHBGF algorithm.
@@ -16,7 +17,7 @@ class SHBGF:
         self.n_clusters = n_clusters
         self.max_iter = max_iter
 
-    def fit_predict(self, soft_memberships: List[np.ndarray]) -> np.ndarray:
+    def fit_predict(self, soft_memberships: list[np.ndarray]) -> np.ndarray:
         """
         Apply sHBGF consensus clustering on a list of soft membership matrices.
 
@@ -28,7 +29,7 @@ class SHBGF:
         """
         from sklearn.cluster import KMeans
 
-        N = soft_memberships[0].shape[0]
+        soft_memberships[0].shape[0]
         concatenated = np.concatenate(soft_memberships, axis=1)
 
         # Normalize concatenated membership matrix (row-wise)

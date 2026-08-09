@@ -1,9 +1,15 @@
 import numpy as np
 from typeguard import typechecked
 
+from ._base import BaseSoftClusterer
+
 
 @typechecked
-class BayesianNMF:
+class BayesianNMF(BaseSoftClusterer):
+    # non-negative factor loadings are unnormalised community affiliations
+    # (Psorakis et al., 2011)
+    _partition_constrained = False
+
     def __init__(
         self,
         n_clusters: int = 3,

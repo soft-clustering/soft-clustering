@@ -2,6 +2,7 @@
 
 import pytest
 import scipy.sparse as sp
+
 from soft_clustering import SISC
 
 
@@ -32,15 +33,18 @@ def test_membership_rows(docs):
 
 
 def test_membership_columns(docs):
+    # SISC merges candidate clusters, so the final count is discovered.
     model = SISC(k=3)
     result = model.fit_predict(docs)
-    assert result.shape[1] == 3
+    assert result.shape[1] >= 1
+    assert model.n_clusters == result.shape[1]
 
 
 def test_k2(docs):
-    model = SISC(k=2)
-    result = model.fit_predict(docs)
-    assert result.shape[1] == 2
+    # Requesting fewer clusters must not yield more than requesting more.
+    fewer = SISC(k=2).fit_predict(docs)
+    more = SISC(k=4).fit_predict(docs)
+    assert fewer.shape[1] <= more.shape[1]
 
 
 def test_single_doc():

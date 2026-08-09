@@ -1,8 +1,7 @@
-from os import path
-import numpy as np
-from scipy.sparse import csr_matrix
 import sys
-import os
+from os import path
+
+from scipy.sparse import csr_matrix
 
 if __name__ == "__main__":
     base_dir = path.dirname(path.realpath(__file__))
