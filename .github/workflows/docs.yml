@@ -50,12 +50,16 @@ jobs:
 
   linkcheck:
     # External links rot, but they also fail for reasons outside this
-    # repository (rate limits, transient outages), so this job reports without
-    # blocking the merge.
+    # repository: transient outages, and hosts that refuse automated clients.
+    # This job therefore reports rather than gates.
+    #
+    # continue-on-error is set on the step, not the job. At job level it spares
+    # the workflow conclusion but still renders this check red, which trains
+    # everyone to ignore a permanently failing check. At step level the job
+    # concludes green and the findings are written to the run summary instead.
     name: link check (non-blocking)
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
         with:
@@ -69,5 +73,28 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r docs/requirements.txt
           pip install .
+
       - name: Check external links
+        id: linkcheck
+        continue-on-error: true
         run: sphinx-build -b linkcheck docs/source docs/_build/linkcheck
+
+      - name: Report findings to the run summary
+        if: always()
+        run: |
+          report=docs/_build/linkcheck/output.txt
+          {
+            echo "## Documentation link check"
+            echo
+            if [ "${{ steps.linkcheck.outcome }}" = "success" ]; then
+              echo "All checked links resolved."
+            else
+              echo "The following links did not resolve. This is informational:"
+              echo "the job does not block a merge, because external hosts fail"
+              echo "for reasons unrelated to this repository."
+              echo
+              echo '```'
+              if [ -s "$report" ]; then cat "$report"; else echo "(no report written; see the step log)"; fi
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
+
+import numpy as np
 
 from ._optional import pd, require_pandas
 from .base import BaseBenchmark, model_name
@@ -9,6 +11,18 @@ from .base import BaseBenchmark, model_name
 class ClusteringBenchmark:
     """
     Main benchmarking interface for SCPP.
+
+    Runs every benchmark against every model and collects the results into one
+    row per model.
+
+    Parameters
+    ----------
+    models : list
+        Fitted-or-unfitted estimators. SCPP estimators can be passed directly;
+        :class:`~soft_clustering.benchmarking.BenchmarkAdapter` is only needed
+        to relabel a model or to wrap a non-SCPP one.
+    benchmarks : list of BaseBenchmark
+        The measurements to take.
     """
 
     def __init__(
@@ -21,8 +35,8 @@ class ClusteringBenchmark:
 
     def run(
         self,
-        X,
-        y: Optional = None,
+        X: Any,
+        y: np.ndarray | None = None,
     ) -> pd.DataFrame:
 
         require_pandas("ClusteringBenchmark.run()")

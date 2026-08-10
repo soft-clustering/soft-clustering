@@ -14,6 +14,9 @@ integration.
 
 from __future__ import annotations
 
+import threading
+import time
+
 import numpy as np
 import pytest
 import scipy.sparse as sp
@@ -204,6 +207,36 @@ class TestPackageSurface:
         from soft_clustering.benchmarking import adapter, base, report, runner
 
         assert all(m is not None for m in (adapter, base, report, runner))
+
+
+class TestAttributeRegistryIsShared:
+    """The benchmarking code must not keep its own copy of the attribute names
+    the estimator protocol defines. Two copies drifted apart once already: this
+    module knew five membership attributes while ``_base`` knew ten."""
+
+    def test_adapter_uses_the_protocol_registry(self):
+        from soft_clustering._base import BaseSoftClusterer
+        from soft_clustering.benchmarking import adapter
+
+        assert adapter._MEMBERSHIP_ATTRS is BaseSoftClusterer._membership_attrs
+        assert adapter._CENTER_ATTRS is BaseSoftClusterer._centers_attrs
+
+    def test_quality_backend_covers_the_protocol_registry(self):
+        from soft_clustering._base import BaseSoftClusterer
+        from soft_clustering.benchmarking.benchmark import clustering_quality
+
+        assert set(BaseSoftClusterer._membership_attrs).issubset(
+            clustering_quality._MEMBERSHIP_ATTRS
+        )
+
+    def test_every_estimator_membership_attr_is_known_to_the_benchmarks(self):
+        """Guards the direction that actually bites: an estimator storing its
+        memberships under a name the benchmarks do not search."""
+        from soft_clustering._base import BaseSoftClusterer
+        from soft_clustering.benchmarking import adapter
+
+        for attr in BaseSoftClusterer._membership_attrs:
+            assert attr in adapter._MEMBERSHIP_ATTRS
 
 
 # ==========================================================================
@@ -624,6 +657,71 @@ class TestMemoryBenchmark:
             out["memory_after_mb"] - out["memory_before_mb"], abs=1e-3
         )
 
+    def test_peak_is_never_below_the_endpoint_readings(self, X):
+        from soft_clustering.benchmarking import BenchmarkAdapter, MemoryBenchmark
+
+        out = MemoryBenchmark().evaluate(
+            BenchmarkAdapter(FitPredictWithK(), n_clusters=2), X
+        )
+        assert out["peak_memory_mb"] >= out["memory_before_mb"]
+        assert out["peak_memory_mb"] >= out["memory_after_mb"]
+
+    def test_poll_interval_is_actually_used(self):
+        """The sampler must run: a fit long enough to span several intervals
+        has to yield samples. Before this was implemented, poll_interval was
+        accepted and documented but never read."""
+        from soft_clustering.benchmarking import MemoryBenchmark
+
+        class SlowFit:
+            def fit(self, X):
+                time.sleep(0.25)
+                return self
+
+        out = MemoryBenchmark(poll_interval=0.01).evaluate(SlowFit(), None)
+        assert out["n_samples_taken"] >= 5, out
+
+    def test_peak_captures_a_transient_allocation(self):
+        """A large array allocated and freed inside fit() is invisible to the
+        before/after readings, and must be caught by the sampler."""
+        from soft_clustering.benchmarking import MemoryBenchmark
+
+        class TransientAllocation:
+            def fit(self, X):
+                for _ in range(12):
+                    block = np.ones((1024, 1024))  # 8 MB, released each pass
+                    time.sleep(0.01)
+                    del block
+                return self
+
+        out = MemoryBenchmark(poll_interval=0.005).evaluate(TransientAllocation(), None)
+        assert out["n_samples_taken"] > 0
+        assert out["peak_memory_mb"] > out["memory_after_mb"]
+
+    def test_rejects_a_non_positive_poll_interval(self):
+        from soft_clustering.benchmarking import MemoryBenchmark
+
+        with pytest.raises(ValueError, match="poll_interval must be positive"):
+            MemoryBenchmark(poll_interval=0)
+
+    def test_sampler_stops_after_evaluate(self, X):
+        from soft_clustering.benchmarking import BenchmarkAdapter, MemoryBenchmark
+
+        before = threading.active_count()
+        MemoryBenchmark().evaluate(BenchmarkAdapter(FitPredictWithK(), n_clusters=2), X)
+        assert threading.active_count() == before
+
+    def test_sampler_stops_when_fit_raises(self):
+        from soft_clustering.benchmarking import MemoryBenchmark
+
+        class Explodes:
+            def fit(self, X):
+                raise RuntimeError("boom")
+
+        before = threading.active_count()
+        with pytest.raises(RuntimeError, match="boom"):
+            MemoryBenchmark().evaluate(Explodes(), None)
+        assert threading.active_count() == before
+
 
 @needs_psutil
 class TestScalabilityBenchmark:
@@ -830,6 +928,48 @@ class TestBaseBenchmark:
 # ==========================================================================
 # End-to-end with a real estimator
 # ==========================================================================
+
+
+class TestAdapterOnSCPPEstimators:
+    """SCPP estimators already satisfy the protocol, so the adapter delegates
+    to it rather than re-deriving the fitted state by signature inspection."""
+
+    @pytest.fixture
+    def features(self):
+        rng = np.random.default_rng(0)
+        return np.vstack(
+            [rng.normal([0, 0], 0.3, (15, 2)), rng.normal([5, 5], 0.3, (15, 2))]
+        )
+
+    def test_delegates_to_the_protocol(self, features):
+        from soft_clustering import FCM
+        from soft_clustering.benchmarking import BenchmarkAdapter
+
+        model = FCM(n_clusters=2, random_state=0)
+        adapter = BenchmarkAdapter(model).fit(features)
+
+        # The adapter reports exactly what the protocol published.
+        assert adapter.membership_ is model.memberships_
+        assert adapter.labels_ is model.labels_
+        assert adapter.centers_ is model.centers_
+
+    def test_n_clusters_may_be_given_to_the_adapter_instead(self, features):
+        from soft_clustering import FCM
+        from soft_clustering.benchmarking import BenchmarkAdapter
+
+        adapter = BenchmarkAdapter(FCM(random_state=0), n_clusters=3).fit(features)
+        assert adapter.membership_.shape == (30, 3)
+
+    def test_scpp_estimators_need_no_adapter_at_all(self, features):
+        """ClusteringBenchmark accepts a bare estimator; the adapter is only
+        needed to relabel a model or to wrap a foreign one."""
+        from soft_clustering import FCM
+        from soft_clustering.benchmarking import ClusteringQualityBenchmark
+
+        out = ClusteringQualityBenchmark().evaluate(
+            FCM(n_clusters=2, random_state=0), features
+        )
+        assert "partition_coefficient" in out
 
 
 @needs_pandas

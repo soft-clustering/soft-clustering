@@ -1,23 +1,24 @@
 """
-BenchmarkAdapter — normalises the heterogeneous soft_clustering model
-interfaces into the single fit(X) / predict(X) / membership_ contract
-expected by the benchmarking backends.
+BenchmarkAdapter — presents any model to the benchmarking backends through one
+``fit(X)`` / ``predict(X)`` / ``membership_`` contract.
 
-Soft clustering models in this library come in three variants:
+Every estimator in this library inherits from
+:class:`~soft_clustering._base.BaseSoftClusterer`, which already reconciles the
+differing fit signatures and publishes canonical fitted attributes
+(``memberships_``, ``labels_``, ``centers_``, ``n_clusters``). The adapter
+therefore does **not** re-derive any of that: it delegates to the protocol and
+reads those attributes. SCPP estimators can equally be handed to
+:class:`~soft_clustering.benchmarking.ClusteringBenchmark` unwrapped.
 
-  1. fit_predict(X, K)   — K is a required positional argument at call time
-                           (FCM, PCM, GK, GMM)
+Two things the adapter is still for:
 
-  2. fit_predict(X)      — K was given to __init__; no K needed at call time
-                           (CAFCM, AFCM, AFCMSimple, CAFHFCM, ENTROPYFCM,
-                            FCC, RPFKM, RoughKMeans, RDFKC)
+  1. Labelling a model in a results table — four estimators are exported under
+     an alias (``FCM`` is the class ``FuzzyCMeans``), so ``name=`` lets a report
+     use the public API name.
 
-  3. fit(X)              — sklearn-style; K given to __init__
-                           (KFCM, KFCCL, ECM, SCM, SoftDBSCANGM, MBMM, PFCM)
-
-The adapter auto-detects which case applies via signature inspection,
-calls the right method, then extracts a standardised membership_ matrix
-of shape (n_samples, n_clusters).
+  2. Wrapping a model that is *not* an SCPP estimator, such as a scikit-learn
+     clusterer. For those the adapter falls back to inspecting the fit
+     signature and searching the attribute names SCPP knows about.
 """
 
 from __future__ import annotations
@@ -27,50 +28,31 @@ from typing import Any
 
 import numpy as np
 
-try:
-    import scipy.sparse as sp
+from .._base import BaseSoftClusterer, _as_2d_array
 
-    _HAVE_SCIPY = True
-except ImportError:
-    sp = None  # type: ignore[assignment]
-    _HAVE_SCIPY = False
-
-
-# Attribute names where models store the soft membership matrix, in lookup
-# priority order.  The adapter checks each in turn.
-_MEMBERSHIP_ATTRS = (
-    "memberships_",  # FCM, GK
-    "typicalities_",  # PCM
-    "responsibilities_",  # GMM
-    "membership_matrix",  # PFCM  (stored as c×n — transposed)
-    "U",  # CAFCM, KFCM  (KFCM: stored as K×n — transposed)
-)
-
-# Attribute names where models store cluster prototypes / centres.
-_CENTER_ATTRS = (
-    "centers_",  # FCM, PCM, GK
-    "means_",  # GMM
-    "centroids",  # CAFCM
-    "cluster_centroids",  # PFCM
-    "V",  # KFCM  (n_clusters × n_features — normal)
-)
+# Single source of truth. These tuples live on the estimator protocol; keeping
+# private copies here is how the two drifted apart before — this module knew
+# five membership attributes while _base.py knew ten.
+_MEMBERSHIP_ATTRS: tuple[str, ...] = BaseSoftClusterer._membership_attrs
+_CENTER_ATTRS: tuple[str, ...] = BaseSoftClusterer._centers_attrs
 
 
 class BenchmarkAdapter:
     """
-    Wraps any soft_clustering model for use with the benchmarking framework.
+    Wraps a model for use with the benchmarking framework.
 
     Parameters
     ----------
     model : Any
-        An instantiated (but unfitted) soft_clustering model.
+        An instantiated (but unfitted) model. Any SCPP estimator works; so does
+        a foreign estimator exposing ``fit`` or ``fit_predict``.
     n_clusters : int, optional
-        Number of clusters.  **Required** for models whose fit_predict(X, K)
-        signature demands K as a positional argument (FCM, PCM, GK, GMM).
-        Ignored (but harmless) for models that already carry K in __init__.
+        Number of clusters. SCPP estimators accept ``n_clusters`` in their
+        constructor and supply it to fit themselves, so this is only needed for
+        a foreign model whose ``fit_predict(X, K)`` demands it positionally.
     name : str, optional
-        Label for this model in benchmark reports.  Defaults to the wrapped
-        model's class name.  Four estimators are exported under an alias
+        Label for this model in benchmark reports. Defaults to the wrapped
+        model's class name. Four estimators are exported under an alias
         (``FCM`` is ``FuzzyCMeans``, ``GK`` is ``GustafsonKessel``, ``GMM`` is
         ``GaussianMixtureEM``, ``PCM`` is ``PossibilisticCMeans``); pass
         ``name`` to report the public API name instead of the class name.
@@ -79,13 +61,13 @@ class BenchmarkAdapter:
     ----------
     name : str
         The label above, so that benchmark reports identify the estimator
-        rather than this wrapper.  See ``base.model_name``.
+        rather than this wrapper. See ``base.model_name``.
 
     Attributes set after fit()
     --------------------------
     membership_ : ndarray of shape (n_samples, n_clusters), or None
     centers_    : ndarray of shape (n_clusters, n_features), or None
-    labels_     : ndarray of shape (n_samples,)
+    labels_     : ndarray of shape (n_samples,), or None
     """
 
     def __init__(
@@ -102,17 +84,18 @@ class BenchmarkAdapter:
         self.labels_: np.ndarray | None = None
 
     # ------------------------------------------------------------------
-    # sklearn-compatible interface required by the benchmarking backends
+    # Interface required by the benchmarking backends
     # ------------------------------------------------------------------
 
     def fit(self, X) -> BenchmarkAdapter:
-        """Fit the wrapped model and populate standardised attributes."""
-        result = self._dispatch_fit(X)
-        self._extract_membership(result, X)
-        self._extract_centers()
+        """Fit the wrapped model and populate the standardised attributes."""
+        if isinstance(self.model, BaseSoftClusterer):
+            self._fit_scpp(X)
+        else:
+            self._fit_foreign(X)
         return self
 
-    def predict(self, X) -> np.ndarray:
+    def predict(self, X=None) -> np.ndarray:
         if self.labels_ is None:
             raise RuntimeError("BenchmarkAdapter: call fit() before predict().")
         return self.labels_
@@ -135,8 +118,27 @@ class BenchmarkAdapter:
         return getattr(self.model, name)
 
     # ------------------------------------------------------------------
-    # Private helpers
+    # SCPP estimators: the protocol has already done the work
     # ------------------------------------------------------------------
+
+    def _fit_scpp(self, X) -> None:
+        if self.n_clusters is not None and self.model.n_clusters is None:
+            # A count passed here rather than to the constructor; the fit
+            # wrapper in _base picks it up from the instance.
+            self.model.n_clusters = self.n_clusters
+        self.model.fit(X)
+        self.membership_ = self.model.memberships_
+        self.centers_ = self.model.centers_
+        self.labels_ = self.model.labels_
+
+    # ------------------------------------------------------------------
+    # Foreign models: detect the interface, then normalise
+    # ------------------------------------------------------------------
+
+    def _fit_foreign(self, X) -> None:
+        result = self._dispatch_fit(X)
+        self._extract_membership(result, X)
+        self._extract_centers()
 
     def _dispatch_fit(self, X):
         """
@@ -159,21 +161,19 @@ class BenchmarkAdapter:
             if needs_K:
                 if self.n_clusters is None:
                     raise ValueError(
-                        f"{self.model.__class__.__name__}.fit_predict() requires "
+                        f"{type(self.model).__name__}.fit_predict() requires "
                         "K as a positional argument. "
                         "Pass n_clusters= to BenchmarkAdapter."
                     )
                 return self.model.fit_predict(X, self.n_clusters)
-            else:
-                return self.model.fit_predict(X)
+            return self.model.fit_predict(X)
 
         if hasattr(self.model, "fit"):
             self.model.fit(X)
             return None
 
         raise TypeError(
-            f"{self.model.__class__.__name__} exposes neither "
-            "fit_predict() nor fit()."
+            f"{type(self.model).__name__} exposes neither fit_predict() nor fit()."
         )
 
     def _extract_membership(self, result, X) -> None:
@@ -186,37 +186,29 @@ class BenchmarkAdapter:
 
         # --- 1. Try the return value of fit_predict ---
         if result is not None:
-            if _HAVE_SCIPY and sp.issparse(result):
-                U = result.toarray()
-            elif isinstance(result, np.ndarray) and result.ndim == 2:
-                U = result
-            elif isinstance(result, tuple):
-                # e.g. CAFCM returns (labels, U)
-                for item in result:
-                    if isinstance(item, np.ndarray) and item.ndim == 2:
-                        U = item
+            candidates = result if isinstance(result, tuple) else (result,)
+            for item in candidates:
+                array = _as_2d_array(item)
+                if array is not None:
+                    U = array
+                    break
+            if U is None:
+                # No 2-D result; a 1-D result is a hard label vector.
+                for item in candidates:
+                    if isinstance(item, np.ndarray) and item.ndim == 1:
+                        self.labels_ = item
                         break
-                if U is None:
-                    # grab 1-D labels from tuple
-                    for item in result:
-                        if isinstance(item, np.ndarray) and item.ndim == 1:
-                            self.labels_ = item
-                            break
 
-        # --- 2. Try well-known model attributes ---
+        # --- 2. Try the attribute names the protocol knows about ---
         for attr in _MEMBERSHIP_ATTRS:
-            val = getattr(self.model, attr, None)
-            if val is None:
-                continue
-            if _HAVE_SCIPY and sp.issparse(val):
-                val = val.toarray()
-            if not (isinstance(val, np.ndarray) and val.ndim == 2):
+            value = _as_2d_array(getattr(self.model, attr, None))
+            if value is None:
                 continue
             # Transpose if stored as (n_clusters, n_samples)
-            if val.shape[0] != n_samples and val.shape[1] == n_samples:
-                val = val.T
-            if val.shape[0] == n_samples:
-                U = val
+            if value.shape[0] != n_samples and value.shape[1] == n_samples:
+                value = value.T
+            if value.shape[0] == n_samples:
+                U = value
                 break
 
         self.membership_ = U
@@ -225,8 +217,8 @@ class BenchmarkAdapter:
 
     def _extract_centers(self) -> None:
         for attr in _CENTER_ATTRS:
-            val = getattr(self.model, attr, None)
-            if val is not None and isinstance(val, np.ndarray):
-                self.centers_ = val
+            value = getattr(self.model, attr, None)
+            if isinstance(value, np.ndarray):
+                self.centers_ = value
                 return
         self.centers_ = None

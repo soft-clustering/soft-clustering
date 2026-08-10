@@ -8,7 +8,7 @@ authors = [
   {name = "Kiyan Rezaee", email = "kiyanrezaee17@gmail.com"},
   {name = "Morteza Ziabakhsh", email = "morteza24mail@protonmail.com"},
 ]
-readme = "README.rst"
+readme = "README.md"
 requires-python = ">=3.10"
 classifiers = [
   "Development Status :: 4 - Beta",
@@ -20,21 +20,30 @@ classifiers = [
   "Programming Language :: Python :: 3.13",
   "Operating System :: OS Independent",
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Typing :: Typed",
 ]
 license = "MIT"
 license-files = ["LICENSE*"]
 dynamic = ["version", "description"]
+# Kept to what is needed to fit a model. Anything required only to benchmark,
+# document or develop the package belongs in an extra below.
 dependencies = [
   "numpy",
   "scipy",
-  "typeguard",
-  "myst_parser"
+  "typeguard",  # the @typechecked decorator applied by 39 estimators
 ]
 
 [project.optional-dependencies]
 deep = [
   "torch",
   "torch_geometric",
+]
+# Sphinx and its Markdown parser. Mirrored in docs/requirements.txt, which is
+# what Read the Docs installs.
+docs = [
+  "sphinx",
+  "sphinx-rtd-theme",
+  "myst_parser",
 ]
 # Needed to *run* a benchmark, never to fit a model. soft_clustering.benchmarking
 # imports these defensively, so the module is importable without them.
@@ -67,7 +76,6 @@ addopts = "--tb=short -q"
 [tool.coverage.run]
 source = ["soft_clustering"]
 branch = true
-omit = ["soft_clustering/test_*"]
 
 [tool.coverage.report]
 show_missing = true

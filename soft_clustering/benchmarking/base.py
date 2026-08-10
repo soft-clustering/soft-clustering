@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Any
+
+import numpy as np
 
 from ._optional import pd, require_pandas
 
@@ -29,15 +31,24 @@ class BaseBenchmark(ABC):
     def evaluate(
         self,
         model: Any,
-        X,
-        y: Optional = None,
+        X: Any,
+        y: np.ndarray | None = None,
     ) -> dict[str, Any]:
         """
         Evaluate a model and return benchmark results.
+
+        ``X`` is deliberately untyped beyond ``Any``: SCPP estimators accept a
+        feature matrix, an adjacency matrix, a list of documents or a list of
+        membership matrices, depending on the method.
         """
         raise NotImplementedError
 
-    def __call__(self, model, X, y=None):
+    def __call__(
+        self,
+        model: Any,
+        X: Any,
+        y: np.ndarray | None = None,
+    ) -> dict[str, Any]:
         return self.evaluate(model, X, y)
 
     @staticmethod

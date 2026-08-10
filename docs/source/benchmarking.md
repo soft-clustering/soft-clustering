@@ -51,27 +51,42 @@ report.to_csv("results.csv")
 
 ## BenchmarkAdapter
 
-Estimators in this library expose three different fit interfaces. The adapter
-detects which applies by inspecting the signature, calls the right method, and
-normalises the result to a `membership_` matrix of shape
-`(n_samples, n_clusters)`:
+Every estimator in this library inherits from `BaseSoftClusterer`, which already
+reconciles the differing fit signatures and publishes canonical fitted
+attributes (`memberships_`, `labels_`, `centers_`, `n_clusters`). **SCPP
+estimators can therefore be benchmarked directly, with no wrapper:**
 
-| Interface | Example estimators | `n_clusters` |
-| --- | --- | --- |
-| `fit_predict(X, K)` | `FCM`, `PCM`, `GK`, `GMM` | **required** |
-| `fit_predict(X)` | `CAFCM`, `AFCM`, `FCC`, `RPFKM`, `RoughKMeans` | from `__init__` |
-| `fit(X)` | `KFCM`, `KFCCL`, `ECM`, `SCM`, `MBMM`, `PFCM` | from `__init__` |
+```python
+ClusteringBenchmark(
+    models=[FCM(n_clusters=3, random_state=0), KFCM(n_clusters=3)],
+    benchmarks=[RuntimeBenchmark()],
+).run(X, y)
+```
 
-It also transposes membership matrices stored as `(n_clusters, n_samples)`,
-densifies sparse ones, and locates cluster centres across the various attribute
-names the estimators use (`centers_`, `means_`, `centroids`, …).
+`BenchmarkAdapter` remains useful for two things.
+
+**Labelling a model.** Four estimators are exported under an alias — `FCM` is
+the class `FuzzyCMeans`, `GK` is `GustafsonKessel`, `GMM` is
+`GaussianMixtureEM`, and `PCM` is `PossibilisticCMeans`. Reports label a model
+by its class name, so pass `name=` when you want the public API name in the
+results table:
+
+```python
+BenchmarkAdapter(FCM(n_clusters=3, random_state=0), name="FCM")
+```
+
+**Wrapping a model that is not an SCPP estimator**, such as a scikit-learn
+clusterer. For those the adapter inspects the fit signature, calls whichever of
+`fit_predict(X, K)`, `fit_predict(X)` or `fit(X)` applies, transposes a
+membership matrix stored as `(n_clusters, n_samples)`, densifies a sparse one,
+and searches the attribute names the protocol knows about. Pass `n_clusters=`
+if the foreign model requires `K` positionally.
 
 ```{note}
-Four estimators are exported under an alias — `FCM` is the class
-`FuzzyCMeans`, `GK` is `GustafsonKessel`, `GMM` is `GaussianMixtureEM`, and
-`PCM` is `PossibilisticCMeans`. Reports label a model by its class name unless
-you pass `name=`, so pass `name="FCM"` if you want result tables to use the
-public API name.
+The attribute names searched are `BaseSoftClusterer._membership_attrs` and
+`._centers_attrs` — the benchmarking code reads that registry rather than
+keeping its own copy. An estimator that stores its memberships under a new name
+should add it there, and every benchmark picks it up.
 ```
 
 ## Benchmark backends
@@ -79,7 +94,7 @@ public API name.
 | Backend | Reports |
 | --- | --- |
 | `RuntimeBenchmark` | `fit_time_sec`, `fit_time_std`, `predict_time_sec` |
-| `MemoryBenchmark` | `memory_before_mb`, `memory_after_mb`, `memory_delta_mb`, `peak_memory_mb` |
+| `MemoryBenchmark` | `memory_before_mb`, `memory_after_mb`, `memory_delta_mb`, `peak_memory_mb`, `n_samples_taken` |
 | `ScalabilityBenchmark` | `runtime_<n>` and `memory_<n>` at each sample size |
 | `ClusteringQualityBenchmark` | silhouette, Calinski-Harabasz, Davies-Bouldin; ARI and NMI when `y` is given; partition coefficient and entropy when a membership matrix is found |
 

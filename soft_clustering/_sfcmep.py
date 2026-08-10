@@ -88,9 +88,19 @@ class SFCMEP(BaseSoftClusterer):
                 if u_org[i, j] > 1:
                     u_org[i, j] = 1
 
-        M = np.nanmean(np.nanmax(u_org, axis=0))
-        m = np.nanmean(np.nanmin(u_org, axis=0))
-        rho_hat = 0.5 * (M + (1 - (self.C - 1) * m))
+        if labeled_idx:
+            # Restricted to the labelled columns: the unlabelled ones are
+            # entirely NaN, so nanmean already skipped them. Same result,
+            # without the all-NaN-slice warnings.
+            labelled = u_org[:, labeled_idx]
+            M = np.mean(np.max(labelled, axis=0))
+            m = np.mean(np.min(labelled, axis=0))
+            rho_hat = 0.5 * (M + (1 - (self.C - 1) * m))
+        else:
+            # No supervision at all: the prior carries no information, so fall
+            # back to a uniform membership. Deriving rho_hat from an empty set
+            # would make it NaN and poison every subsequent update.
+            rho_hat = 1.0 / self.C
         u_org[np.isnan(u_org)] = rho_hat
 
         if labeled_idx:
@@ -110,7 +120,12 @@ class SFCMEP(BaseSoftClusterer):
         """
         V = np.zeros((self.C, X.shape[1]))
         for i in range(self.C):
-            V[i] = np.sum([U[i, j] * X[j] for j in range(self.N)]) / (U[i].sum() + 1e-8)
+            # Membership-weighted mean of the samples. The sum must run over
+            # samples only (axis 0 of the stacked (N, D) products); summing
+            # over every axis collapses it to a scalar, which then broadcasts
+            # into all D coordinates and gives a centroid whose components are
+            # all equal.
+            V[i] = (U[i] @ X) / (U[i].sum() + 1e-8)
         return V
 
     def _update_membership_matrix(
@@ -128,9 +143,18 @@ class SFCMEP(BaseSoftClusterer):
             else:
                 num = []
                 dists = np.linalg.norm(V - X[j], axis=1)
+                # Shift the exponents so the largest is 0 before exponentiating
+                # (log-sum-exp). Every term picks up the same constant factor,
+                # which cancels in the normalisation below, so the result is
+                # unchanged mathematically. Without the shift, a point further
+                # than a few multiples of ``lam`` from *every* centroid makes
+                # each exp underflow to 0; the 1e-12 guard in the denominator
+                # then dominates and the column collapses to zero, leaving that
+                # sample with no membership in any cluster.
+                weights = -(dists**2) / self.lam
+                weights = weights - weights.max()
                 for i in range(self.C):
-                    dist = dists[i]
-                    exp = np.exp(-(dist**2) / self.lam)
+                    exp = np.exp(weights[i])
                     if np.isclose(U[i, j], 0.0):
                         # If membership is zero, recompute using exponential distance kernel
                         num.append(exp)
@@ -175,5 +199,11 @@ class SFCMEP(BaseSoftClusterer):
                 break
             U_prev = U
             V_prev = V
+
+        # Publish under the names the estimator protocol searches, so that
+        # memberships_, labels_, centers_ and n_clusters are populated like
+        # every other estimator. See soft_clustering/_base.py.
+        self.centroids = V
+        self.membership_matrix = U.T
 
         return {"centroids": V, "membership_matrix": U.T}

@@ -1,0 +1,72 @@
+cff-version: 1.2.0
+title: "SCPP: A Unified Python Library for Soft Clustering"
+message: >-
+  If you use this software in your research, please cite both the software
+  itself and the accompanying paper.
+type: software
+authors:
+  - given-names: Kiyan
+    family-names: Rezaee
+    email: kiyanrezaee17@gmail.com
+  - given-names: Morteza
+    family-names: Ziabakhsh
+    email: morteza24mail@protonmail.com
+  - given-names: Artin
+    family-names: Bahrampour
+  - given-names: Seyed Mohammad
+    family-names: Ghoreishi
+  - given-names: Asal
+    family-names: Khaje
+  - given-names: Ali
+    family-names: Sajedifar
+  - given-names: Manny
+    family-names: Chalak
+  - given-names: Ava
+    family-names: Zerafatangiz
+  - given-names: Sadegh
+    family-names: Eskandari
+repository-code: "https://github.com/soft-clustering/soft-clustering"
+url: "https://soft-clustering.readthedocs.io/en/latest/index.html"
+abstract: >-
+  A comprehensive Python library of soft and fuzzy clustering algorithms,
+  providing membership-based, possibilistic, evidential, graph, document and
+  deep clustering models behind one estimator protocol, together with a
+  benchmarking suite for evaluating them on equal terms.
+keywords:
+  - soft clustering
+  - fuzzy clustering
+  - possibilistic clustering
+  - machine learning
+  - unsupervised learning
+  - python
+license: MIT
+version: 0.1.0
+preferred-citation:
+  type: article
+  title: "SCPP: A Unified Python Library for Soft Clustering"
+  authors:
+    - given-names: Kiyan
+      family-names: Rezaee
+    - given-names: Morteza
+      family-names: Ziabakhsh
+    - given-names: Artin
+      family-names: Bahrampour
+    - given-names: Seyed Mohammad
+      family-names: Ghoreishi
+    - given-names: Asal
+      family-names: Khaje
+    - given-names: Ali
+      family-names: Sajedifar
+    - given-names: Manny
+      family-names: Chalak
+    - given-names: Ava
+      family-names: Zerafatangiz
+    - given-names: Sadegh
+      family-names: Eskandari
+  year: 2026
+  journal: arXiv preprint
+  identifiers:
+    - type: other
+      value: "arXiv:2607.19620"
+      description: The arXiv preprint of the paper
+  url: "https://arxiv.org/abs/2607.19620"

@@ -108,11 +108,15 @@ jobs:
 
           expected = {"soft_clustering", "soft_clustering/benchmarking",
                       "soft_clustering/benchmarking/benchmark"}
+          # A non-.py file is the easiest thing to lose from a distribution,
+          # and without it every type hint in the package is ignored (PEP 561).
+          expected_files = {"soft_clustering/py.typed"}
 
           wheel = next(pathlib.Path("dist").glob("*.whl"))
           names = zipfile.ZipFile(wheel).namelist()
           missing = {p for p in expected
                      if not any(n.startswith(p + "/") for n in names)}
+          missing |= {f for f in expected_files if f not in names}
           assert not missing, f"missing from wheel {wheel.name}: {sorted(missing)}"
           print(f"{wheel.name}: {len(names)} entries, all packages present")
 
@@ -121,6 +125,8 @@ jobs:
               names = tar.getnames()
           missing = {p for p in expected
                      if not any(f"/{p}/" in n for n in names)}
+          missing |= {f for f in expected_files
+                      if not any(n.endswith("/" + f) for n in names)}
           assert not missing, f"missing from sdist {sdist.name}: {sorted(missing)}"
           print(f"{sdist.name}: {len(names)} entries, all packages present")
           PY

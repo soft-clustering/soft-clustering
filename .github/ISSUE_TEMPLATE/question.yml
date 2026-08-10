@@ -1,0 +1,33 @@
+name: Question
+description: Ask how to use an estimator, choose a method, or interpret a result.
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Before asking, the [documentation](https://soft-clustering.readthedocs.io/en/latest/index.html)
+        covers the API, each algorithm, and the benchmarking suite. If something
+        there is wrong or missing, that is a documentation bug — please say so,
+        it is more useful to us than a question.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+      description: What are you trying to do, and where are you stuck?
+    validations:
+      required: true
+
+  - type: textarea
+    id: code
+    attributes:
+      label: What you have tried
+      description: Relevant code, including how the input is built. Optional but speeds up an answer considerably.
+      render: python
+
+  - type: input
+    id: version
+    attributes:
+      label: soft-clustering version
+      description: "Output of: python -c \"import soft_clustering; print(soft_clustering.__version__)\""
+      placeholder: "0.1.0"

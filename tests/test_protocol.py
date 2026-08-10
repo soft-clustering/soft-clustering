@@ -64,6 +64,16 @@ def _docs():
     ]
 
 
+def _partial_labels(n=N, k=K):
+    """Semi-supervised target: a few labelled samples per class, rest None."""
+    labels = np.full(n, None, dtype=object)
+    per_class = n // k
+    for cluster in range(k):
+        start = cluster * per_class
+        labels[start : start + 2] = cluster
+    return labels
+
+
 def _ensemble(seed=7):
     rng = np.random.default_rng(seed)
     mats = []
@@ -121,7 +131,10 @@ CASES: dict[str, tuple] = {
     "SKFCM": None,  # requires the image shape alongside X
     "BGMM": None,  # consumes two aligned views (Xg, Xb)
     "SoftKSC": None,  # semi-supervised; needs labelled and unlabelled parts
-    "SFCMEP": None,  # semi-supervised; needs a prior membership matrix
+    "SFCMEP": (
+        {"n_clusters": K},
+        lambda: (_features(), _partial_labels()),
+    ),
     "FeMIFuzzy": None,  # federated; consumes a list of client matrices
     "LDA": None,  # returns topic-word and doc-topic factors, not a partition
     "RDFKC": None,  # consumes image tensors; covered by tests/test_rdfkc.py

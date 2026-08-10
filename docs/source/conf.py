@@ -2,12 +2,20 @@
 
 # -- Project information
 
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _package_version
+
 project = "Soft Clustering"
-copyright = "2025"
+copyright = "2025-2026, the SCPP authors"
 author = "University of Guilan"
 
-release = "0.1"
-version = "0.0.1"
+# Read from the installed distribution rather than restating it here, so the
+# documentation cannot claim a version the package does not have.
+try:
+    release = _package_version("soft-clustering")
+except PackageNotFoundError:  # building against a source tree, not an install
+    release = "0.0.0+unknown"
+version = ".".join(release.split(".")[:2])
 
 # -- General configuration
 
@@ -30,16 +38,19 @@ templates_path = ["_templates"]
 
 # -- Options for the linkcheck builder
 
-# GitHub renders "#L123" line anchors client-side, so linkcheck cannot resolve
-# them and reports every source-line citation in the algorithm pages as broken.
-# Anchors are still verified for every other host.
-linkcheck_anchors_ignore_for_url = [
-    r"https://github\.com/.*",
-]
-# Publishers that serve 403 to automated clients. Their links are not broken —
-# checking them only produces noise that hides the failures worth acting on.
-# DOIs are included because they redirect to exactly these hosts.
+# Hosts whose failures say nothing about this project. Checking them produces
+# noise that hides the failures actually worth acting on.
 linkcheck_ignore = [
+    # These pages are self-references to files in this repository, on the
+    # branch the docs are built from. There are 26 of them, and GitHub rate
+    # limits unauthenticated requests per source IP, so a CI runner on a shared
+    # Actions address reliably collects 429s partway through the run — the
+    # failures track how busy the runner's neighbours are, not whether the
+    # links work. A rename that broke one of these would be visible in the
+    # repository itself.
+    r"https://github\.com/.*",
+    # Academic publishers serve 403 to automated clients. DOIs are included
+    # because they redirect to exactly these hosts.
     r"https://doi\.org/.*",
     r"https://dl\.acm\.org/.*",
     r"https://ieeexplore\.ieee\.org/.*",
@@ -49,9 +60,11 @@ linkcheck_ignore = [
 ]
 linkcheck_timeout = 15
 linkcheck_retries = 2
-# Unauthenticated GitHub requests are rate limited; waiting out a long backoff
-# in CI is not worth it for a non-blocking job.
 linkcheck_rate_limit_timeout = 30.0
+# Sphinx 8 default, set explicitly: a request that times out is reported with a
+# "timeout" status rather than counted as a broken link. A slow host is not a
+# rotted URL, and the distinction is the whole point of reading this report.
+linkcheck_report_timeouts_as_broken = False
 
 # -- Options for HTML output
 

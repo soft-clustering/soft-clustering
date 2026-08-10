@@ -5,14 +5,6 @@ from typing import Any
 import numpy as np
 
 try:
-    import scipy.sparse as sp
-
-    _HAVE_SCIPY = True
-except ImportError:
-    sp = None  # type: ignore[assignment]
-    _HAVE_SCIPY = False
-
-try:
     from sklearn.metrics import (
         adjusted_rand_score,
         calinski_harabasz_score,
@@ -25,18 +17,15 @@ try:
 except ImportError:
     _HAVE_SKLEARN = False
 
+from ..._base import BaseSoftClusterer, _as_2d_array
 from ..base import BaseBenchmark, model_name
 
-# All attribute names where soft_clustering models store the membership matrix.
-# Checked in priority order; the first 2-D ndarray found wins.
-_MEMBERSHIP_ATTRS = (
-    "membership_",  # BenchmarkAdapter (standardised)
-    "memberships_",  # FCM, GK
-    "typicalities_",  # PCM
-    "responsibilities_",  # GMM
-    "membership_matrix",  # PFCM (may be c×n — handled below)
-    "U",  # CAFCM, KFCM (KFCM: may be K×n — handled below)
-)
+# Checked in priority order; the first 2-D array of the right shape wins.
+# "membership_" is what BenchmarkAdapter publishes; the rest come from the
+# estimator protocol, so this list cannot drift out of step with _base.py.
+_MEMBERSHIP_ATTRS: tuple[str, ...] = (
+    "membership_",
+) + BaseSoftClusterer._membership_attrs
 
 
 class ClusteringQualityBenchmark(BaseBenchmark):
@@ -137,12 +126,8 @@ def _find_membership(
     (n_samples, n_clusters).  Returns None if none is found.
     """
     for attr in _MEMBERSHIP_ATTRS:
-        val = getattr(model, attr, None)
+        val = _as_2d_array(getattr(model, attr, None))
         if val is None:
-            continue
-        if _HAVE_SCIPY and sp.issparse(val):
-            val = val.toarray()
-        if not (isinstance(val, np.ndarray) and val.ndim == 2):
             continue
         # Transpose if stored as (n_clusters, n_samples)
         if val.shape[0] != n_samples and val.shape[1] == n_samples:

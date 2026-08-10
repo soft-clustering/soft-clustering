@@ -4,6 +4,10 @@ HOW TO RUN THE TEST SUITE AND MEASURE COVERAGE
 1. Install test dependencies:
    pip install -e ".[dev]"
 
+   Add the deep-learning extra to include the five PyTorch-backed estimators
+   (CDCGS, DMoN, MMSB, NOCD, RDFKC); without it their tests are skipped:
+   pip install -e ".[dev,deep]"
+
 2. Run all tests:
    pytest
 
@@ -20,4 +24,28 @@ HOW TO RUN THE TEST SUITE AND MEASURE COVERAGE
 6. Run with verbose output:
    pytest -v
 
-Expected: close to 100% line coverage across all soft_clustering modules.
+7. Run only the estimator protocol conformance checks:
+   pytest tests/test_protocol.py -v
+
+8. Run only the benchmarking suite tests:
+   pytest tests/test_benchmarking.py -v
+
+
+WHAT THE SUITE COVERS
+---------------------
+
+- tests/test_<algorithm>.py  one module per estimator
+- tests/test_protocol.py     shared conformance checks applied to every
+                             estimator exported by soft_clustering
+- tests/test_benchmarking.py the soft_clustering.benchmarking suite
+- tests/conftest.py          shared fixtures
+
+Coverage is measured over the whole soft_clustering package, including
+soft_clustering/benchmarking. The current figure is reported by CI and on the
+Codecov dashboard rather than restated here, so that this file cannot drift out
+of date; the thresholds a pull request must meet are in codecov.yml.
+
+To regenerate the quantitative figures quoted in the paper and README
+(estimator count, test count, coverage, dataset and metric counts):
+
+   python tools/paper_stats.py --with-coverage

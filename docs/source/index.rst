@@ -195,3 +195,4 @@ Distributed under the terms of the MIT license.
    smcla
    lda
    mbmm
+   sfcmep
