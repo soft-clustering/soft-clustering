@@ -135,10 +135,17 @@ class MemoryBenchmark(BaseBenchmark):
         memory_after = process.memory_info().rss / _BYTES_PER_MB
         peak = max(peak, memory_after)
 
+        # Round the endpoints first and derive the delta from them, so the
+        # reported numbers stay consistent with each other: rounding each of
+        # the three independently lets the delta disagree with the difference
+        # of the reported endpoints by up to a rounding step.
+        before_mb = round(memory_before, 3)
+        after_mb = round(memory_after, 3)
+
         return {
-            "memory_before_mb": round(memory_before, 3),
-            "memory_after_mb": round(memory_after, 3),
-            "memory_delta_mb": round(memory_after - memory_before, 3),
+            "memory_before_mb": before_mb,
+            "memory_after_mb": after_mb,
+            "memory_delta_mb": round(after_mb - before_mb, 3),
             "peak_memory_mb": round(peak, 3),
             "n_samples_taken": n_samples,
             "fit_time_sec": round(end_time - start_time, 6),
