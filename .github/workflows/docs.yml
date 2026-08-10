@@ -7,13 +7,25 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
+          # Matches the interpreter in .readthedocs.yaml, so a build that
+          # passes here is the build Read the Docs will run.
           python-version: "3.10"
           cache: pip
 
@@ -24,10 +36,38 @@ jobs:
           pip install .
 
       - name: Build HTML documentation
-        run: sphinx-build -b html docs/source docs/_build/html
+        # -W turns warnings into errors, so broken references, malformed
+        # directives and bad heading levels fail the build instead of
+        # accumulating. --keep-going reports every problem in one run.
+        run: sphinx-build -b html -W --keep-going docs/source docs/_build/html
 
       - name: Upload built documentation
         uses: actions/upload-artifact@v4
         with:
           name: html-docs
           path: docs/_build/html
+          retention-days: 14
+
+  linkcheck:
+    # External links rot, but they also fail for reasons outside this
+    # repository (rate limits, transient outages), so this job reports without
+    # blocking the merge.
+    name: link check (non-blocking)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+      - name: Install documentation dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r docs/requirements.txt
+          pip install .
+      - name: Check external links
+        run: sphinx-build -b linkcheck docs/source docs/_build/linkcheck

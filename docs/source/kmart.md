@@ -57,7 +57,7 @@ print("Membership matrix:\n", memberships.toarray())
 
 ## 🛠️ Methods
 
-#### `fit_predict(docs)`
+### `fit_predict(docs)`
 
 Runs the KMART clustering algorithm on the provided documents and returns the membership matrix. This is the main public method to call.
 

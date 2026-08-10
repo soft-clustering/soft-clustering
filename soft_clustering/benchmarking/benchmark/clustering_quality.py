@@ -25,7 +25,7 @@ try:
 except ImportError:
     _HAVE_SKLEARN = False
 
-from ..base import BaseBenchmark
+from ..base import BaseBenchmark, model_name
 
 # All attribute names where soft_clustering models store the membership matrix.
 # Checked in priority order; the first 2-D ndarray found wins.
@@ -91,7 +91,7 @@ class ClusteringQualityBenchmark(BaseBenchmark):
         if labels is None:
             raise ValueError(
                 f"Cannot obtain cluster labels from "
-                f"{model.__class__.__name__}. "
+                f"{model_name(model)}. "
                 "Wrap the model with BenchmarkAdapter."
             )
 

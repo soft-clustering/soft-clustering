@@ -1,12 +1,41 @@
 version: 2
 updates:
+  # Runtime and extra dependencies declared in pyproject.toml.
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
       interval: "monthly"
     open-pull-requests-limit: 5
+    labels: ["dependencies"]
+    commit-message:
+      prefix: "deps"
+    groups:
+      # One pull request per ecosystem rather than one per package, so a
+      # routine month costs a single review instead of five.
+      python-dependencies:
+        patterns: ["*"]
+
+  # docs/requirements.txt pins Sphinx and the theme, and is not reachable from
+  # the root manifest, so it needs its own entry to be updated at all.
+  - package-ecosystem: "pip"
+    directory: "/docs"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "documentation"]
+    commit-message:
+      prefix: "docs-deps"
+    groups:
+      sphinx:
+        patterns: ["*"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "monthly"
+    labels: ["dependencies", "ci"]
+    commit-message:
+      prefix: "ci"
+    groups:
+      actions:
+        patterns: ["*"]

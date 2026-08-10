@@ -7,21 +7,38 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: lint-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Pinned so that a linter release cannot turn a green branch red without a
+  # commit. Bumped deliberately, and by dependabot's github-actions/pip updates.
+  RUFF_VERSION: "0.16.2"
+  BLACK_VERSION: "26.5.1"
+
 jobs:
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
 
       - name: Install linters
-        run: pip install ruff black
+        run: pip install "ruff==${RUFF_VERSION}" "black==${BLACK_VERSION}"
 
       - name: ruff (lint)
-        run: ruff check soft_clustering benchmarking tests example
+        # GitHub format surfaces findings as inline annotations on the diff.
+        run: ruff check --output-format=github soft_clustering tests example tools
 
       - name: black (format check)
-        run: black --check --diff soft_clustering benchmarking tests example
+        run: black --check --diff soft_clustering tests example tools

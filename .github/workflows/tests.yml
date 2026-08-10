@@ -10,6 +10,10 @@ on:
     - cron: "0 6 * * 1"
   workflow_dispatch:
 
+# Least privilege by default; no job here writes to the repository.
+permissions:
+  contents: read
+
 concurrency:
   group: tests-${{ github.ref }}
   cancel-in-progress: true
@@ -18,6 +22,7 @@ jobs:
   test:
     name: ${{ matrix.os }} / py${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -32,6 +37,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
@@ -59,6 +66,7 @@ jobs:
           --cov=soft_clustering
           --cov-report=xml
           --cov-report=term-missing
+          --durations=10
 
       - name: Upload coverage to Codecov
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
@@ -68,13 +76,71 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
 
+  packaging:
+    # Catch distribution defects on every pull request rather than at release
+    # time, when they are expensive to fix.
+    name: build and inspect distributions
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Build sdist and wheel
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build
+
+      - name: Validate distribution metadata
+        run: twine check --strict dist/*
+
+      - name: Every package directory must be present in both artifacts
+        # flit ships exactly one top-level package, so a subpackage that is not
+        # imported from soft_clustering/__init__.py can silently go missing.
+        run: |
+          python - <<'PY'
+          import pathlib, tarfile, zipfile
+
+          expected = {"soft_clustering", "soft_clustering/benchmarking",
+                      "soft_clustering/benchmarking/benchmark"}
+
+          wheel = next(pathlib.Path("dist").glob("*.whl"))
+          names = zipfile.ZipFile(wheel).namelist()
+          missing = {p for p in expected
+                     if not any(n.startswith(p + "/") for n in names)}
+          assert not missing, f"missing from wheel {wheel.name}: {sorted(missing)}"
+          print(f"{wheel.name}: {len(names)} entries, all packages present")
+
+          sdist = next(pathlib.Path("dist").glob("*.tar.gz"))
+          with tarfile.open(sdist) as tar:
+              names = tar.getnames()
+          missing = {p for p in expected
+                     if not any(f"/{p}/" in n for n in names)}
+          assert not missing, f"missing from sdist {sdist.name}: {sorted(missing)}"
+          print(f"{sdist.name}: {len(names)} entries, all packages present")
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ github.sha }}
+          path: dist/
+          retention-days: 7
+
   minimal-install:
     # The published wheel must be installable and importable without the
     # optional deep-learning stack. This job is the regression test for that.
-    name: minimal install (no deep extra)
+    name: minimal install (no extras)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -87,12 +153,60 @@ jobs:
         run: |
           cd "$(mktemp -d)"
           python -c "import soft_clustering as sc; print(sc.__version__, len(sc.__all__))"
+      - name: The benchmarking suite must ship inside the wheel
+        # Regression test for the packaging defect where benchmarking lived
+        # outside the distributed package and so was unavailable to users who
+        # installed from PyPI rather than cloning the repository.
+        run: |
+          cd "$(mktemp -d)"
+          python - <<'PY'
+          import soft_clustering.benchmarking as b
+          print("benchmarking exports:", len(b.__all__))
+          assert "ClusteringBenchmark" in b.__all__
+          assert "BenchmarkAdapter" in b.__all__
+          # Importable with no benchmarking extras installed; the dependency
+          # error must surface only when a feature that needs one is used.
+          try:
+              b.ClusteringBenchmark(models=[], benchmarks=[]).run(None)
+          except ImportError as exc:
+              assert "soft-clustering[bench]" in str(exc), exc
+              print("optional-dependency guard OK:", exc)
+          else:
+              raise SystemExit("expected an ImportError without the bench extra")
+          PY
+
+  bench-extra:
+    # The benchmarking suite must actually run once its extra is installed.
+    name: benchmarking extra
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install the package with the bench extra
+        run: |
+          python -m pip install --upgrade pip
+          pip install ".[bench]" pytest
+      - name: Run the benchmarking tests against the installed package
+        run: |
+          workdir="$(mktemp -d)"
+          cp -r tests "$workdir/tests"
+          cd "$workdir"          # away from the repo, so the wheel is what gets imported
+          pytest tests/test_benchmarking.py -q
 
   examples:
     name: run examples
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"

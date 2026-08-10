@@ -81,8 +81,8 @@ def count_benchmark_assets() -> tuple[int, int, int]:
     sys.path.insert(0, str(ROOT))
     import numpy as np
 
-    from benchmarking import metrics
-    from benchmarking.datasets import available_datasets
+    from soft_clustering.benchmarking import metrics
+    from soft_clustering.benchmarking.datasets import available_datasets
 
     n = 40
     rng = np.random.default_rng(0)

@@ -1,0 +1,16 @@
+# Every issue should arrive through one of the structured forms, so that
+# reports carry a version, an environment and a reproducer from the outset.
+blank_issues_enabled: false
+
+contact_links:
+  - name: Documentation
+    url: https://soft-clustering.readthedocs.io/en/latest/index.html
+    about: API reference, algorithm descriptions, benchmarking guide and usage examples.
+
+  - name: Usage question
+    url: https://github.com/soft-clustering/soft-clustering/discussions
+    about: Ask how to use an estimator, choose a method, or interpret a membership matrix.
+
+  - name: Report a security vulnerability
+    url: https://github.com/soft-clustering/soft-clustering/security/advisories/new
+    about: Report privately instead of opening a public issue. See SECURITY.md.

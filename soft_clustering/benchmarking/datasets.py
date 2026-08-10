@@ -329,7 +329,7 @@ def benchmark_suite(
 # CLI Helper
 # ============================================================
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover - CLI helper
 
     print("Available datasets:")
     print()

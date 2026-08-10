@@ -68,6 +68,18 @@ class BenchmarkAdapter:
         Number of clusters.  **Required** for models whose fit_predict(X, K)
         signature demands K as a positional argument (FCM, PCM, GK, GMM).
         Ignored (but harmless) for models that already carry K in __init__.
+    name : str, optional
+        Label for this model in benchmark reports.  Defaults to the wrapped
+        model's class name.  Four estimators are exported under an alias
+        (``FCM`` is ``FuzzyCMeans``, ``GK`` is ``GustafsonKessel``, ``GMM`` is
+        ``GaussianMixtureEM``, ``PCM`` is ``PossibilisticCMeans``); pass
+        ``name`` to report the public API name instead of the class name.
+
+    Attributes
+    ----------
+    name : str
+        The label above, so that benchmark reports identify the estimator
+        rather than this wrapper.  See ``base.model_name``.
 
     Attributes set after fit()
     --------------------------
@@ -76,9 +88,15 @@ class BenchmarkAdapter:
     labels_     : ndarray of shape (n_samples,)
     """
 
-    def __init__(self, model: Any, n_clusters: int | None = None) -> None:
+    def __init__(
+        self,
+        model: Any,
+        n_clusters: int | None = None,
+        name: str | None = None,
+    ) -> None:
         self.model = model
         self.n_clusters = n_clusters
+        self.name = name if name is not None else type(model).__name__
         self.membership_: np.ndarray | None = None
         self.centers_: np.ndarray | None = None
         self.labels_: np.ndarray | None = None
@@ -100,20 +118,19 @@ class BenchmarkAdapter:
         return self.labels_
 
     # ------------------------------------------------------------------
-    # Class-name transparency (so ClusteringBenchmark reports the real name)
-    # ------------------------------------------------------------------
-
-    @property
-    def __class__(self):  # type: ignore[override]
-        return self.model.__class__
-
-    # ------------------------------------------------------------------
     # Attribute delegation
     # ------------------------------------------------------------------
 
     def __getattr__(self, name: str):
         # Avoid infinite recursion for the adapter's own attrs
-        if name in ("model", "n_clusters", "membership_", "centers_", "labels_"):
+        if name in (
+            "model",
+            "n_clusters",
+            "name",
+            "membership_",
+            "centers_",
+            "labels_",
+        ):
             raise AttributeError(name)
         return getattr(self.model, name)
 

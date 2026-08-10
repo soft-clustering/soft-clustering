@@ -5,8 +5,8 @@ from collections.abc import Iterable
 from typing import Any
 
 import numpy as np
-import psutil
 
+from .._optional import require_psutil
 from ..base import BaseBenchmark
 
 
@@ -33,6 +33,7 @@ class ScalabilityBenchmark(BaseBenchmark):
 
     @staticmethod
     def _memory_mb():
+        psutil = require_psutil("ScalabilityBenchmark.evaluate()")
         process = psutil.Process()
         return process.memory_info().rss / 1024**2
 

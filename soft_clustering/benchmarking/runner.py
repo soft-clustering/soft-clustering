@@ -2,9 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-import pandas as pd
-
-from .base import BaseBenchmark
+from ._optional import pd, require_pandas
+from .base import BaseBenchmark, model_name
 
 
 class ClusteringBenchmark:
@@ -26,13 +25,13 @@ class ClusteringBenchmark:
         y: Optional = None,
     ) -> pd.DataFrame:
 
+        require_pandas("ClusteringBenchmark.run()")
+
         records = []
 
         for model in self.models:
 
-            model_name = model.__class__.__name__
-
-            row = {"model": model_name}
+            row = {"model": model_name(model)}
 
             for benchmark in self.benchmarks:
 

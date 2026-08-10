@@ -55,6 +55,43 @@ Basic usage with the package API:
    print("Cluster centers:", centers)
 
 
+Benchmarking
+------------
+
+The package ships a benchmarking suite for evaluating algorithms on equal terms —
+runtime, memory, scalability, and clustering quality — together with dataset
+loaders and cluster-validity metrics. It is installed with the package, so it is
+importable straight from ``soft_clustering.benchmarking``.
+
+Running a benchmark additionally requires pandas, psutil and scikit-learn:
+
+.. code-block:: bash
+
+   pip install "soft-clustering[bench]"
+
+.. code-block:: python
+
+   from soft_clustering import FCM
+   from soft_clustering.benchmarking import (
+       BenchmarkAdapter,
+       ClusteringBenchmark,
+       ClusteringQualityBenchmark,
+       RuntimeBenchmark,
+       get_dataset,
+   )
+
+   X, y = get_dataset("iris")
+
+   results = ClusteringBenchmark(
+       models=[BenchmarkAdapter(FCM(random_state=0), n_clusters=3, name="FCM")],
+       benchmarks=[RuntimeBenchmark(), ClusteringQualityBenchmark()],
+   ).run(X, y)
+
+   print(results)
+
+See :doc:`benchmarking` for the full reference.
+
+
 Testing
 -------
 
@@ -82,7 +119,7 @@ This package is part of an academic research project submitted to the JMLR MLOSS
 - Paper link: https://arxiv.org/abs/2607.19620
 - Citation:
 
-.. code-block:: plaintext
+.. code-block:: text
 
    @misc{rezaee2026scppunifiedpythonlibrary,
       title={SCPP: A Unified Python Library for Soft Clustering}, 
@@ -118,6 +155,7 @@ Distributed under the terms of the MIT license.
 .. toctree::
    :maxdepth: 2
 
+   benchmarking
    nocd
    pcm
    kfccl

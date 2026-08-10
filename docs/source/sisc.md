@@ -1,16 +1,16 @@
-## Similarity-Based Soft Clustering (SISC)
+# Similarity-Based Soft Clustering (SISC)
 
 > **An efficient soft clustering algorithm that allows documents to be a member of multiple clusters.**
 
 -----
 
-### 🔍 Overview
+## 🔍 Overview
 
 The **Similarity-based Soft Clustering (SISC)** algorithm is an efficient approach to identifying overlapping themes in a collection of documents. Unlike hard clustering methods, SISC enables a single document to belong to multiple clusters, which is vital for capturing documents with multi-topic content. The algorithm is particularly suitable for dynamic clustering applications, such as organizing search results. SISC works by selecting representative documents as **cluster centroids** and iteratively refining and merging these clusters based on a given similarity measure.
 
 -----
 
-### ⚙️ Class Definition
+## ⚙️ Class Definition
 
 ```python
 class SISC(k: int)
@@ -18,7 +18,7 @@ class SISC(k: int)
 
 -----
 
-### 📋 Parameters
+## 📋 Parameters
 
 | Parameter | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
@@ -26,7 +26,7 @@ class SISC(k: int)
 
 -----
 
-### 🚀 Usage Examples
+## 🚀 Usage Examples
 
 ```python
 from sisc import SISC
@@ -55,9 +55,9 @@ print("Membership matrix:\n", memberships.toarray())
 
 -----
 
-### 🛠️ Methods
+## 🛠️ Methods
 
-#### `fit_predict(docs)`
+### `fit_predict(docs)`
 
 Runs the SISC clustering algorithm on the provided documents and returns the membership matrix. This is the main public method to call.
 
@@ -73,12 +73,12 @@ Runs the SISC clustering algorithm on the provided documents and returns the mem
 
 -----
 
-### 📝 Implementation Notes
+## 📝 Implementation Notes
 
   * **Similarity Measure:** The algorithm uses the Tanimoto similarity coefficient, a measure of similarity between two sets. This is a crucial component as it drives the clustering process.
   * **Dynamic Thresholding:** Instead of requiring a user-defined similarity threshold, SISC calculates a dynamic `lambda` value based on the document set itself. This makes the algorithm adaptive and robust across different datasets.
   * **Randomization:** To improve efficiency, SISC employs a randomization technique during the iterative refinement phase. It only recalculates the membership measure for a document-centroid pair with a probability proportional to their current similarity, significantly reducing computation time without sacrificing cluster quality.
 
-### 📚 Reference
+## 📚 Reference
 
 1. King-Ip Lin, Ravikumar Kondadadi. *A SIMILARITY-BASED SOFT CLUSTERING ALGORITHM FOR DOCUMENTS*.(https://www.comp.nus.edu.sg/~lingtw/dasfaa_proceedings/dasfaa2001/00916362.pdf).
