@@ -1,0 +1,194 @@
+[
+  {
+    "case": "MBMM",
+    "n": 200,
+    "d": 8,
+    "k": 3,
+    "seed": 0,
+    "memberships": {
+      "status": "compared",
+      "shape": [
+        200,
+        3
+      ],
+      "max_abs": 5.88418203051333e-15,
+      "mean_abs": 1.0509304897980457e-15,
+      "max_rel": 1.0572488131851278e-13,
+      "mean_rel": 1.2026979559794975e-14
+    },
+    "centers": {
+      "status": "absent"
+    },
+    "n_clusters_ref": 3,
+    "n_clusters_opt": 3,
+    "label_agreement": 1.0,
+    "label_ari": 1.0,
+    "invariants": {
+      "non_negative": true,
+      "finite": true,
+      "rows_sum_to_one": true,
+      "labels_are_argmax": true,
+      "partition_constrained_declared": true
+    }
+  },
+  {
+    "case": "MBMM",
+    "n": 200,
+    "d": 8,
+    "k": 3,
+    "seed": 1,
+    "memberships": {
+      "status": "compared",
+      "shape": [
+        200,
+        3
+      ],
+      "max_abs": 1.3322676295501878e-15,
+      "mean_abs": 1.8672236881854286e-16,
+      "max_rel": 1.7030490126167737e-13,
+      "mean_rel": 1.1066390619286401e-14
+    },
+    "centers": {
+      "status": "absent"
+    },
+    "n_clusters_ref": 3,
+    "n_clusters_opt": 3,
+    "label_agreement": 1.0,
+    "label_ari": 1.0,
+    "invariants": {
+      "non_negative": true,
+      "finite": true,
+      "rows_sum_to_one": true,
+      "labels_are_argmax": true,
+      "partition_constrained_declared": true
+    }
+  },
+  {
+    "case": "MBMM",
+    "n": 200,
+    "d": 8,
+    "k": 3,
+    "seed": 2,
+    "memberships": {
+      "status": "compared",
+      "shape": [
+        200,
+        3
+      ],
+      "max_abs": 2.4424906541753444e-15,
+      "mean_abs": 1.850140753953396e-16,
+      "max_rel": 4.974325316734688e-14,
+      "mean_rel": 3.860304052810847e-15
+    },
+    "centers": {
+      "status": "absent"
+    },
+    "n_clusters_ref": 3,
+    "n_clusters_opt": 3,
+    "label_agreement": 1.0,
+    "label_ari": 1.0,
+    "invariants": {
+      "non_negative": true,
+      "finite": true,
+      "rows_sum_to_one": true,
+      "labels_are_argmax": true,
+      "partition_constrained_declared": true
+    }
+  },
+  {
+    "case": "MBMM",
+    "n": 600,
+    "d": 8,
+    "k": 3,
+    "seed": 0,
+    "memberships": {
+      "status": "compared",
+      "shape": [
+        600,
+        3
+      ],
+      "max_abs": 2.1649348980190553e-14,
+      "mean_abs": 3.994888741655852e-15,
+      "max_rel": 1.796828067702395e-13,
+      "mean_rel": 2.4549285708065862e-14
+    },
+    "centers": {
+      "status": "absent"
+    },
+    "n_clusters_ref": 3,
+    "n_clusters_opt": 3,
+    "label_agreement": 1.0,
+    "label_ari": 1.0,
+    "invariants": {
+      "non_negative": true,
+      "finite": true,
+      "rows_sum_to_one": true,
+      "labels_are_argmax": true,
+      "partition_constrained_declared": true
+    }
+  },
+  {
+    "case": "MBMM",
+    "n": 600,
+    "d": 8,
+    "k": 3,
+    "seed": 1,
+    "memberships": {
+      "status": "compared",
+      "shape": [
+        600,
+        3
+      ],
+      "max_abs": 1.226796442210798e-14,
+      "mean_abs": 2.5897889876064856e-15,
+      "max_rel": 8.485993044647615e-14,
+      "mean_rel": 1.4458803573150415e-14
+    },
+    "centers": {
+      "status": "absent"
+    },
+    "n_clusters_ref": 3,
+    "n_clusters_opt": 3,
+    "label_agreement": 1.0,
+    "label_ari": 1.0,
+    "invariants": {
+      "non_negative": true,
+      "finite": true,
+      "rows_sum_to_one": true,
+      "labels_are_argmax": true,
+      "partition_constrained_declared": true
+    }
+  },
+  {
+    "case": "MBMM",
+    "n": 600,
+    "d": 8,
+    "k": 3,
+    "seed": 2,
+    "memberships": {
+      "status": "compared",
+      "shape": [
+        600,
+        3
+      ],
+      "max_abs": 6.994405055138486e-15,
+      "mean_abs": 1.2644625428313967e-15,
+      "max_rel": 8.715604471481726e-14,
+      "mean_rel": 8.116329701913522e-15
+    },
+    "centers": {
+      "status": "absent"
+    },
+    "n_clusters_ref": 3,
+    "n_clusters_opt": 3,
+    "label_agreement": 1.0,
+    "label_ari": 1.0,
+    "invariants": {
+      "non_negative": true,
+      "finite": true,
+      "rows_sum_to_one": true,
+      "labels_are_argmax": true,
+      "partition_constrained_declared": true
+    }
+  }
+]

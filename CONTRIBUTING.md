@@ -94,6 +94,29 @@ Then:
 4. Add a runnable script under `example/`.
 5. Cite the defining paper in the module docstring.
 
+## Optimized implementations
+
+Some estimators carry a vectorised implementation produced by the optimization
+study in `optimization/`. Their module docstring says so and names the
+preserved reference.
+
+If you change one of these, the equivalence tests must still pass:
+
+```bash
+pytest tests/test_optimization_equivalence.py -v
+```
+
+They fit each optimized estimator alongside the pre-optimization
+implementation kept in `optimization/original/scpp_original/` and require the
+outputs to agree. The reference build is deliberately outside the distribution:
+nothing in `soft_clustering/` may import from it.
+
+Optimizations must preserve the objective, the update rules, the
+initialisation, the convergence criterion and the public API. A change that
+alters any of those is an *algorithmic change*, not an optimization, and must
+be presented as such. See `optimization/README.md` for the method and
+`optimization/reports/optimization_report.md` for what has been done so far.
+
 ## Code Style
 
 - `black` for formatting, `ruff` for linting; both are configured in

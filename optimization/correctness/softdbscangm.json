@@ -1,0 +1,290 @@
+[
+  {
+    "case": "SoftDBSCANGM",
+    "n": 60,
+    "d": 8,
+    "k": 3,
+    "seed": 0,
+    "memberships": {
+      "status": "compared",
+      "shape": [
+        60,
+        60
+      ],
+      "max_abs": 3.0814879110195774e-33,
+      "mean_abs": 3.344452282928038e-35,
+      "max_rel": 1.0536402522115258e-15,
+      "mean_rel": 1.4476566991695935e-16
+    },
+    "centers": {
+      "status": "absent"
+    },
+    "n_clusters_ref": 60,
+    "n_clusters_opt": 60,
+    "label_agreement": 1.0,
+    "label_ari": 1.0,
+    "invariants": {
+      "non_negative": true,
+      "finite": true,
+      "rows_sum_to_one": true,
+      "labels_are_argmax": true,
+      "partition_constrained_declared": false
+    }
+  },
+  {
+    "case": "SoftDBSCANGM",
+    "n": 60,
+    "d": 8,
+    "k": 3,
+    "seed": 1,
+    "memberships": {
+      "status": "compared",
+      "shape": [
+        60,
+        60
+      ],
+      "max_abs": 3.0814879110195774e-33,
+      "mean_abs": 3.344452282928038e-35,
+      "max_rel": 1.0536402522115258e-15,
+      "mean_rel": 1.4476566991695935e-16
+    },
+    "centers": {
+      "status": "absent"
+    },
+    "n_clusters_ref": 60,
+    "n_clusters_opt": 60,
+    "label_agreement": 1.0,
+    "label_ari": 1.0,
+    "invariants": {
+      "non_negative": true,
+      "finite": true,
+      "rows_sum_to_one": true,
+      "labels_are_argmax": true,
+      "partition_constrained_declared": false
+    }
+  },
+  {
+    "case": "SoftDBSCANGM",
+    "n": 60,
+    "d": 8,
+    "k": 3,
+    "seed": 2,
+    "memberships": {
+      "status": "compared",
+      "shape": [
+        60,
+        60
+      ],
+      "max_abs": 3.0814879110195774e-33,
+      "mean_abs": 3.344452282928038e-35,
+      "max_rel": 1.0536402522115258e-15,
+      "mean_rel": 1.4476566991695935e-16
+    },
+    "centers": {
+      "status": "absent"
+    },
+    "n_clusters_ref": 60,
+    "n_clusters_opt": 60,
+    "label_agreement": 1.0,
+    "label_ari": 1.0,
+    "invariants": {
+      "non_negative": true,
+      "finite": true,
+      "rows_sum_to_one": true,
+      "labels_are_argmax": true,
+      "partition_constrained_declared": false
+    }
+  },
+  {
+    "case": "SoftDBSCANGM",
+    "n": 120,
+    "d": 8,
+    "k": 3,
+    "seed": 0,
+    "memberships": {
+      "status": "compared",
+      "shape": [
+        120,
+        120
+      ],
+      "max_abs": 2.220446049250313e-16,
+      "mean_abs": 3.083953227034807e-20,
+      "max_rel": 3.791718995993664e-07,
+      "mean_rel": 3.1334345999126417e-09
+    },
+    "centers": {
+      "status": "absent"
+    },
+    "n_clusters_ref": 120,
+    "n_clusters_opt": 120,
+    "label_agreement": 1.0,
+    "label_ari": 1.0,
+    "invariants": {
+      "non_negative": true,
+      "finite": true,
+      "rows_sum_to_one": true,
+      "labels_are_argmax": true,
+      "partition_constrained_declared": false
+    }
+  },
+  {
+    "case": "SoftDBSCANGM",
+    "n": 120,
+    "d": 8,
+    "k": 3,
+    "seed": 1,
+    "memberships": {
+      "status": "compared",
+      "shape": [
+        120,
+        120
+      ],
+      "max_abs": 2.220446049250313e-16,
+      "mean_abs": 3.083953227034807e-20,
+      "max_rel": 3.791718995993664e-07,
+      "mean_rel": 3.1334345999126417e-09
+    },
+    "centers": {
+      "status": "absent"
+    },
+    "n_clusters_ref": 120,
+    "n_clusters_opt": 120,
+    "label_agreement": 1.0,
+    "label_ari": 1.0,
+    "invariants": {
+      "non_negative": true,
+      "finite": true,
+      "rows_sum_to_one": true,
+      "labels_are_argmax": true,
+      "partition_constrained_declared": false
+    }
+  },
+  {
+    "case": "SoftDBSCANGM",
+    "n": 120,
+    "d": 8,
+    "k": 3,
+    "seed": 2,
+    "memberships": {
+      "status": "compared",
+      "shape": [
+        120,
+        120
+      ],
+      "max_abs": 2.220446049250313e-16,
+      "mean_abs": 3.083953227034807e-20,
+      "max_rel": 3.791718995993664e-07,
+      "mean_rel": 3.1334345999126417e-09
+    },
+    "centers": {
+      "status": "absent"
+    },
+    "n_clusters_ref": 120,
+    "n_clusters_opt": 120,
+    "label_agreement": 1.0,
+    "label_ari": 1.0,
+    "invariants": {
+      "non_negative": true,
+      "finite": true,
+      "rows_sum_to_one": true,
+      "labels_are_argmax": true,
+      "partition_constrained_declared": false
+    }
+  },
+  {
+    "case": "SoftDBSCANGM",
+    "n": 240,
+    "d": 8,
+    "k": 3,
+    "seed": 0,
+    "memberships": {
+      "status": "compared",
+      "shape": [
+        240,
+        240
+      ],
+      "max_abs": 2.220446049250313e-16,
+      "mean_abs": 7.709883491585868e-20,
+      "max_rel": 7.08954252611099e-07,
+      "mean_rel": 1.7658104082878602e-08
+    },
+    "centers": {
+      "status": "absent"
+    },
+    "n_clusters_ref": 240,
+    "n_clusters_opt": 240,
+    "label_agreement": 1.0,
+    "label_ari": 1.0,
+    "invariants": {
+      "non_negative": true,
+      "finite": true,
+      "rows_sum_to_one": true,
+      "labels_are_argmax": true,
+      "partition_constrained_declared": false
+    }
+  },
+  {
+    "case": "SoftDBSCANGM",
+    "n": 240,
+    "d": 8,
+    "k": 3,
+    "seed": 1,
+    "memberships": {
+      "status": "compared",
+      "shape": [
+        240,
+        240
+      ],
+      "max_abs": 2.220446049250313e-16,
+      "mean_abs": 7.709883491585868e-20,
+      "max_rel": 7.08954252611099e-07,
+      "mean_rel": 1.7658104082878602e-08
+    },
+    "centers": {
+      "status": "absent"
+    },
+    "n_clusters_ref": 240,
+    "n_clusters_opt": 240,
+    "label_agreement": 1.0,
+    "label_ari": 1.0,
+    "invariants": {
+      "non_negative": true,
+      "finite": true,
+      "rows_sum_to_one": true,
+      "labels_are_argmax": true,
+      "partition_constrained_declared": false
+    }
+  },
+  {
+    "case": "SoftDBSCANGM",
+    "n": 240,
+    "d": 8,
+    "k": 3,
+    "seed": 2,
+    "memberships": {
+      "status": "compared",
+      "shape": [
+        240,
+        240
+      ],
+      "max_abs": 2.220446049250313e-16,
+      "mean_abs": 7.709883491585868e-20,
+      "max_rel": 7.08954252611099e-07,
+      "mean_rel": 1.7658104082878602e-08
+    },
+    "centers": {
+      "status": "absent"
+    },
+    "n_clusters_ref": 240,
+    "n_clusters_opt": 240,
+    "label_agreement": 1.0,
+    "label_ari": 1.0,
+    "invariants": {
+      "non_negative": true,
+      "finite": true,
+      "rows_sum_to_one": true,
+      "labels_are_argmax": true,
+      "partition_constrained_declared": false
+    }
+  }
+]
