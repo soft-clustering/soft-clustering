@@ -53,7 +53,7 @@ jobs:
           /tmp/smoke/bin/python -c "import soft_clustering as sc; print('version', sc.__version__, 'estimators', len(sc.__all__))"
           /tmp/smoke/bin/python -c "import soft_clustering.benchmarking as b; print('benchmarking exports', len(b.__all__))"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/
