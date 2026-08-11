@@ -18,6 +18,7 @@ from ._base import BaseSoftClusterer  # noqa: F401
 
 _ESTIMATORS = {
     "KFCCL": "._kfccl",
+    "KFCM": "._kfcm",
     "KMART": "._kmart",
     "MBMM": "._mbmm",
     "SoftDBSCANGM": "._softdbscangm",

@@ -59,6 +59,12 @@ python optimization/compare.py SoftDBSCANGM --sizes 60,120,240 --seeds 0,1,2 \
        --out optimization/correctness/softdbscangm.json
 python optimization/compare.py MBMM --sizes 200,600 --seeds 0,1,2 \
        --out optimization/correctness/mbmm.json
+python optimization/compare.py KFCM --sizes 100,200,400 --seeds 0,1,2 \
+       --out optimization/correctness/kfcm.json
+python optimization/compare.py KFCCL --sizes 100,200,400 --seeds 0,1,2 \
+       --out optimization/correctness/kfccl.json
+python optimization/compare.py KMART --sizes 200,600,1200 --seeds 0,1,2 \
+       --out optimization/correctness/kmart.json
 
 # 6. Paired benchmarks (--module selects the build)
 python optimization/sweep.py --out optimization/benchmarks/raw/sdbg_original.jsonl \
@@ -66,6 +72,11 @@ python optimization/sweep.py --out optimization/benchmarks/raw/sdbg_original.jso
        --module scpp_original --timeout 600
 python optimization/sweep.py --out optimization/benchmarks/raw/sdbg_optimized.jsonl \
        --cases SoftDBSCANGM --sizes 60,120,240,480,960 --repeats 3 --warmup 1 --memory
+# ...and likewise for the remaining pairs. The raw file stem selects the
+# algorithm and build in analyze.py's BUILDS map, so it must be kept:
+#   kfcm_{original,optimized}   --cases KFCM   --sizes 100,200,400,800,1600
+#   kfccl_{original,optimized}  --cases KFCCL  --sizes 100,200,400,800,1600
+#   kmart_{original,optimized}  --cases KMART  --sizes 200,600,1200,2400
 
 # 7. Consolidate, and regenerate every table and figure
 python optimization/analyze.py

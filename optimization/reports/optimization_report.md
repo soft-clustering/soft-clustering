@@ -13,38 +13,47 @@ measurement; the commands that produce them are in `optimization/README.md`.*
 | Statically audited | 40 |
 | Baseline-timed in the survey | 28 |
 | Profiled in detail | 10 |
-| **Optimized, verified and benchmarked end to end** | **2** |
-| Optimized with a documented rationale and no measurable regression | 2 |
+| **Optimized, verified and benchmarked end to end** | **5** |
+| Optimized with a documented rationale and no measurable regression | 5 |
 | Algorithms found to need no optimization | see §12 |
 
-Of the two algorithms taken through the full cycle:
-
-Across the 6 paired measurements where both builds completed:
+The five algorithms taken through the full cycle are SoftDBSCANGM, KFCM,
+KFCCL, KMART and MBMM. Across the 20 paired measurements where both builds
+completed:
 
 | | Runtime speedup |
 | --- | ---: |
-| Median | **13.97x** |
-| Mean | **906.5x** |
+| Median | **70.4x** |
+| Geometric mean | **72.6x** |
+| Mean | **365.6x** |
+| Minimum | **6.3x** |
 | Maximum (measured, both builds completing) | **4,506.8x** |
 | Maximum (reference times out; lower bound) | **> 47,900x** |
 
-The mean and median differ by two orders of magnitude because the sample mixes
-a modest optimization with a complexity fix; the median is the honest summary of
-a typical case and the maximum is the honest summary of the outlier. Neither
-alone describes the study.
+The arithmetic mean and the median differ by an order of magnitude because the
+sample mixes modest constant-factor gains with two complexity fixes. The
+geometric mean (72.6x) and the median (70.4x) agree closely and are the honest
+summary of a typical case; the maximum is the honest summary of the outlier.
+No single number describes the study, so all are reported.
 
-Memory moved in the opposite direction, and this is reported as a genuine
-negative result rather than omitted:
+Every one of the five is an **implementation optimization**, not an algorithmic
+change. Across all **42 correctness comparisons** the maximum absolute
+membership difference against the preserved reference was **2.2e-14**, with
+**100% label agreement** and identical cluster counts in every case. KMART
+agrees **exactly** — a difference of 0.0, not merely a small one.
+
+Memory is a mixed result, reported in full rather than omitted:
 
 | | Peak traced allocation |
 | --- | ---: |
-| Median change | **-169%** (i.e. 2.7x more memory) |
+| Memory-neutral (within ±4%) | **9 of 20** paired measurements (KFCCL, KMART) |
+| Median change over all 20 | **-140%** |
 | Worst case | **-896%** (SoftDBSCANGM, n = 120: 0.45 MB -> 4.45 MB) |
 
-Both optimizations are **implementation optimizations**, not algorithmic
-changes. Maximum absolute membership difference against the preserved
-reference was **2.2e-16** (SoftDBSCANGM) and **2.2e-14** (MBMM), with **100%
-label agreement** and identical cluster counts in all 15 comparisons.
+The large relative regressions occur where the absolute footprint is smallest:
+KFCM's worst case is 0.26 MB -> 0.86 MB. The two optimizations that operate on
+data already held as a matrix — KFCCL and KMART — cost no additional memory at
+all, because both builds already materialise the dominant array.
 
 **The headline result** is SoftDBSCANGM. Its membership update was `O(n^3)` in
 scalar SciPy calls, which made the estimator unusable beyond a few hundred
@@ -52,10 +61,20 @@ samples: the reference does not finish within 600 s at n = 240, where the
 optimized implementation takes 12.5 ms. This was a scalability defect, not
 merely slow code.
 
-**Scope.** This report covers 2 of 40 algorithms end to end. The remaining 38
-are audited and, where runnable, baseline-timed and in eight cases profiled,
-but not optimized. §12 and §13 say what is known about each and what the next
-targets are. No result here is extrapolated to an algorithm that was not
+**A recurring defect class.** Four of the five fixes are the same finding in
+different clothing: a scalar numerical operation invoked from a Python loop
+where an exact batched form exists. SoftDBSCANGM called
+`scipy.spatial.distance.mahalanobis` per `(i, j, t)` triple; KFCM called a
+scalar Gaussian kernel `N * k` times per iteration; KFCCL rebuilt a normalised
+kernel column per `(iteration, cluster, sample)`; KMART called `np.minimum`
+once per (document, prototype) pair. The audit is what made the pattern
+visible, and the same technique removed all four.
+
+**Scope.** This report covers 5 of 40 algorithms end to end. The remaining 35
+are audited and, where runnable, baseline-timed and in five further cases
+profiled, but not optimized — in 18 cases because measurement showed there was
+nothing worth optimizing. §12 and §13 say what is known about each and what the
+next targets are. No result here is extrapolated to an algorithm that was not
 measured.
 
 ---
@@ -211,7 +230,14 @@ Two cross-cutting observations worth recording:
 | Memory-bounded chunking | SoftDBSCANGM | `k` grows with `N`, so a full `(N,k,d)` temporary would be quadratic | medium |
 | Direct `scipy.special` density | MBMM | bypasses `rv_continuous` dispatch, argument checking and support masks | low |
 | Vectorisation over features | MBMM | removes the inner `D` loop in the E and M steps | low |
-| Single GEMM for weighted means | SoftDBSCANGM, MBMM | `U_m.T @ X` in place of a per-component loop | none |
+| Single GEMM for weighted means | SoftDBSCANGM, MBMM, KFCM | `U_m.T @ X` in place of a per-component loop | none |
+| Loop-invariant hoisting | KFCCL | the normalised kernel `K / outer(diag, diag)` was rebuilt per (iteration, cluster, sample); it is constant for the whole fit | none |
+| Dependency-free loop collapse | KFCCL | each `p_ik[i, k]` reads only its own previous value, so the `k` loop is one GEMV | none |
+| Quadratic form in place of an outer product | KFCCL | `U K U` avoids materialising an `(N, N)` outer product per cluster per iteration | none |
+| Matrix-form kernel | KFCM | replaces `N * k` scalar kernel calls per iteration, and the runtime type check riding on each | low |
+| `searchsorted` for roulette selection | KFCM | replaces a Python scan over cumulative probabilities in K-Means++ | none |
+| Contiguous prototype block | KMART | turns the per-category vigilance test into one broadcast reduction | low |
+| COO assembly of the output matrix | KMART | `lil_matrix` element assignment cost one Python index operation per (document, cluster) pair | none |
 
 **No native extensions were added.** No Cython, no Numba, no C++. Profiling
 showed the bottlenecks were Python-level call overhead and redundant work, both
@@ -348,6 +374,168 @@ single headline number.
 
 **Final assessment.** Solid, low-risk, no new dependency. Retain.
 
+### 6.3 KFCM
+
+**Original implementation.** SCPP-specific kernelised fuzzy c-means with
+K-Means++ initialisation.
+
+**Bottleneck.** Profiling reported `typeguard`'s runtime type checking at
+roughly 23% of fit time (22.5 ms `check_type_internal` plus 17.5 ms
+`isinstance` of 175 ms). That was a *symptom*. `_gaussian_kernel` is a scalar
+helper returning a single float, called `N * k` times per iteration from list
+comprehensions in the center update and again per sample in the membership
+update; the class-level `@typechecked` decorator attached a type check to every
+one of those calls. The initialisation was worse still: K-Means++ computed
+`min([norm(x - c)**2 for c in centers]) for x in X`, quadratic in Python-level
+work.
+
+**Optimization.** Evaluate the kernel as an `(N, k)` matrix; express the center
+update as a single GEMM (`weights @ X`) with a masked division; recompute the
+membership distances from the updated centers in one array expression; and
+replace the K-Means++ roulette scan with `np.searchsorted`. The runtime type
+checking disappears with the scalar calls rather than being switched off, so
+the library-wide correctness guarantee is untouched.
+
+**Technical rationale.** Squared distances are computed as
+`sqrt(sum(d**2))**2` rather than `sum(d**2)`, because that is what
+`np.linalg.norm(...)**2` does in the reference and the round trip through
+`sqrt` is not the identity in floating point. `np.searchsorted(cum, r,
+side="right")` returns exactly the index the reference's `break` selected, and
+the out-of-range case leaves the center at zero as the un-taken `break` did.
+Crucially, the number and order of draws from NumPy's global RNG are unchanged
+— one `randint`, then one `rand` per additional center — which
+`tests/test_optimization_equivalence.py::test_initialisation_consumes_the_same_random_draws`
+pins by checking that the global generator is left in the same state.
+
+**Correctness.** 9 comparisons (n = 100/200/400, seeds 0/1/2). Maximum absolute
+membership difference **4.77e-15**; label agreement **1.0000**; cluster counts
+identical.
+
+**Runtime.**
+
+| n | original | optimized | speedup |
+| ---: | ---: | ---: | ---: |
+| 100 | 102.9 ms | 1.3 ms | 81.9x |
+| 200 | 183.6 ms | 1.3 ms | 146.5x |
+| 400 | 306.5 ms | 1.5 ms | 202.7x |
+| 800 | 495.7 ms | 1.5 ms | 330.5x |
+| 1,600 | 1,239.5 ms | 2.3 ms | 545.5x |
+
+**Memory.** 0.02 -> 0.07 MB at n = 100 and 0.26 -> 0.86 MB at n = 1,600. The
+relative change is large (about -230%) because the reference held only scalars;
+the absolute cost is under 1 MB at every size measured.
+
+**Scalability.** The speedup *grows* with `n` — the opposite of MBMM — because
+the removed cost is `O(N * k)` Python-level calls per iteration, which scales
+with the data, rather than a fixed `O(K * D)` overhead.
+
+**Final assessment.** The largest speedup in the study after SoftDBSCANGM, at
+no architectural cost. Retain.
+
+### 6.4 KFCCL
+
+**Original implementation.** SCPP-specific kernel-based fuzzy competitive
+learning.
+
+**Bottleneck.** 41,346 `np.sum` calls per fit. Two redundancies produced them.
+The normalised kernel column `K[:, k] / (K_diag * K_diag[k])` was rebuilt
+inside the innermost loop, so an `N`-vector division ran once per
+`(iteration, cluster, sample)` although `K` and `K_diag` are fixed for the
+entire fit. And the inner-product update was written as a loop over `k`.
+
+**Optimization.** Hoist the normalised kernel to a single `(N, N)` matrix
+computed once; collapse the `k` loop to one matrix-vector product; and replace
+the `(N, N)` outer product `U[i][:, None] * U[i][None, :]` with the quadratic
+form `U[i] @ K @ U[i]`.
+
+**Technical rationale.** Every entry `p_ik[i, k]` depends only on its own
+previous value and on quantities constant across the loop — `U[i]`, `K_norm`,
+and `V_sq[i]`, which is fully determined *before* the loop begins. The loop
+therefore carries no dependency and
+`sum_j U[i,j] K[j,k] / (K_diag[j] K_diag[k])` is exactly `(U[i] @ K_norm)[k]`.
+
+**Correctness.** 9 comparisons (n = 100/200/400, seeds 0/1/2). Maximum absolute
+membership difference **1.11e-16**; label agreement **1.0000**; iteration
+counts identical at every size checked.
+
+**Runtime.**
+
+| n | original | optimized | speedup |
+| ---: | ---: | ---: | ---: |
+| 100 | 433.8 ms | 11.9 ms | 36.5x |
+| 200 | 888.1 ms | 12.8 ms | 69.6x |
+| 400 | 1,873.3 ms | 13.9 ms | 134.8x |
+| 800 | 3,795.1 ms | 25.0 ms | 152.0x |
+| 1,600 | 8,406.0 ms | 317.3 ms | 26.5x |
+
+**Memory.** Unchanged, within measurement noise (+3.7% to -0.1%). Both builds
+already materialise the `(N, N)` kernel matrix, which dominates: 58.6 MB at
+n = 1,600 for either build.
+
+**Scalability, and the n = 1,600 result.** The speedup rises to 152x at n = 800
+and then falls to 26.5x at n = 1,600. This is **not** a change in iteration
+count — both builds converge at iteration 65 at that size — and it is not a
+defect. At n = 1,600 the two `(N, N)` matrices occupy 41 MB, exceeding the
+cache hierarchy, and the fit becomes memory-bandwidth bound. A standalone
+measurement of the same BLAS calls at the same sizes reproduces it: 195
+cluster-iterations of `u @ K_norm` and `u @ K @ u` take 6.8 ms at n = 800
+(292 GB/s effective, in cache) and 296.9 ms at n = 1,600 (26.9 GB/s, DRAM
+bandwidth) — the latter accounting for essentially all of the 317.3 ms
+measured. The optimized implementation has reached the hardware limit for an
+algorithm that must stream an `N * N` kernel matrix per cluster per iteration;
+the reference never approaches that limit because it is bound by Python call
+overhead instead.
+
+**Final assessment.** Retain. The large-`n` behaviour is a property of the
+algorithm's `O(N^2)` working set, not of the optimization.
+
+### 6.5 KMART
+
+**Original implementation.** SCPP-specific modified Fuzzy ART for soft document
+clustering.
+
+**Bottleneck.** 28,634 `np.sum` calls inside `_fuzzy_and` — one scalar
+reduction per (document, prototype) pair — plus element-by-element assignment
+into a `lil_matrix` when assembling the output.
+
+**Optimization.** Hold prototypes in one contiguous `(capacity, vocab)` buffer,
+doubled on demand, so the vigilance test over all existing categories is a
+single broadcast reduction; update the passing categories with one
+fancy-indexed assignment; and assemble the membership matrix in COO form.
+`prototypes_` is still published as the documented list of per-cluster vectors.
+
+**Technical rationale.** `_fuzzy_and` is `np.minimum`, so the vigilance test
+over the whole category block is `sum(minimum(I, P), axis=1) / (sum(I) + eps)`.
+The same minima are summed in the same order, so the rewrite is exact rather
+than merely close. Capacity doubling keeps prototype growth amortised `O(1)`,
+matching the reference's asymptotics in the worst case where every document
+opens a new category.
+
+**Correctness.** 9 comparisons (n = 200/600/1,200, seeds 0/1/2). Maximum
+absolute membership difference **exactly 0.0**; prototypes agree bitwise;
+cluster sets are identical; label agreement **1.0000**. This is the only
+algorithm in the study for which the optimization is bit-exact.
+
+**Runtime.**
+
+| n | original | optimized | speedup |
+| ---: | ---: | ---: | ---: |
+| 200 | 120.8 ms | 12.3 ms | 9.8x |
+| 600 | 937.5 ms | 39.6 ms | 23.7x |
+| 1,200 | 3,577.8 ms | 86.3 ms | 41.5x |
+| 2,400 | 13,763.7 ms | 193.3 ms | 71.2x |
+
+**Memory.** Unchanged (+0.5% to 0.0%). The document-term matrix dominates in
+both builds.
+
+**Scalability.** The reference is quadratic in the document count, because the
+number of categories grows with `n` and each document is tested against all of
+them; at n = 2,400 it takes 13.8 s. The optimized implementation is quadratic
+too — the same tests are performed — but each is a BLAS-backed reduction rather
+than a Python call, so the constant falls by nearly two orders of magnitude.
+
+**Final assessment.** Bit-exact, memory-neutral, no new dependency. Retain.
+
 ---
 
 ## 7. Runtime improvements
@@ -361,12 +549,23 @@ single headline number.
 - Table 3: `reports/tables/table3_memory.md`
 - Figure 3: `figures/fig3_memory_comparison.{png,pdf}`
 
-Both optimizations **increase** peak traced allocation. This is the honest
-result: the technique used — replacing scalar Python loops with array
-operations — necessarily materialises intermediates that the loop did not. The
-absolute figures remain small (< 5 MB at the benchmarked sizes for
-SoftDBSCANGM, < 1 MB for MBMM), and chunking bounds growth, but no memory
-reduction is claimed for either algorithm.
+The result splits cleanly in two, and the split is informative rather than
+incidental.
+
+**Memory-neutral (9 of 20 paired measurements).** KFCCL and KMART cost no extra
+memory at any size — within +3.7% to -0.1%. Both already materialised the
+dominant array (an `(N, N)` kernel matrix and a document-term matrix
+respectively), so vectorising the work performed *on* that array adds nothing.
+
+**Memory-regressing (11 of 20).** SoftDBSCANGM, KFCM and MBMM all increase peak
+traced allocation, because there the technique replaces scalar loops with array
+operations and so materialises intermediates the loops did not. The relative
+figures are large — up to -896% — but they are largest exactly where the
+absolute footprint is smallest: KFCM goes from 0.02 MB to 0.07 MB at n = 100,
+and SoftDBSCANGM from 0.45 MB to 4.45 MB at n = 120. Chunking bounds the growth
+in SoftDBSCANGM.
+
+No memory reduction is claimed for any algorithm in the study.
 
 ## 9. Scalability
 
@@ -379,11 +578,12 @@ reduction is claimed for either algorithm.
 - Table 4: `reports/tables/table4_correctness.md`
 - Figure 5: `figures/fig5_accuracy_preservation.{png,pdf}` — maximum membership
   deviation against machine epsilon
-- Raw comparisons: `correctness/softdbscangm.json`, `correctness/mbmm.json`
-- Regression tests: `tests/test_optimization_equivalence.py` (17 tests)
+- Raw comparisons: `correctness/softdbscangm.json`, `correctness/mbmm.json`,
+  `correctness/kfcm.json`, `correctness/kfccl.json`, `correctness/kmart.json`
+- Regression tests: `tests/test_optimization_equivalence.py` (36 tests)
 
-Both algorithms meet every acceptance criterion in §2. Neither is classified as
-an ALGORITHMIC CHANGE; both are IMPLEMENTATION OPTIMIZATIONS.
+All five algorithms meet every acceptance criterion in §2. None is classified
+as an ALGORITHMIC CHANGE; all five are IMPLEMENTATION OPTIMIZATIONS.
 
 ---
 
@@ -401,22 +601,27 @@ approximately the same size and is arguably simpler.
 platform-specific code.
 
 **Numerical differences.** Quantified in §10 and bounded at 2.2e-14 absolute
-across all 15 comparisons. Both implementations use BLAS-backed operations
-whose summation order may differ across platforms; the regression tolerance
-(1e-9) is set well above the observed worst case to accommodate that without
-admitting a real change.
+across all 42 comparisons. The optimized implementations use BLAS-backed
+operations whose summation order may differ across platforms; the regression
+tolerance (1e-9) is set well above the observed worst case to accommodate that
+without admitting a real change. KMART is exact and needs no tolerance.
 
 **Limitations of this study.**
 
-1. **Coverage.** 2 of 40 algorithms optimized end to end. Eight more are
-   profiled with identified bottlenecks but not optimized.
+1. **Coverage.** 5 of 40 algorithms optimized end to end. Five more are
+   profiled with identified bottlenecks but not optimized; 18 were measured as
+   already efficient and deliberately left alone.
 2. **Memory methodology.** `tracemalloc` measures Python-level allocation and
    understates BLAS-held buffers. Peak RSS was not used because it is noisy for
    sub-second fits.
-3. **Iteration counts not instrumented.** Neither estimator reports iterations,
-   so runtime changes cannot be decomposed into per-iteration cost versus
-   iteration count. This matters for the SoftDBSCANGM n = 960 result, which is
-   left unexplained beyond noting the change in `k`.
+3. **Iteration counts not instrumented.** No estimator reports iterations
+   through a public attribute, so runtime changes cannot in general be
+   decomposed into per-iteration cost versus iteration count. This matters for
+   the SoftDBSCANGM n = 960 result, which is left unexplained beyond noting the
+   change in `k`. Where it mattered most — the KFCCL n = 1,600 result — the
+   counts were recovered from the estimator's convergence message and shown to
+   be identical across builds (§6.4), but that is a workaround, not
+   instrumentation.
 4. **Single machine, single BLAS.** All results are Apple M2 / Accelerate.
    Speedups that come from removing Python call overhead should transfer; the
    BLAS-bound portions may not.
@@ -459,11 +664,11 @@ Time-bounded, not concluded. Each has a concrete, measured target:
 | Algorithm | Baseline | Identified target | Assessment |
 | --- | ---: | --- | --- |
 | SCSPA / SHBGF / SMCLA | ~1,000 ms each | ~1 s floor independent of `n`; sklearn `KMeans` `n_init` + thread-pool startup, not the consensus mathematics | Likely a large, cheap win — but changing `n_init` alters results, so it would be an **algorithmic change**, not an optimization, and needs a separate decision |
-| KFCCL | 143.3 ms | 41,346 `np.sum` calls | Straightforward vectorisation |
-| KMART | 46.1 ms | 28,634 `np.sum` calls in `_fuzzy_and` | Straightforward vectorisation |
 | AFCM | 205.3 ms | dense `scipy.linalg.eigh`, 126.9 ms of 440 ms | Already in LAPACK; would need a partial eigensolver (`eigsh`), which changes numerical results |
 | SISC | 71.1 ms | `_tanimoto_similarity` over Python sets | Sparse matrix reformulation; moderate effort |
-| KFCM | 51.3 ms | `typeguard` ~23% of fit time | Library-wide policy question, not a per-algorithm fix |
+
+`KFCCL`, `KMART` and `KFCM` were previously in this table. All three have since
+been optimized and are reported in §6.3–§6.5.
 
 ### Not runnable in the shared harness
 
@@ -479,26 +684,38 @@ environment and is out of scope here.
 
 ## 13. Recommendations
 
-**Retain.** Both optimizations: no new dependency, machine-epsilon fidelity,
-regression-tested.
+**Retain.** All five optimizations: no new dependency, machine-epsilon
+fidelity, regression-tested.
 
 **Highest-value next targets**, in order of measured benefit per unit of risk:
 
-1. **KFCCL and KMART** — pure vectorisation of `np.sum` loops. Same technique
-   already validated here, low risk, ~150 ms and ~46 ms baselines.
-2. **The consensus trio's 1 s floor** — investigate whether it is `n_init`,
+1. **The consensus trio's 1 s floor** — investigate whether it is `n_init`,
    thread-pool startup, or both. If it is `n_init`, note that reducing it is an
    **algorithmic change** and must be presented as such.
-3. **SISC** — reformulate Tanimoto similarity over sparse matrices.
+2. **SISC** — reformulate Tanimoto similarity over sparse matrices.
+3. **Harness coverage** — 12 of 40 estimators take input shapes the shared
+   registry does not build, so they are audited but never timed. Extending
+   `harness.py` to cover them would make "all 40 benchmarked under one harness"
+   true, and costs measurement effort rather than numerical risk.
 
 **Avoid.** Adding Numba, Cython or a C++ extension. Nothing measured in this
 study is bound by anything those would help; every bottleneck found was Python
 call overhead or redundant work, removable with NumPy.
 
-**Library-wide question.** `typeguard`'s `@typechecked` costs ~23% of fit time
-in KFCM and is applied to 39 of 40 estimators. Options: keep it (correctness
-guarantee for a research library), restrict it to `__init__`, or make it opt-in
-via an environment variable. This is a design decision, not an optimization.
+**Library-wide question, revised.** `typeguard`'s `@typechecked` was measured at
+~23% of fit time in KFCM and is applied to 39 of 40 estimators, which looked
+like an argument for making it opt-in. Optimizing KFCM (§6.3) showed that
+reading to be misleading: the cost was not the decorator but the *number of
+calls it decorated* — a scalar kernel helper invoked `N * k` times per
+iteration. Removing the scalar calls removed the type-checking cost with them,
+and KFCM is now the second-fastest optimized estimator in the study with
+`@typechecked` still fully in force.
+
+The general lesson is worth recording: runtime type checking is expensive in
+proportion to call frequency, so it is a symptom of a hot Python-level loop
+rather than an independent tax. Where a profile attributes significant time to
+`typeguard`, the productive response is to look for the loop underneath it. No
+change to the library's type-checking policy is recommended.
 
 **Instrumentation.** Estimators should expose `n_iter_`. Its absence is the
 single largest obstacle to interpreting the results above.

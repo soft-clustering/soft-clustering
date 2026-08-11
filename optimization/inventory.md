@@ -35,9 +35,9 @@ primitives (DBSCAN, KMeans, eigen-solvers) inside some methods.
 | `FeMIFuzzy` | federated | `_femifuzzy.py` | 230 | 23 (3) | appendx11, normx4 | — | not yet profiled | not yet profiled | unknown — not yet profiled |
 | `GK` | fuzzy | `_gk.py` | 159 | 6 (2) | appendx1, invx1 | 7.8 | not yet profiled | not yet profiled | unknown — not yet profiled |
 | `GMM` | mixture | `_gmm.py` | 200 | 9 (2) | appendx1 | 11.7 | not yet profiled | not yet profiled | unknown — not yet profiled |
-| `KFCCL` | kernel | `_kfccl.py` | 82 | 3 (3) | — | 143.3 | 41,346 `np.sum` calls — per-element Python reduction | low | high (untouched) |
-| `KFCM` | kernel | `_kfcm.py` | 98 | 5 (2) | normx2 | 51.3 | `typeguard` check_type_internal 22.5 ms + isinstance 17.5 ms of 175 ms | low | medium (untouched) |
-| `KMART` | document | `_kmart.py` | 172 | 12 (3) | appendx6 | 46.1 | 28,634 `np.sum` calls in `_fuzzy_and` | low | high (untouched) |
+| `KFCCL` | kernel | `_kfccl.py` | 106 | 2 (2) | — | 143.3 | 41,346 `np.sum` calls — per-element Python reduction | unchanged (both builds hold the (N,N) kernel) | **done — 26.5-152.0x** |
+| `KFCM` | kernel | `_kfcm.py` | 141 | 2 (1) | normx1 | 51.3 | `typeguard` check_type_internal 22.5 ms + isinstance 17.5 ms of 175 ms, riding on N*k scalar kernel calls per iteration | low (0.26 -> 0.86 MB at n=1600) | **done — 81.9-545.5x** |
+| `KMART` | document | `_kmart.py` | 208 | 9 (3) | appendx4 | 46.1 | 28,634 `np.sum` calls in `_fuzzy_and` | unchanged | **done — 9.8-71.2x** |
 | `LDA` | document | `_lda.py` | 123 | 4 (3) | — | — | not yet profiled | not yet profiled | unknown — not yet profiled |
 | `MBMM` | mixture | `_mbmm.py` | 105 | 3 (1) | — | 227.7 | `scipy.stats.beta.logpdf` called K*D times per E-step and per log-likelihood | low | **done — 6.3-16.9x** |
 | `MMSB` | graph | `_mmsb.py` | 45 | 2 (2) | — | — | not yet profiled | not yet profiled | unknown — not yet profiled |
@@ -65,7 +65,7 @@ primitives (DBSCAN, KMeans, eigen-solvers) inside some methods.
 - Statically audited: **40**
 - Baseline-timed in the survey: **28**
 - Profiled in detail: **10**
-- Optimized, verified and benchmarked end to end: **2**
+- Optimized, verified and benchmarked end to end: **5**
 
 The gap between *profiled* and *optimized* is deliberate and is discussed
 in the report under 'Algorithms not optimized' and 'Limitations'.

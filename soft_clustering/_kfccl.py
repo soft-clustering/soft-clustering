@@ -1,3 +1,38 @@
+"""Kernel-based Fuzzy Competitive Learning Clustering (K-FCCL).
+
+Implementation note (optimization study)
+----------------------------------------
+Vectorised implementation of the same algorithm. The update rules, the
+initialisation draws, the learning-rate schedule and the convergence test are
+unchanged. The reference implementation is preserved at
+``optimization/original/scpp_original/_kfccl.py``.
+
+Profiling attributed the runtime to 41,346 ``np.sum`` calls per fit — a
+per-element Python reduction. Two redundancies caused them:
+
+1. The normalised kernel column ``K[:, k] / (K_diag * K_diag[k])`` was rebuilt
+   inside the innermost loop, so an ``N``-vector division ran once per
+   ``(iteration, cluster, sample)`` even though ``K`` and ``K_diag`` are fixed
+   for the whole fit. It is now computed **once**, before the iteration loop,
+   as the full matrix ``Knorm[j, k] = K[j, k] / (K_diag[j] * K_diag[k])``.
+
+2. The inner-product update was written as a loop over ``k``. Every entry
+   ``p_ik[i, k]`` depends only on its own previous value and on quantities that
+   are constant across the loop (``U[i]``, ``Knorm``, ``V_sq[i]``, which is
+   fully determined *before* the loop begins), so the loop carries no
+   dependency and collapses to one matrix-vector product::
+
+       sum_j U[i, j] * K[j, k] / (K_diag[j] * K_diag[k])  ==  (U[i] @ Knorm)[k]
+
+The squared-norm accumulation is rewritten with the same identity in the
+opposite direction: ``sum_{j,l} U[i,j] U[i,l] K[j,l]`` is the quadratic form
+``U[i] @ K @ U[i]``, which avoids materialising the ``(N, N)`` outer product
+``U[i][:, None] * U[i][None, :]`` once per cluster per iteration.
+
+Both are exact rearrangements — no approximation, and no change to the order in
+which ``V_sq`` and ``p_ik`` are updated relative to each other.
+"""
+
 import numpy as np
 from typeguard import typechecked
 
@@ -72,6 +107,10 @@ class KFCCL(BaseSoftClusterer):
         self.K = self._gaussian_kernel_matrix(X)
         K_diag: np.ndarray = np.sqrt(np.diag(self.K))
 
+        # Cosine-normalised kernel, constant for the whole fit. The reference
+        # rebuilt one column of this per (iteration, cluster, sample).
+        K_norm: np.ndarray = self.K / np.outer(K_diag, K_diag)
+
         # Initialize inner products and membership matrix
         self.p_ik = np.random.rand(self.n_clusters, N) * 0.01
         self.U = np.zeros((self.n_clusters, N))
@@ -88,14 +127,13 @@ class KFCCL(BaseSoftClusterer):
             # Update inner products and center norms
             for i in range(self.n_clusters):
                 V_sq[i] += 2 * eta * np.sum(self.U[i] * self.p_ik[i])
-                V_sq[i] += eta**2 * np.sum(
-                    (self.U[i][:, None] * self.U[i][None, :]) * self.K
-                )
+                # sum_{j,l} U[i,j] U[i,l] K[j,l] == U[i] @ K @ U[i]
+                V_sq[i] += eta**2 * (self.U[i] @ self.K @ self.U[i])
 
-                for k in range(N):
-                    kernel_norm: np.ndarray = self.K[:, k] / (K_diag * K_diag[k])
-                    self.p_ik[i, k] += eta * np.sum(self.U[i] * kernel_norm)
-                    self.p_ik[i, k] /= np.sqrt(V_sq[i])
+                # Every k is independent of the others: V_sq[i] is already
+                # final, and U[i] and K_norm do not change within the loop.
+                self.p_ik[i] += eta * (self.U[i] @ K_norm)
+                self.p_ik[i] /= np.sqrt(V_sq[i])
 
             # Convergence check
             if np.max(np.abs(self.p_ik - p_old)) < self.epsilon:

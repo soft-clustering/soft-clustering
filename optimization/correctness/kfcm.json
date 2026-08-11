@@ -1,0 +1,362 @@
+[
+  {
+    "case": "KFCM",
+    "n": 100,
+    "d": 8,
+    "k": 3,
+    "seed": 0,
+    "memberships": {
+      "status": "compared",
+      "shape": [
+        100,
+        3
+      ],
+      "max_abs": 1.4432899320127035e-15,
+      "mean_abs": 1.4747462510437496e-16,
+      "max_rel": 4.487405357899207e-15,
+      "mean_rel": 4.992505627775309e-16
+    },
+    "centers": {
+      "status": "compared",
+      "shape": [
+        3,
+        8
+      ],
+      "max_abs": 3.552713678800501e-15,
+      "mean_abs": 5.083462586060369e-16,
+      "max_rel": 4.379181938479909e-15,
+      "mean_rel": 5.229321885289566e-16
+    },
+    "n_clusters_ref": 3,
+    "n_clusters_opt": 3,
+    "label_agreement": 1.0,
+    "label_ari": 1.0,
+    "invariants": {
+      "non_negative": true,
+      "finite": true,
+      "rows_sum_to_one": true,
+      "labels_are_argmax": true,
+      "partition_constrained_declared": true
+    }
+  },
+  {
+    "case": "KFCM",
+    "n": 100,
+    "d": 8,
+    "k": 3,
+    "seed": 1,
+    "memberships": {
+      "status": "compared",
+      "shape": [
+        100,
+        3
+      ],
+      "max_abs": 1.2212453270876722e-15,
+      "mean_abs": 1.2434497875801754e-16,
+      "max_rel": 8.290796850826607e-15,
+      "mean_rel": 4.42140180744068e-16
+    },
+    "centers": {
+      "status": "compared",
+      "shape": [
+        3,
+        8
+      ],
+      "max_abs": 1.7763568394002505e-15,
+      "mean_abs": 5.426070472565788e-16,
+      "max_rel": 8.290354119544248e-16,
+      "mean_rel": 2.38872650179113e-16
+    },
+    "n_clusters_ref": 3,
+    "n_clusters_opt": 3,
+    "label_agreement": 1.0,
+    "label_ari": 1.0,
+    "invariants": {
+      "non_negative": true,
+      "finite": true,
+      "rows_sum_to_one": true,
+      "labels_are_argmax": true,
+      "partition_constrained_declared": true
+    }
+  },
+  {
+    "case": "KFCM",
+    "n": 100,
+    "d": 8,
+    "k": 3,
+    "seed": 2,
+    "memberships": {
+      "status": "compared",
+      "shape": [
+        100,
+        3
+      ],
+      "max_abs": 1.7763568394002505e-15,
+      "mean_abs": 1.410908427127803e-16,
+      "max_rel": 4.794395978193944e-15,
+      "mean_rel": 4.628280525247759e-16
+    },
+    "centers": {
+      "status": "compared",
+      "shape": [
+        3,
+        8
+      ],
+      "max_abs": 3.552713678800501e-15,
+      "mean_abs": 4.678332374274952e-16,
+      "max_rel": 1.5095740186214021e-15,
+      "mean_rel": 2.408236968454282e-16
+    },
+    "n_clusters_ref": 3,
+    "n_clusters_opt": 3,
+    "label_agreement": 1.0,
+    "label_ari": 1.0,
+    "invariants": {
+      "non_negative": true,
+      "finite": true,
+      "rows_sum_to_one": true,
+      "labels_are_argmax": true,
+      "partition_constrained_declared": true
+    }
+  },
+  {
+    "case": "KFCM",
+    "n": 200,
+    "d": 8,
+    "k": 3,
+    "seed": 0,
+    "memberships": {
+      "status": "compared",
+      "shape": [
+        200,
+        3
+      ],
+      "max_abs": 2.6645352591003757e-15,
+      "mean_abs": 2.388367281724868e-16,
+      "max_rel": 7.169054299362095e-15,
+      "mean_rel": 7.647356752799748e-16
+    },
+    "centers": {
+      "status": "compared",
+      "shape": [
+        3,
+        8
+      ],
+      "max_abs": 4.440892098500626e-15,
+      "mean_abs": 1.0216256370968828e-15,
+      "max_rel": 2.8764783339908e-15,
+      "mean_rel": 4.976077264006243e-16
+    },
+    "n_clusters_ref": 3,
+    "n_clusters_opt": 3,
+    "label_agreement": 1.0,
+    "label_ari": 1.0,
+    "invariants": {
+      "non_negative": true,
+      "finite": true,
+      "rows_sum_to_one": true,
+      "labels_are_argmax": true,
+      "partition_constrained_declared": true
+    }
+  },
+  {
+    "case": "KFCM",
+    "n": 200,
+    "d": 8,
+    "k": 3,
+    "seed": 1,
+    "memberships": {
+      "status": "compared",
+      "shape": [
+        200,
+        3
+      ],
+      "max_abs": 1.887379141862766e-15,
+      "mean_abs": 1.721770874022847e-16,
+      "max_rel": 4.985468361108246e-15,
+      "mean_rel": 5.542581803734731e-16
+    },
+    "centers": {
+      "status": "compared",
+      "shape": [
+        3,
+        8
+      ],
+      "max_abs": 3.552713678800501e-15,
+      "mean_abs": 6.499611323688518e-16,
+      "max_rel": 1.951890835316369e-15,
+      "mean_rel": 3.4101256634829007e-16
+    },
+    "n_clusters_ref": 3,
+    "n_clusters_opt": 3,
+    "label_agreement": 1.0,
+    "label_ari": 1.0,
+    "invariants": {
+      "non_negative": true,
+      "finite": true,
+      "rows_sum_to_one": true,
+      "labels_are_argmax": true,
+      "partition_constrained_declared": true
+    }
+  },
+  {
+    "case": "KFCM",
+    "n": 200,
+    "d": 8,
+    "k": 3,
+    "seed": 2,
+    "memberships": {
+      "status": "compared",
+      "shape": [
+        200,
+        3
+      ],
+      "max_abs": 1.8318679906315083e-15,
+      "mean_abs": 2.207030854369426e-16,
+      "max_rel": 4.841037202945411e-15,
+      "mean_rel": 7.02439217049382e-16
+    },
+    "centers": {
+      "status": "compared",
+      "shape": [
+        3,
+        8
+      ],
+      "max_abs": 4.440892098500626e-15,
+      "mean_abs": 1.0581722853277482e-15,
+      "max_rel": 5.326430781281683e-15,
+      "mean_rel": 5.653399573427613e-16
+    },
+    "n_clusters_ref": 3,
+    "n_clusters_opt": 3,
+    "label_agreement": 1.0,
+    "label_ari": 1.0,
+    "invariants": {
+      "non_negative": true,
+      "finite": true,
+      "rows_sum_to_one": true,
+      "labels_are_argmax": true,
+      "partition_constrained_declared": true
+    }
+  },
+  {
+    "case": "KFCM",
+    "n": 400,
+    "d": 8,
+    "k": 3,
+    "seed": 0,
+    "memberships": {
+      "status": "compared",
+      "shape": [
+        400,
+        3
+      ],
+      "max_abs": 3.552713678800501e-15,
+      "mean_abs": 2.595377616524767e-16,
+      "max_rel": 1.3382513626361034e-14,
+      "mean_rel": 8.382647758101274e-16
+    },
+    "centers": {
+      "status": "compared",
+      "shape": [
+        3,
+        8
+      ],
+      "max_abs": 5.329070518200751e-15,
+      "mean_abs": 1.2789971628087333e-15,
+      "max_rel": 8.829457124325909e-16,
+      "mean_rel": 3.503404398912502e-16
+    },
+    "n_clusters_ref": 3,
+    "n_clusters_opt": 3,
+    "label_agreement": 1.0,
+    "label_ari": 1.0,
+    "invariants": {
+      "non_negative": true,
+      "finite": true,
+      "rows_sum_to_one": true,
+      "labels_are_argmax": true,
+      "partition_constrained_declared": true
+    }
+  },
+  {
+    "case": "KFCM",
+    "n": 400,
+    "d": 8,
+    "k": 3,
+    "seed": 1,
+    "memberships": {
+      "status": "compared",
+      "shape": [
+        400,
+        3
+      ],
+      "max_abs": 2.220446049250313e-15,
+      "mean_abs": 1.7529958965904294e-16,
+      "max_rel": 1.2413733636260057e-14,
+      "mean_rel": 5.641772385155124e-16
+    },
+    "centers": {
+      "status": "compared",
+      "shape": [
+        3,
+        8
+      ],
+      "max_abs": 2.6645352591003757e-15,
+      "mean_abs": 7.426062080077381e-16,
+      "max_rel": 9.9303391671535e-16,
+      "mean_rel": 2.7200019564769444e-16
+    },
+    "n_clusters_ref": 3,
+    "n_clusters_opt": 3,
+    "label_agreement": 1.0,
+    "label_ari": 1.0,
+    "invariants": {
+      "non_negative": true,
+      "finite": true,
+      "rows_sum_to_one": true,
+      "labels_are_argmax": true,
+      "partition_constrained_declared": true
+    }
+  },
+  {
+    "case": "KFCM",
+    "n": 400,
+    "d": 8,
+    "k": 3,
+    "seed": 2,
+    "memberships": {
+      "status": "compared",
+      "shape": [
+        400,
+        3
+      ],
+      "max_abs": 4.773959005888173e-15,
+      "mean_abs": 2.9407032364758836e-16,
+      "max_rel": 1.4596897690504288e-14,
+      "mean_rel": 9.351125629524179e-16
+    },
+    "centers": {
+      "status": "compared",
+      "shape": [
+        3,
+        8
+      ],
+      "max_abs": 6.217248937900877e-15,
+      "mean_abs": 1.3917541887472258e-15,
+      "max_rel": 3.246203100432264e-15,
+      "mean_rel": 5.192312742175812e-16
+    },
+    "n_clusters_ref": 3,
+    "n_clusters_opt": 3,
+    "label_agreement": 1.0,
+    "label_ari": 1.0,
+    "invariants": {
+      "non_negative": true,
+      "finite": true,
+      "rows_sum_to_one": true,
+      "labels_are_argmax": true,
+      "partition_constrained_declared": true
+    }
+  }
+]

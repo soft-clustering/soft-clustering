@@ -98,14 +98,19 @@ PROFILED = {
     ),
     "KFCCL": (
         "41,346 `np.sum` calls — per-element Python reduction",
-        "low",
-        "high (untouched)",
+        "unchanged (both builds hold the (N,N) kernel)",
+        "**done — 26.5-152.0x**",
     ),
-    "KMART": ("28,634 `np.sum` calls in `_fuzzy_and`", "low", "high (untouched)"),
+    "KMART": (
+        "28,634 `np.sum` calls in `_fuzzy_and`",
+        "unchanged",
+        "**done — 9.8-71.2x**",
+    ),
     "KFCM": (
-        "`typeguard` check_type_internal 22.5 ms + isinstance 17.5 ms of 175 ms",
-        "low",
-        "medium (untouched)",
+        "`typeguard` check_type_internal 22.5 ms + isinstance 17.5 ms of 175 ms, "
+        "riding on N*k scalar kernel calls per iteration",
+        "low (0.26 -> 0.86 MB at n=1600)",
+        "**done — 81.9-545.5x**",
     ),
     "AFCM": (
         "`scipy.linalg.eigh` 126.9 ms of 440 ms (dense eigendecomposition)",

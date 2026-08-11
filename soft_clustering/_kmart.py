@@ -1,7 +1,37 @@
+"""KMART — a modified Fuzzy ART for soft document clustering.
+
+Implementation note (optimization study)
+----------------------------------------
+Vectorised implementation of the same algorithm. The vigilance test, the
+prototype update rule, the order in which documents are presented and the
+order in which prototypes are created and updated are unchanged. The reference
+implementation is preserved at
+``optimization/original/scpp_original/_kmart.py``.
+
+Profiling attributed the runtime to 28,634 ``np.sum`` calls inside
+``_fuzzy_and`` — one scalar reduction per (document, prototype) pair. Because
+``_fuzzy_and`` is just ``np.minimum``, the whole vigilance test over the
+current category set is a single broadcast:
+
+    scores = sum(minimum(I, P), axis=1) / (sum(I) + eps)
+
+with ``P`` the block of existing prototypes. Prototypes are therefore held in
+one contiguous ``(capacity, vocab)`` buffer, doubled on demand, instead of a
+Python list of separate vectors, and the passing categories are updated with a
+single fancy-indexed assignment rather than one at a time.
+
+The membership matrix is assembled in COO form; the reference assigned into a
+``lil_matrix`` element by element, which costs a Python-level index operation
+per (document, cluster) pair.
+
+``prototypes_`` is still published as the documented list of per-cluster
+vectors, and ``_fuzzy_and`` is retained as part of the class's interface.
+"""
+
 from collections import defaultdict
 
 import numpy as np
-from scipy.sparse import csr_matrix, lil_matrix
+from scipy.sparse import coo_matrix, csr_matrix
 
 from ._base import BaseSoftClusterer
 
@@ -175,51 +205,73 @@ class KMART(BaseSoftClusterer):
         """
         doc_vectors, self._unique_words = self._preprocess(docs)
 
+        vocab_size = len(self._unique_words)
+
+        # Prototypes are held in one contiguous (capacity, vocab) buffer so the
+        # vigilance test is a single broadcast rather than a Python loop over
+        # categories. Capacity doubles on demand, so growing the set of
+        # prototypes stays amortised O(1) per new cluster.
+        capacity = 8
+        prototypes = np.empty((capacity, vocab_size), dtype=np.float64)
+        n_prototypes = 0
+
         for i, doc_vector in enumerate(doc_vectors):
 
-            # Find all prototypes that pass the vigilance test
-            passed_tests = []
-            for j, prototype in enumerate(self.prototypes_):
-                fuzzy_and_result = self._fuzzy_and(doc_vector, prototype)
-                # Vigilance Test: ||I & P|| / ||I|| >= rho
-                # L1 norm is used for the vectors
-                vigilance_score = np.sum(fuzzy_and_result) / (
-                    np.sum(doc_vector) + 1e-9
-                )  # Add a small epsilon to avoid division by zero
-
-                if vigilance_score >= self.vigilance_param:
-                    passed_tests.append(j)
+            # Vigilance test against every existing prototype at once:
+            #   ||I & P_j||_1 / ||I||_1 >= rho
+            # np.minimum is the Fuzzy AND; broadcasting the document against
+            # the prototype block gives all scores in one reduction.
+            denominator = np.sum(doc_vector) + 1e-9  # avoid division by zero
+            active = prototypes[:n_prototypes]
+            scores = np.sum(np.minimum(doc_vector, active), axis=1) / denominator
+            passed_tests = np.flatnonzero(scores >= self.vigilance_param)
 
             # If no prototypes pass, create a new cluster (unsupervised learning)
-            if not passed_tests:
+            if passed_tests.size == 0:
+                if n_prototypes == capacity:
+                    capacity *= 2
+                    grown = np.empty((capacity, vocab_size), dtype=np.float64)
+                    grown[:n_prototypes] = prototypes[:n_prototypes]
+                    prototypes = grown
                 # Initialize a new prototype with the current document vector
-                self.prototypes_.append(doc_vector)
+                prototypes[n_prototypes] = doc_vector
+                n_prototypes += 1
                 # Create a new cluster and add the document to it
                 self.clusters_.append({i})
             else:
-                # If one or more prototypes pass, update all of them
+                # If one or more prototypes pass, update all of them.
+                # Update rule: P_new = lambda * (I & P_old) + (1 - lambda) * P_old
+                selected = prototypes[passed_tests]
+                prototypes[passed_tests] = (
+                    self.learning_rate * np.minimum(doc_vector, selected)
+                    + (1 - self.learning_rate) * selected
+                )
+
+                # Add the document to the corresponding clusters
                 for cluster_idx in passed_tests:
-                    prototype = self.prototypes_[cluster_idx]
-
-                    # Update rule: P_new = lambda * (I & P_old) + (1 - lambda) * P_old
-                    updated_prototype = (
-                        self.learning_rate * self._fuzzy_and(doc_vector, prototype)
-                        + (1 - self.learning_rate) * prototype
-                    )
-                    self.prototypes_[cluster_idx] = updated_prototype
-
-                    # Add the document to the corresponding cluster
                     self.clusters_[cluster_idx].add(i)
+
+        # Publish the prototypes in the documented form: one array per cluster.
+        self.prototypes_ = [prototypes[j].copy() for j in range(n_prototypes)]
 
         # Post-processing: Generate the output membership matrix and keywords
         self.cluster_words_ = self._extract_keywords(docs)
 
         num_docs = len(docs)
         num_clusters = len(self.clusters_)
-        memberships = lil_matrix((num_docs, num_clusters), dtype=np.int8)
 
-        for cluster_idx, doc_set in enumerate(self.clusters_):
-            for doc_idx in doc_set:
-                memberships[doc_idx, cluster_idx] = 1
+        # Built directly in COO form: assigning into a lil_matrix cost one
+        # Python-level index operation per (document, cluster) pair.
+        rows = [doc_idx for doc_set in self.clusters_ for doc_idx in doc_set]
+        cols = [
+            cluster_idx
+            for cluster_idx, doc_set in enumerate(self.clusters_)
+            for _ in doc_set
+        ]
+        memberships = coo_matrix(
+            (np.ones(len(rows), dtype=np.int8), (rows, cols)),
+            shape=(num_docs, num_clusters),
+            dtype=np.int8,
+        )
 
         return memberships.tocsr()

@@ -34,6 +34,12 @@ BUILDS = {
     "sdbg_optimized": ("SoftDBSCANGM", "optimized"),
     "mbmm_original": ("MBMM", "original"),
     "mbmm_optimized": ("MBMM", "optimized"),
+    "kfcm_original": ("KFCM", "original"),
+    "kfcm_optimized": ("KFCM", "optimized"),
+    "kfccl_original": ("KFCCL", "original"),
+    "kfccl_optimized": ("KFCCL", "optimized"),
+    "kmart_original": ("KMART", "original"),
+    "kmart_optimized": ("KMART", "optimized"),
     "smoke": (None, "survey"),
     "profile_top": (None, "profile"),
     "profile_slow": (None, "profile"),
@@ -42,6 +48,9 @@ BUILDS = {
 FAMILY = {
     "SoftDBSCANGM": "density / mixture",
     "MBMM": "mixture",
+    "KFCM": "kernel",
+    "KFCCL": "kernel",
+    "KMART": "document",
 }
 
 
@@ -159,26 +168,26 @@ def build_tables(rows, pairs, correctness) -> dict[str, str]:
             if not o or not p:
                 continue
             if o["status"] == "timeout":
-                ot = f"> {o['timeout_s']:,.0f} 000 ms".replace(" 000", ",000")
                 ot = f"timeout (> {o['timeout_s'] * 1000:,.0f})"
-                sp, red = (
-                    "> " + f"{o['timeout_s'] * 1000 / p['fit_time_ms']:,.0f}x",
-                    "> 99.9%",
-                )
+                sp = "> " + f"{o['timeout_s'] * 1000 / p['fit_time_ms']:,.0f}x"
+                red = "> 99.9%"
+                ot_tex = f"timeout ($>$ {o['timeout_s'] * 1000:,.0f})"
             elif o["status"] == "ok" and p["status"] == "ok":
                 ot = f"{o['fit_time_ms']:,.1f}"
                 s = _speedup(o["fit_time_ms"], p["fit_time_ms"])
                 sp = f"{s:,.1f}x"
                 red = f"{100 * (1 - p['fit_time_ms'] / o['fit_time_ms']):.1f}%"
+                ot_tex = ot
             else:
                 continue
             pt = f"{p['fit_time_ms']:,.1f}"
             lines.append(f"| {alg} | {n:,} | {ot} | {pt} | {sp} | {red} |")
-            tex2.append(
-                f"{alg} & {n:,} & {ot} & {pt} & {sp} & {red} \\\\".replace(
-                    "x", "$\\times$"
-                )
-            )
+            # Escape for LaTeX explicitly: a bare '%' opens a comment and would
+            # swallow the rest of the row. Only the speedup's trailing 'x'
+            # becomes \times -- a blanket replace would also hit algorithm names.
+            sp_tex = sp.replace("x", r"$\times$").replace(">", "$>$")
+            red_tex = red.replace("%", r"\%").replace(">", "$>$")
+            tex2.append(f"{alg} & {n:,} & {ot_tex} & {pt} & {sp_tex} & {red_tex} \\\\")
     tables["table2_runtime.md"] = "\n".join(lines) + "\n"
     tables["table2_runtime.tex"] = _latex(
         "Runtime comparison, original versus optimized implementations.",
@@ -407,11 +416,18 @@ def figures(rows, pairs, correctness):
         plt.close(fig)
 
     # --- Figure 4: scalability -------------------------------------------
+    # Wrapped into a grid rather than one long row: a single row of panels
+    # exceeds a printed text column once more than three algorithms are paired.
     algs = sorted(pairs)
+    ncols = min(3, len(algs))
+    nrows = -(-len(algs) // ncols)
     fig, axes = plt.subplots(
-        1, len(algs), figsize=(3.6 * len(algs), 3.1), squeeze=False
+        nrows, ncols, figsize=(3.6 * ncols, 3.1 * nrows), squeeze=False
     )
-    for ax, alg in zip(axes[0], algs):
+    flat_axes = [ax for row in axes for ax in row]
+    for extra in flat_axes[len(algs) :]:
+        extra.axis("off")
+    for ax, alg in zip(flat_axes, algs):
         by_n = pairs[alg]
         ns = sorted(by_n)
         for build, colour, marker in (
@@ -448,7 +464,10 @@ def figures(rows, pairs, correctness):
         ax.set_ylabel("fit time (ms)")
         ax.set_title(alg)
         ax.legend(frameon=False)
-    fig.suptitle("Scalability in the sample count", y=1.02)
+    fig.suptitle("Scalability in the sample count", y=1.00)
+    # Needed once the panels wrap: without it the first row's x-labels collide
+    # with the second row's titles.
+    fig.tight_layout(rect=(0, 0, 1, 0.97))
     save(fig, "fig4_scalability")
     plt.close(fig)
 

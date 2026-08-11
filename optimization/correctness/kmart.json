@@ -1,0 +1,290 @@
+[
+  {
+    "case": "KMART",
+    "n": 200,
+    "d": 12,
+    "k": 3,
+    "seed": 0,
+    "memberships": {
+      "status": "compared",
+      "shape": [
+        200,
+        137
+      ],
+      "max_abs": 0.0,
+      "mean_abs": 0.0,
+      "max_rel": 0.0,
+      "mean_rel": 0.0
+    },
+    "centers": {
+      "status": "absent"
+    },
+    "n_clusters_ref": 137,
+    "n_clusters_opt": 137,
+    "label_agreement": 1.0,
+    "label_ari": 1.0,
+    "invariants": {
+      "non_negative": true,
+      "finite": true,
+      "rows_sum_to_one": false,
+      "labels_are_argmax": true,
+      "partition_constrained_declared": false
+    }
+  },
+  {
+    "case": "KMART",
+    "n": 200,
+    "d": 12,
+    "k": 3,
+    "seed": 1,
+    "memberships": {
+      "status": "compared",
+      "shape": [
+        200,
+        137
+      ],
+      "max_abs": 0.0,
+      "mean_abs": 0.0,
+      "max_rel": 0.0,
+      "mean_rel": 0.0
+    },
+    "centers": {
+      "status": "absent"
+    },
+    "n_clusters_ref": 137,
+    "n_clusters_opt": 137,
+    "label_agreement": 1.0,
+    "label_ari": 1.0,
+    "invariants": {
+      "non_negative": true,
+      "finite": true,
+      "rows_sum_to_one": false,
+      "labels_are_argmax": true,
+      "partition_constrained_declared": false
+    }
+  },
+  {
+    "case": "KMART",
+    "n": 200,
+    "d": 12,
+    "k": 3,
+    "seed": 2,
+    "memberships": {
+      "status": "compared",
+      "shape": [
+        200,
+        137
+      ],
+      "max_abs": 0.0,
+      "mean_abs": 0.0,
+      "max_rel": 0.0,
+      "mean_rel": 0.0
+    },
+    "centers": {
+      "status": "absent"
+    },
+    "n_clusters_ref": 137,
+    "n_clusters_opt": 137,
+    "label_agreement": 1.0,
+    "label_ari": 1.0,
+    "invariants": {
+      "non_negative": true,
+      "finite": true,
+      "rows_sum_to_one": false,
+      "labels_are_argmax": true,
+      "partition_constrained_declared": false
+    }
+  },
+  {
+    "case": "KMART",
+    "n": 600,
+    "d": 12,
+    "k": 3,
+    "seed": 0,
+    "memberships": {
+      "status": "compared",
+      "shape": [
+        600,
+        365
+      ],
+      "max_abs": 0.0,
+      "mean_abs": 0.0,
+      "max_rel": 0.0,
+      "mean_rel": 0.0
+    },
+    "centers": {
+      "status": "absent"
+    },
+    "n_clusters_ref": 365,
+    "n_clusters_opt": 365,
+    "label_agreement": 1.0,
+    "label_ari": 1.0,
+    "invariants": {
+      "non_negative": true,
+      "finite": true,
+      "rows_sum_to_one": false,
+      "labels_are_argmax": true,
+      "partition_constrained_declared": false
+    }
+  },
+  {
+    "case": "KMART",
+    "n": 600,
+    "d": 12,
+    "k": 3,
+    "seed": 1,
+    "memberships": {
+      "status": "compared",
+      "shape": [
+        600,
+        365
+      ],
+      "max_abs": 0.0,
+      "mean_abs": 0.0,
+      "max_rel": 0.0,
+      "mean_rel": 0.0
+    },
+    "centers": {
+      "status": "absent"
+    },
+    "n_clusters_ref": 365,
+    "n_clusters_opt": 365,
+    "label_agreement": 1.0,
+    "label_ari": 1.0,
+    "invariants": {
+      "non_negative": true,
+      "finite": true,
+      "rows_sum_to_one": false,
+      "labels_are_argmax": true,
+      "partition_constrained_declared": false
+    }
+  },
+  {
+    "case": "KMART",
+    "n": 600,
+    "d": 12,
+    "k": 3,
+    "seed": 2,
+    "memberships": {
+      "status": "compared",
+      "shape": [
+        600,
+        365
+      ],
+      "max_abs": 0.0,
+      "mean_abs": 0.0,
+      "max_rel": 0.0,
+      "mean_rel": 0.0
+    },
+    "centers": {
+      "status": "absent"
+    },
+    "n_clusters_ref": 365,
+    "n_clusters_opt": 365,
+    "label_agreement": 1.0,
+    "label_ari": 1.0,
+    "invariants": {
+      "non_negative": true,
+      "finite": true,
+      "rows_sum_to_one": false,
+      "labels_are_argmax": true,
+      "partition_constrained_declared": false
+    }
+  },
+  {
+    "case": "KMART",
+    "n": 1200,
+    "d": 12,
+    "k": 3,
+    "seed": 0,
+    "memberships": {
+      "status": "compared",
+      "shape": [
+        1200,
+        696
+      ],
+      "max_abs": 0.0,
+      "mean_abs": 0.0,
+      "max_rel": 0.0,
+      "mean_rel": 0.0
+    },
+    "centers": {
+      "status": "absent"
+    },
+    "n_clusters_ref": 696,
+    "n_clusters_opt": 696,
+    "label_agreement": 1.0,
+    "label_ari": 1.0,
+    "invariants": {
+      "non_negative": true,
+      "finite": true,
+      "rows_sum_to_one": false,
+      "labels_are_argmax": true,
+      "partition_constrained_declared": false
+    }
+  },
+  {
+    "case": "KMART",
+    "n": 1200,
+    "d": 12,
+    "k": 3,
+    "seed": 1,
+    "memberships": {
+      "status": "compared",
+      "shape": [
+        1200,
+        696
+      ],
+      "max_abs": 0.0,
+      "mean_abs": 0.0,
+      "max_rel": 0.0,
+      "mean_rel": 0.0
+    },
+    "centers": {
+      "status": "absent"
+    },
+    "n_clusters_ref": 696,
+    "n_clusters_opt": 696,
+    "label_agreement": 1.0,
+    "label_ari": 1.0,
+    "invariants": {
+      "non_negative": true,
+      "finite": true,
+      "rows_sum_to_one": false,
+      "labels_are_argmax": true,
+      "partition_constrained_declared": false
+    }
+  },
+  {
+    "case": "KMART",
+    "n": 1200,
+    "d": 12,
+    "k": 3,
+    "seed": 2,
+    "memberships": {
+      "status": "compared",
+      "shape": [
+        1200,
+        696
+      ],
+      "max_abs": 0.0,
+      "mean_abs": 0.0,
+      "max_rel": 0.0,
+      "mean_rel": 0.0
+    },
+    "centers": {
+      "status": "absent"
+    },
+    "n_clusters_ref": 696,
+    "n_clusters_opt": 696,
+    "label_agreement": 1.0,
+    "label_ari": 1.0,
+    "invariants": {
+      "non_negative": true,
+      "finite": true,
+      "rows_sum_to_one": false,
+      "labels_are_argmax": true,
+      "partition_constrained_declared": false
+    }
+  }
+]
