@@ -106,8 +106,6 @@ class BGMM(BaseSoftClusterer):
                 break
             prev_ll = log_likelihood
 
-    def predict_proba(self) -> np.ndarray:
-        return self.resp
-
-    def predict(self) -> np.ndarray:
-        return np.argmax(self.resp, axis=1)
+    # predict() and predict_proba() come from BaseSoftClusterer: they return
+    # the fitted partition and reject an out-of-sample X, which BGMM has no
+    # rule for. ``resp`` remains available for the raw responsibilities.

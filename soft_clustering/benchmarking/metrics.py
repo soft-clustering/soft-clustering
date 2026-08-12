@@ -1,3 +1,27 @@
+"""Cluster-validity metrics for hard and soft partitions.
+
+Seven measures operate on the membership matrix :math:`U` and five on
+defuzzified labels. Two properties of this module are worth stating up front,
+because getting either wrong silently produces numbers that look plausible.
+
+**Fuzziness indices are not quality scores.** The partition coefficient,
+modified partition coefficient and partition entropy measure *how crisp* a
+partition is, not how good it is. A fuzzy method that has degenerated to a
+hard partition scores :math:`\\mathrm{PC} = 1` and :math:`\\mathrm{PE} = 0`,
+the best attainable values, while telling you nothing about cluster
+structure. Compare them within one algorithm across settings, not across
+algorithms.
+
+**They also require the partition constraint.** :math:`\\mathrm{PC} \\le 1`
+holds only when the rows of :math:`U` sum to one. Possibilistic and
+affiliation-based methods (PCM, BigCLAM, NOCD, ...) emit unnormalised
+typicalities for which these three indices are not defined; the functions
+below return ``nan`` for them rather than a number on a different scale.
+:func:`soft_clustering_metrics` detects this from ``U`` itself, and
+:attr:`~soft_clustering.BaseSoftClusterer._partition_constrained` records the
+same fact declaratively on every estimator.
+"""
+
 from __future__ import annotations
 
 import numpy as np
@@ -12,8 +36,21 @@ try:
     )
 
     _HAVE_SKLEARN = True
-except ImportError:
+except ImportError:  # pragma: no cover - scikit-learn is a hard dependency
     _HAVE_SKLEARN = False
+
+#: Tolerance used to decide whether the rows of ``U`` sum to one.
+PARTITION_TOL = 1e-6
+
+_HARD_METRICS = ("silhouette", "calinski_harabasz", "davies_bouldin", "ari", "nmi")
+
+
+def is_partition_constrained(U: np.ndarray, tol: float = PARTITION_TOL) -> bool:
+    """``True`` when every row of ``U`` sums to one within ``tol``."""
+    if U.size == 0:
+        return False
+    return bool(np.all(np.abs(U.sum(axis=1) - 1.0) <= tol))
+
 
 # ============================================================
 # Hard Clustering Metrics
@@ -25,126 +62,135 @@ def clustering_metrics(
     labels: np.ndarray,
     y_true: np.ndarray | None = None,
 ) -> dict[str, float]:
-    """
-    Standard clustering metrics.
+    """Standard clustering metrics on defuzzified labels.
+
+    Every key is always present. A metric that is undefined for the given
+    input --- an internal index on a single-cluster partition, or an external
+    index without ``y_true`` --- is reported as ``nan`` rather than omitted,
+    so that a benchmark table has no ragged rows.
 
     Parameters
     ----------
     X : ndarray of shape (n_samples, n_features)
-
     labels : ndarray of shape (n_samples,)
-
-    y_true : ndarray, optional
+    y_true : ndarray of shape (n_samples,), optional
 
     Returns
     -------
     dict
+        ``silhouette``, ``calinski_harabasz``, ``davies_bouldin``, ``ari``,
+        ``nmi``.
     """
-
-    results = {}
-
-    if len(np.unique(labels)) > 1 and _HAVE_SKLEARN:
-
-        results["silhouette"] = silhouette_score(
-            X,
-            labels,
+    if not _HAVE_SKLEARN:  # pragma: no cover - scikit-learn is a hard dependency
+        raise ImportError(
+            "scikit-learn is required for clustering_metrics; "
+            "install it with: pip install scikit-learn"
         )
 
-        results["calinski_harabasz"] = calinski_harabasz_score(
-            X,
-            labels,
-        )
+    results: dict[str, float] = dict.fromkeys(_HARD_METRICS, float("nan"))
 
-        results["davies_bouldin"] = davies_bouldin_score(
-            X,
-            labels,
-        )
+    labels = np.asarray(labels)
+    # Internal indices need at least two non-degenerate clusters.
+    if len(np.unique(labels)) > 1:
+        results["silhouette"] = float(silhouette_score(X, labels))
+        results["calinski_harabasz"] = float(calinski_harabasz_score(X, labels))
+        results["davies_bouldin"] = float(davies_bouldin_score(X, labels))
 
-    if y_true is not None and _HAVE_SKLEARN:
-
-        results["ari"] = adjusted_rand_score(
-            y_true,
-            labels,
-        )
-
-        results["nmi"] = normalized_mutual_info_score(
-            y_true,
-            labels,
-        )
+    if y_true is not None:
+        results["ari"] = float(adjusted_rand_score(y_true, labels))
+        results["nmi"] = float(normalized_mutual_info_score(y_true, labels))
 
     return results
 
 
 # ============================================================
-# Soft Clustering Metrics
+# Fuzziness indices (require the partition constraint)
 # ============================================================
 
 
-def partition_coefficient(
-    U: np.ndarray,
-) -> float:
+def partition_coefficient(U: np.ndarray) -> float:
+    """Partition coefficient, :math:`\\mathrm{PC} = \\frac1n \\sum_{ik} u_{ik}^2`.
+
+    Ranges over :math:`[1/K, 1]`, where :math:`1` is a crisp partition. This
+    is a measure of crispness, not of cluster quality. Returns ``nan`` when
+    the rows of ``U`` do not sum to one, for which the upper bound does not
+    hold.
     """
-    Partition Coefficient (PC).
+    if not is_partition_constrained(U):
+        return float("nan")
+    return float(np.sum(U**2) / U.shape[0])
 
-    Higher is better.
-    Maximum = 1.
+
+def partition_entropy(U: np.ndarray, eps: float = 1e-12) -> float:
+    """Partition entropy, :math:`\\mathrm{PE} = -\\frac1n \\sum_{ik} u_{ik}\\log u_{ik}`.
+
+    Natural logarithm. Ranges over :math:`[0, \\log K]`, where :math:`0` is a
+    crisp partition. Like the partition coefficient this measures crispness;
+    returns ``nan`` for unnormalised memberships.
     """
+    if not is_partition_constrained(U):
+        return float("nan")
+    return float(-np.sum(U * np.log(U + eps)) / U.shape[0])
 
-    n_samples = U.shape[0]
 
-    return np.sum(U**2) / n_samples
+def modified_partition_coefficient(U: np.ndarray) -> float:
+    """Cluster-count-corrected partition coefficient,
+    :math:`(\\mathrm{PC} - 1/K)/(1 - 1/K)`.
 
-
-def partition_entropy(
-    U: np.ndarray,
-    eps: float = 1e-12,
-) -> float:
+    Ranges over :math:`[0, 1]`. Returns ``nan`` for unnormalised memberships,
+    and for :math:`K = 1`, where the correction is undefined.
     """
-    Partition Entropy (PE).
-
-    Lower is better.
-    """
-
-    n_samples = U.shape[0]
-
-    return -np.sum(U * np.log(U + eps)) / n_samples
-
-
-def modified_partition_coefficient(
-    U: np.ndarray,
-) -> float:
-    """
-    Modified Partition Coefficient (MPC).
-
-    Corrects bias of PC with respect
-    to number of clusters.
-
-    Higher is better.
-    """
-
-    n_samples, n_clusters = U.shape
-
+    n_clusters = U.shape[1]
+    if n_clusters < 2:
+        return float("nan")
     pc = partition_coefficient(U)
+    if not np.isfinite(pc):
+        return float("nan")
+    return float((pc - 1.0 / n_clusters) / (1.0 - 1.0 / n_clusters))
 
-    return (pc - (1.0 / n_clusters)) / (1.0 - (1.0 / n_clusters))
+
+# ============================================================
+# Prototype-based validity indices
+# ============================================================
 
 
 def fuzzy_hypervolume(
+    X: np.ndarray,
     U: np.ndarray,
+    centers: np.ndarray,
+    m: float = 2.0,
 ) -> float:
+    """Fuzzy hypervolume, :math:`\\mathrm{FHV} = \\sum_i \\sqrt{\\det F_i}`.
+
+    :math:`F_i` is the membership-weighted fuzzy covariance of cluster
+    :math:`i`,
+
+    .. math::
+
+        F_i = \\frac{\\sum_j u_{ij}^m (x_j - v_i)(x_j - v_i)^\\top}
+                    {\\sum_j u_{ij}^m}.
+
+    The index is the total volume the clusters occupy in feature space, so it
+    is measured in :math:`(\\text{units of } X)^{d}` and only comparable
+    between partitions of the *same* data with the same :math:`d`. Lower is
+    more compact.
+
+    Reference: I. Gath and A. B. Geva, *Fuzzy clustering for the estimation of
+    the parameters of the components of mixtures of normal distributions*,
+    Pattern Recognition Letters, 9(2):77--86, 1989.
     """
-    Fuzzy Hypervolume.
+    X = np.asarray(X, dtype=np.float64)
+    U_m = np.asarray(U, dtype=np.float64) ** m
+    weights = U_m.sum(axis=0)
 
-    Lower values indicate
-    more compact clusters.
-    """
+    diff = X[:, None, :] - np.asarray(centers, dtype=np.float64)[None, :, :]
+    cov = np.einsum("nk,nkd,nke->kde", U_m, diff, diff, optimize=True)
+    cov /= np.maximum(weights, np.finfo(float).tiny)[:, None, None]
 
-    return np.mean(np.prod(U, axis=1))
-
-
-# ============================================================
-# Prototype-Based Metrics
-# ============================================================
+    # A cluster confined to a subspace has determinant zero, which is a
+    # legitimate value here (zero volume), so no ridge is added.
+    determinants = np.maximum(np.linalg.det(cov), 0.0)
+    return float(np.sum(np.sqrt(determinants)))
 
 
 def xie_beni_index(
@@ -153,55 +199,34 @@ def xie_beni_index(
     centers: np.ndarray,
     m: float = 2.0,
 ) -> float:
-    """
-    Xie-Beni Index.
+    """Xie--Beni index: compactness over minimum prototype separation.
 
-    Lower is better.
+    :math:`\\mathrm{XB} = \\sum_{ij} u_{ij}^m \\lVert x_j - v_i \\rVert^2 /
+    (n \\min_{i \\neq l} \\lVert v_i - v_l \\rVert^2)`. Lower is better.
     """
-
     n_samples = X.shape[0]
-
-    distances = np.linalg.norm(
-        X[:, None, :] - centers[None, :, :],
-        axis=2,
-    )
-
+    distances = np.linalg.norm(X[:, None, :] - centers[None, :, :], axis=2)
     numerator = np.sum((U**m) * (distances**2))
 
     center_distances = np.linalg.norm(
-        centers[:, None, :] - centers[None, :, :],
-        axis=2,
+        centers[:, None, :] - centers[None, :, :], axis=2
     )
-
     center_distances[center_distances == 0] = np.inf
-
     min_center_distance = np.min(center_distances)
+    if not np.isfinite(min_center_distance):
+        # Every prototype coincides; separation is zero and XB diverges.
+        return float("inf")
 
-    denominator = n_samples * min_center_distance**2
-
-    return numerator / denominator
+    return float(numerator / (n_samples * min_center_distance**2))
 
 
-def fuzzy_separation_index(
-    centers: np.ndarray,
-) -> float:
-    """
-    Average pairwise centroid separation.
-
-    Higher is better.
-    """
-
-    distances = np.linalg.norm(
-        centers[:, None, :] - centers[None, :, :],
-        axis=2,
-    )
-
-    mask = ~np.eye(
-        len(centers),
-        dtype=bool,
-    )
-
-    return np.mean(distances[mask])
+def fuzzy_separation_index(centers: np.ndarray) -> float:
+    """Average pairwise prototype separation. Higher is better."""
+    if len(centers) < 2:
+        return float("nan")
+    distances = np.linalg.norm(centers[:, None, :] - centers[None, :, :], axis=2)
+    mask = ~np.eye(len(centers), dtype=bool)
+    return float(np.mean(distances[mask]))
 
 
 def fuzzy_compactness(
@@ -210,18 +235,14 @@ def fuzzy_compactness(
     centers: np.ndarray,
     m: float = 2.0,
 ) -> float:
+    """Membership-weighted within-cluster dispersion,
+    :math:`\\sum_{ij} u_{ij}^m \\lVert x_j - v_i \\rVert^2`. Lower is better.
+
+    This is the fuzzy c-means objective, so it decreases with :math:`K` by
+    construction and should not be used to select the number of clusters.
     """
-    Cluster compactness.
-
-    Lower is better.
-    """
-
-    distances = np.linalg.norm(
-        X[:, None, :] - centers[None, :, :],
-        axis=2,
-    )
-
-    return np.sum((U**m) * (distances**2))
+    distances = np.linalg.norm(X[:, None, :] - centers[None, :, :], axis=2)
+    return float(np.sum((U**m) * (distances**2)))
 
 
 # ============================================================
@@ -234,49 +255,63 @@ def soft_clustering_metrics(
     U: np.ndarray,
     centers: np.ndarray | None = None,
     m: float = 2.0,
+    partition_constrained: bool | None = None,
 ) -> dict[str, float]:
-    """
-    Compute all soft clustering metrics.
+    """Compute every applicable soft-clustering metric.
 
     Parameters
     ----------
-    X : ndarray
-
-    U : ndarray
+    X : ndarray of shape (n_samples, n_features)
+    U : ndarray of shape (n_samples, n_clusters)
         Membership matrix.
-
-    centers : ndarray, optional
-
+    centers : ndarray of shape (n_clusters, n_features), optional
+        Required by the three prototype-based indices; they are reported as
+        ``nan`` when it is absent.
     m : float, default=2.0
+        Fuzzifier used to weight the memberships.
+    partition_constrained : bool, optional
+        Whether the rows of ``U`` are required to sum to one. Detected from
+        ``U`` when omitted. Pass an estimator's
+        ``_partition_constrained`` to state it explicitly. When ``False``, the
+        three fuzziness indices are reported as ``nan``, because they are not
+        defined on unnormalised memberships.
 
     Returns
     -------
     dict
+        Seven keys, always present, ``nan`` where the metric does not apply.
     """
+    X = np.asarray(X, dtype=np.float64)
+    U = np.asarray(U, dtype=np.float64)
 
-    results = {
-        "partition_coefficient": partition_coefficient(U),
-        "modified_partition_coefficient": modified_partition_coefficient(U),
-        "partition_entropy": partition_entropy(U),
-        "fuzzy_hypervolume": fuzzy_hypervolume(U),
-    }
+    if partition_constrained is None:
+        partition_constrained = is_partition_constrained(U)
+
+    nan = float("nan")
+    if partition_constrained:
+        results = {
+            "partition_coefficient": partition_coefficient(U),
+            "modified_partition_coefficient": modified_partition_coefficient(U),
+            "partition_entropy": partition_entropy(U),
+        }
+    else:
+        results = {
+            "partition_coefficient": nan,
+            "modified_partition_coefficient": nan,
+            "partition_entropy": nan,
+        }
+
+    results["fuzzy_hypervolume"] = nan
+    results["xie_beni"] = nan
+    results["fuzzy_compactness"] = nan
+    results["fuzzy_separation"] = nan
 
     if centers is not None:
-
-        results["xie_beni"] = xie_beni_index(
-            X,
-            U,
-            centers,
-            m,
-        )
-
-        results["fuzzy_compactness"] = fuzzy_compactness(
-            X,
-            U,
-            centers,
-            m,
-        )
-
-        results["fuzzy_separation"] = fuzzy_separation_index(centers)
+        centers = np.asarray(centers, dtype=np.float64)
+        if centers.shape[0] == U.shape[1] and centers.shape[1] == X.shape[1]:
+            results["fuzzy_hypervolume"] = fuzzy_hypervolume(X, U, centers, m)
+            results["xie_beni"] = xie_beni_index(X, U, centers, m)
+            results["fuzzy_compactness"] = fuzzy_compactness(X, U, centers, m)
+            results["fuzzy_separation"] = fuzzy_separation_index(centers)
 
     return results

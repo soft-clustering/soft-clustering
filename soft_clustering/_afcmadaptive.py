@@ -100,11 +100,26 @@ class AFCMAdaptive(BaseSoftClusterer):
             if np.linalg.norm(self.centers - prev_centers) < self.tol:
                 break
 
-    def predict(self) -> np.ndarray:
+        # The algorithm segments an image, so its natural membership array is
+        # (H, W, K). Publish the pixel-major (H*W, K) view as well, so the
+        # estimator satisfies the shared protocol and can be evaluated by the
+        # same metrics and conformance checks as every other model. The image
+        # shape is retained for :meth:`label_map`.
+        self.image_shape_ = (H, W)
+        self._n_samples_hint = H * W
+        self.memberships_ = self.membership.reshape(H * W, self.n_clusters)
+        self.centers_ = np.asarray(self.centers, dtype=np.float64).reshape(-1, 1)
+
+    def label_map(self) -> np.ndarray:
+        """Hard segmentation in image layout, shape ``(H, W)``.
+
+        ``predict()`` returns the flat ``(H*W,)`` labelling required by the
+        estimator protocol; this is the same assignment reshaped back to the
+        image grid.
         """
-        Returns: label map (H x W)
-        """
-        return np.argmax(self.membership, axis=2)
+        self._check_fitted()
+        return self.labels_.reshape(self.image_shape_)
 
     def get_membership(self) -> np.ndarray:
+        """Membership array in image layout, shape ``(H, W, K)``."""
         return self.membership

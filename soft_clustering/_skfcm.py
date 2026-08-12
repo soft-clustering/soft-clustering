@@ -81,8 +81,5 @@ class SKFCM(BaseSoftClusterer):
 
         self.labels_ = np.argmax(self.U, axis=1)
 
-    def predict(self) -> np.ndarray:
-        return self.labels_
-
-    def predict_proba(self) -> np.ndarray:
-        return self.U
+    # predict() and predict_proba() come from BaseSoftClusterer, which also
+    # raises before a fit instead of returning None.

@@ -136,7 +136,27 @@ class LDA(BaseSoftClusterer):
                 print(f"Converged at EM iteration {em_iter+1}")
                 break
 
+        # The variational Dirichlet parameters gamma, normalised, are the
+        # document-topic distributions -- a soft partition of the documents
+        # over topics. Publishing them is what lets LDA be evaluated and
+        # conformance-checked alongside every other estimator; the topic-word
+        # side of the model stays available through get_topic_word_dist().
+        self.doc_topic_ = self.gamma / self.gamma.sum(axis=1, keepdims=True)
+        self.memberships_ = self.doc_topic_
         return self
+
+    def get_doc_topic_dist(self):
+        """
+        Return the normalized document-topic distributions.
+
+        Returns
+        -------
+        doc_topic : ndarray of shape (n_documents, n_topics)
+            Each row is a probability distribution over topics for a document.
+            Identical to ``memberships_``.
+        """
+        self._check_fitted()
+        return self.doc_topic_
 
     def get_topic_word_dist(self):
         """

@@ -41,8 +41,11 @@ from ._base import BaseSoftClusterer
 
 @typechecked
 class SoftDBSCANGM(BaseSoftClusterer):
-    # density-based degrees are not normalised across components
-    _partition_constrained = False
+    # The membership update is the fuzzy c-means ratio rule applied to
+    # Mahalanobis distances, so rows sum to one by construction:
+    # sum_j d_j^-p / sum_t d_t^-p = 1. See the closed form in the module
+    # docstring and its evaluation at the end of the iteration loop.
+    _partition_constrained = True
     # Discovers the cluster count; see BaseSoftClusterer._determines_k.
     _determines_k = True
 
@@ -183,6 +186,6 @@ class SoftDBSCANGM(BaseSoftClusterer):
     def get_membership(self) -> np.ndarray:
         return self.U
 
-    def predict(self) -> np.ndarray:
-        self._check_fitted()
-        return self.labels_
+    # predict() comes from BaseSoftClusterer; SoftDBSCANGM is transductive
+    # (every noise point becomes its own component), so there is no
+    # out-of-sample rule to override it with.

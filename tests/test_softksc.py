@@ -32,12 +32,35 @@ def test_predict_proba_shape(data):
 
 
 def test_predict_labels(data):
+    """predict() returns cluster indices, matching argmax over memberships.
+
+    Earlier releases returned the signed {-1, +1} encoding here, which broke
+    the library-wide rule ``labels_ == argmax(U)``. The signed form moved to
+    signed_labels().
+    """
     X_lab, y_lab, X_unlab = data
     model = SoftKSC()
     model.fit(X_lab, y_lab, X_unlab)
     labels = model.predict(X_lab)
     assert labels.shape == (10,)
-    assert set(labels).issubset({-1, 1})
+    assert set(labels).issubset({0, 1})
+
+
+def test_signed_labels(data):
+    X_lab, y_lab, X_unlab = data
+    model = SoftKSC()
+    model.fit(X_lab, y_lab, X_unlab)
+    signed = model.signed_labels(X_lab)
+    assert set(signed).issubset({-1, 1})
+    np.testing.assert_array_equal(signed, model.predict(X_lab) * 2 - 1)
+
+
+def test_predict_without_x_returns_the_fitted_partition(data):
+    X_lab, y_lab, X_unlab = data
+    model = SoftKSC()
+    model.fit(X_lab, y_lab, X_unlab)
+    np.testing.assert_array_equal(model.predict(), model.labels_)
+    assert model.labels_.shape == (len(X_lab) + len(X_unlab),)
 
 
 def test_predict_proba_on_unlabeled(data):

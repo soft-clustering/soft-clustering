@@ -83,6 +83,62 @@ def _ensemble(seed=7):
     return mats
 
 
+def _image(h=6, w=8, seed=11):
+    """A small grayscale image for the segmentation estimators."""
+    rng = np.random.default_rng(seed)
+    image = np.zeros((h, w))
+    image[:, w // 2 :] = 1.0
+    return image + rng.normal(0, 0.05, (h, w))
+
+
+def _pixels(h=6, w=8, seed=11):
+    """The same image as an (n_pixels, 1) feature matrix plus its shape."""
+    return _image(h, w, seed).reshape(h * w, 1), (h, w)
+
+
+def _two_views(n=N, seed=13):
+    """Aligned Gaussian and Beta-distributed views, as BGMM consumes."""
+    rng = np.random.default_rng(seed)
+    gaussian = np.concatenate(
+        [rng.normal(-2.0, 0.3, n // 2), rng.normal(2.0, 0.3, n - n // 2)]
+    )
+    beta = np.clip(
+        np.concatenate(
+            [rng.beta(2.0, 6.0, n // 2), rng.beta(6.0, 2.0, n - n // 2)]
+        ),
+        1e-3,
+        1 - 1e-3,
+    )
+    return gaussian, beta
+
+
+def _clients(seed=17):
+    """Two federated clients over a shared feature space."""
+    rng = np.random.default_rng(seed)
+    names = ["f0", "f1", "f2"]
+    first = np.vstack([rng.normal(-3, 0.3, (10, 3)), rng.normal(3, 0.3, (10, 3))])
+    second = np.vstack([rng.normal(-3, 0.3, (8, 3)), rng.normal(3, 0.3, (8, 3))])
+    return [first, second], [names, names]
+
+
+def _semi_supervised(n=12, seed=19):
+    """Labelled and unlabelled parts for the semi-supervised kernel method."""
+    rng = np.random.default_rng(seed)
+    labelled = np.vstack([rng.normal(-2, 0.3, (3, 3)), rng.normal(2, 0.3, (3, 3))])
+    y = np.array([1, 1, 1, -1, -1, -1])
+    unlabelled = rng.normal(0, 2.0, (n, 3))
+    return labelled, y, unlabelled
+
+
+def _autoencoder(n_features=8, latent=3):
+    """Minimal encoder/decoder pair for the deep fuzzy k-means estimator."""
+    import torch.nn as nn
+
+    encoder = nn.Sequential(nn.Linear(n_features, latent))
+    decoder = nn.Sequential(nn.Linear(latent, n_features))
+    return encoder, decoder
+
+
 # --------------------------------------------------------------------------
 # Per-estimator construction. Each entry is (kwargs, fit-args callable).
 # ``None`` marks an estimator excluded from the shared checks, with a reason.
@@ -109,9 +165,27 @@ CASES: dict[str, tuple] = {
     "SCM": ({}, lambda: (_features(),)),
     "SoftDBSCANGM": ({}, lambda: (_features(),)),
     "RPFKM": ({"n_clusters": K, "d": 2, "random_state": 0}, lambda: (_features(),)),
+    "GathGeva": ({"n_clusters": K, "random_state": 0}, lambda: (_features(),)),
+    "EVCLUS": ({"n_clusters": K, "random_state": 0}, lambda: (_features(),)),
+    "SFCMEP": ({"n_clusters": K}, lambda: (_features(), _partial_labels())),
     # --- graph methods -----------------------------------------------------
     "BIGCLAM": ({"n_nodes": N, "n_clusters": K}, lambda: (_graph(),)),
     "BayesianNMF": ({"n_clusters": K}, lambda: (_graph(),)),
+    "MMSB": ({"n_blocks": K, "random_state": 0, "max_iter": 5}, lambda: (_graph(),)),
+    "CDCGS": (
+        {"n_clusters": K, "random_state": 0, "max_epochs": 20, "n_init": 1},
+        lambda: (_graph(),),
+    ),
+    "DMoN": (
+        {
+            "in_channels": 4,
+            "hidden_channels": 8,
+            "n_clusters": K,
+            "random_state": 0,
+            "max_epochs": 10,
+        },
+        lambda: (_features(d=4), None, _graph()),
+    ),
     "NOCD": (
         {"random_state": 1, "max_epochs": 3, "hidden_sizes": [8], "batch_size": 32},
         lambda: (sp.csr_matrix(_graph()), sp.eye(N, format="csr"), K),
@@ -121,31 +195,66 @@ CASES: dict[str, tuple] = {
     "SISC": ({"n_clusters": 2}, lambda: (_docs(),)),
     "KMART": ({}, lambda: (_docs(),)),
     "PLSI": ({"n_clusters": 2, "max_iter": 5, "random_state": 0}, lambda: (_docs(),)),
+    "LDA": ({"n_topics": 2, "max_iter": 5}, lambda: (_docs(),)),
+    # --- image / segmentation methods --------------------------------------
+    "AFCMAdaptive": ({"n_clusters": K, "max_iter": 5}, lambda: (_image(),)),
+    "SKFCM": ({"n_clusters": K, "max_iter": 5}, lambda: _pixels()),
+    # --- multi-view, federated, semi-supervised ----------------------------
+    "BGMM": ({"n_clusters": 2}, lambda: _two_views()),
+    "FeMIFuzzy": ({"random_state": 0}, lambda: _clients()),
+    "SoftKSC": ({}, lambda: _semi_supervised()),
     # --- ensemble methods --------------------------------------------------
     "SCSPA": ({"n_clusters": K}, lambda: (_ensemble(),)),
     "SHBGF": ({"n_clusters": K}, lambda: (_ensemble(),)),
     "SMCLA": ({"n_clusters": K}, lambda: (_ensemble(),)),
-    # --- estimators outside the shared checks ------------------------------
-    # Each entry states why; the count is asserted in test_exclusions_are_few.
-    "AFCMAdaptive": None,  # segments a single image, not a sample matrix
-    "SKFCM": None,  # requires the image shape alongside X
-    "BGMM": None,  # consumes two aligned views (Xg, Xb)
-    "SoftKSC": None,  # semi-supervised; needs labelled and unlabelled parts
-    "SFCMEP": (
-        {"n_clusters": K},
-        lambda: (_features(), _partial_labels()),
-    ),
-    "FeMIFuzzy": None,  # federated; consumes a list of client matrices
-    "LDA": None,  # returns topic-word and doc-topic factors, not a partition
-    "RDFKC": None,  # consumes image tensors; covered by tests/test_rdfkc.py
-    "CDCGS": None,  # torch Module trained by the caller's own loop
-    "DMoN": None,  # torch Module trained by the caller's own loop
-    "MMSB": None,  # generative sampler rather than an estimator
 }
+
+
+def _register_rdfkc() -> None:
+    """RDFKC needs an autoencoder, so its case is built lazily.
+
+    Constructing torch modules at import time would make this module --- which
+    every conformance test imports --- depend on the optional deep extra.
+    """
+    encoder, decoder = _autoencoder()
+    CASES["RDFKC"] = (
+        {
+            "K": K,
+            "encoder": encoder,
+            "decoder": decoder,
+            "random_state": 0,
+            "max_iter": 2,
+            "batch_size": 8,
+        },
+        lambda: (_features(d=8).astype("float32"),),
+    )
+
+
+_register_rdfkc()
 
 
 COVERED = sorted(name for name, case in CASES.items() if case is not None)
 EXCLUDED = sorted(name for name, case in CASES.items() if case is None)
+
+#: Estimators whose formulation normalises memberships only for some inputs,
+#: so observing normalised rows on the conformance input does not prove the
+#: declaration wrong. Everything else declaring ``_partition_constrained =
+#: False`` must actually produce unnormalised rows here --- see
+#: ``test_partition_constraint_declaration_is_honest``, which exists because
+#: three estimators once declared ``False`` while normalising unconditionally,
+#: silently disabling the check below for themselves.
+CONDITIONALLY_NORMALISED = frozenset(
+    {
+        "KMART",  # ART vigilance: a document may match zero or several categories
+        "RoughKMeans",  # an object outside every approximation gets an all-zero row
+    }
+)
+
+#: Unseen data for the estimators that declare an out-of-sample rule, matching
+#: the feature space each was fitted on in ``CASES``.
+OUT_OF_SAMPLE = {
+    "SoftKSC": lambda: np.random.default_rng(99).normal(0, 2.0, (7, 3)),
+}
 
 
 def _fit(name):
@@ -170,11 +279,17 @@ def test_no_stale_registry_entries():
     assert not stale, f"CASES names no longer exported: {stale}"
 
 
-def test_exclusions_are_few():
-    """Guard against the exclusion list quietly absorbing the whole library."""
-    assert len(COVERED) >= 2 * len(EXCLUDED), (
-        f"{len(EXCLUDED)} estimators excluded vs {len(COVERED)} covered; "
-        "the protocol should apply to the clear majority of the library."
+def test_no_estimator_is_excluded():
+    """Every exported estimator is fitted by this suite.
+
+    An earlier revision allowed exclusions "with a reason" and drifted to ten
+    of forty, which meant the paper's claim that the conformance suite fits
+    every exported estimator was false. Adding an estimator that the suite
+    cannot construct now fails CI instead.
+    """
+    assert EXCLUDED == [], (
+        f"{len(EXCLUDED)} estimator(s) excluded from the conformance suite: "
+        f"{EXCLUDED}. Every exported estimator must have a runnable case."
     )
 
 
@@ -228,10 +343,73 @@ def test_labels_agree_with_argmax(name):
 
 
 @pytest.mark.parametrize("name", COVERED)
+def test_partition_constraint_declaration_is_honest(name):
+    """An estimator may not understate its own guarantee.
+
+    ``_partition_constrained = False`` switches off
+    :func:`test_partition_constraint` for that estimator and makes the
+    fuzziness indices report ``nan``. Declaring it while normalising
+    unconditionally therefore hides a real invariant. Genuinely conditional
+    cases are listed in ``CONDITIONALLY_NORMALISED``.
+    """
+    model = _fit(name)
+    if model._partition_constrained or name in CONDITIONALLY_NORMALISED:
+        pytest.skip(f"{name} declares the constraint or is conditionally normalised")
+    U = model.memberships_
+    if U is None or U.shape[1] == 0:
+        pytest.skip(f"{name} produced no partition on this input")
+    assert not np.allclose(U.sum(axis=1), 1.0, atol=1e-6), (
+        f"{name} declares _partition_constrained = False but its memberships "
+        "sum to one. Either set it to True, or add the estimator to "
+        "CONDITIONALLY_NORMALISED with the input that breaks normalisation."
+    )
+
+
+@pytest.mark.parametrize("name", COVERED)
 def test_predict_and_predict_proba(name):
     model = _fit(name)
     np.testing.assert_array_equal(model.predict(), model.labels_)
     np.testing.assert_allclose(model.predict_proba(), model.memberships_)
+
+
+@pytest.mark.parametrize("name", COVERED)
+def test_out_of_sample_predict_is_explicit(name):
+    """``predict(X_new)`` must either work or raise --- never silently lie.
+
+    Returning the stored training labels for unseen data hands back a
+    partition of the wrong data, of the wrong length, with no indication that
+    anything went wrong.
+    """
+    model = _fit(name)
+    if model._supports_out_of_sample:
+        unseen = OUT_OF_SAMPLE[name]()
+        assert model.predict(unseen).shape == (unseen.shape[0],)
+        assert model.predict_proba(unseen).shape[0] == unseen.shape[0]
+    else:
+        # The refusal happens before the argument is inspected, so any array
+        # exercises it.
+        with pytest.raises(NotImplementedError):
+            model.predict(_features(n=7, seed=99))
+
+
+@pytest.mark.parametrize("name", COVERED)
+def test_get_params_round_trips_through_clone(name):
+    """Parameter introspection must reconstruct an equivalent estimator."""
+    sklearn_base = pytest.importorskip("sklearn.base")
+    kwargs, _ = CASES[name]
+    model = getattr(sc, name)(**kwargs)
+    twin = sklearn_base.clone(model)
+
+    assert type(twin) is type(model)
+    original = model.get_params()
+    copied = twin.get_params()
+    assert set(copied) == set(original)
+    # sklearn.clone deep-copies non-estimator parameters, so an object-valued
+    # parameter (RDFKC's encoder and decoder) is a distinct but equivalent
+    # instance. Compare the values that have meaningful equality.
+    for key, value in original.items():
+        if isinstance(value, (int, float, str, bool, tuple, type(None))):
+            assert copied[key] == value, f"{name}.{key} did not round-trip"
 
 
 @pytest.mark.parametrize("name", COVERED)

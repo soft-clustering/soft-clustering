@@ -21,11 +21,13 @@ _ESTIMATORS = {
     "DMoN": "._dmon",
     "ECM": "._ecm",
     "ENTROPYFCM": "._entropyfcm",
+    "EVCLUS": "._evclus",
     "FCC": "._fcc",
     "FCM": "._fcm",
     "FeMIFuzzy": "._femifuzzy",
     "GK": "._gk",
     "GMM": "._gmm",
+    "GathGeva": "._gathgeva",
     "KFCCL": "._kfccl",
     "KFCM": "._kfcm",
     "KMART": "._kmart",
@@ -60,7 +62,11 @@ _ALIASES = {
 }
 
 #: Estimators requiring the optional ``deep`` extra (torch, torch_geometric).
-DEEP_ESTIMATORS = frozenset({"CDCGS", "DMoN", "MMSB", "NOCD", "RDFKC"})
+#:
+#: MMSB is deliberately absent: its variational EM is pure NumPy/SciPy, so the
+#: model is a Bayesian graph model rather than a deep one and is available in
+#: the base installation.
+DEEP_ESTIMATORS = frozenset({"CDCGS", "DMoN", "NOCD", "RDFKC"})
 
 
 def __getattr__(name):
