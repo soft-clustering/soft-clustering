@@ -90,8 +90,13 @@ def clustering_metrics(
     results: dict[str, float] = dict.fromkeys(_HARD_METRICS, float("nan"))
 
     labels = np.asarray(labels)
-    # Internal indices need at least two non-degenerate clusters.
-    if len(np.unique(labels)) > 1:
+    n_labels = len(np.unique(labels))
+    n_samples = len(labels)
+    # Internal indices are defined for 2 <= n_labels <= n_samples - 1. Both
+    # ends occur in practice: a collapsed partition has one cluster, and a
+    # density method that turns every noise point into its own component --
+    # SoftDBSCANGM does -- can reach n_labels == n_samples.
+    if 1 < n_labels < n_samples:
         results["silhouette"] = float(silhouette_score(X, labels))
         results["calinski_harabasz"] = float(calinski_harabasz_score(X, labels))
         results["davies_bouldin"] = float(davies_bouldin_score(X, labels))

@@ -1444,6 +1444,40 @@
       "repeats": 1,
       "peak_traced_mb": null,
       "timeout_s": null
+    },
+    {
+      "algorithm": "GathGeva",
+      "family": "mixture",
+      "implementation": "survey",
+      "source_file": "smoke",
+      "dataset": "features",
+      "n": 200,
+      "d": 8,
+      "k": 3,
+      "k_fitted": 3,
+      "status": "ok",
+      "fit_time_ms": 7.595666997076478,
+      "fit_time_mean_ms": 7.595666997076478,
+      "repeats": 1,
+      "peak_traced_mb": null,
+      "timeout_s": null
+    },
+    {
+      "algorithm": "EVCLUS",
+      "family": "evidential",
+      "implementation": "survey",
+      "source_file": "smoke",
+      "dataset": "features",
+      "n": 200,
+      "d": 8,
+      "k": 3,
+      "k_fitted": 3,
+      "status": "ok",
+      "fit_time_ms": 109.04162500082748,
+      "fit_time_mean_ms": 109.04162500082748,
+      "repeats": 1,
+      "peak_traced_mb": null,
+      "timeout_s": null
     }
   ],
   "correctness": {

@@ -1,12 +1,12 @@
 """Soft Clustering - A library of soft and fuzzy clustering algorithms."""
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 from ._base import BaseSoftClusterer
 
 # Estimator name -> module that defines it. Imports are deferred (PEP 562) so
 # that `import soft_clustering` costs nothing for the models a user does not
-# touch, and so that the five PyTorch-backed estimators do not make torch a
+# touch, and so that the four PyTorch-backed estimators do not make torch a
 # hard dependency of the whole package.
 _ESTIMATORS = {
     "AFCM": "._afcm",

@@ -13,6 +13,31 @@ def _logsumexp(a, axis=1):
     return m + np.log(np.sum(np.exp(a - m), axis=axis, keepdims=True))
 
 
+def _lloyd(X, means, max_iter=100, tol=1e-6):
+    """Run Lloyd's algorithm from ``means`` and return the converged centroids.
+
+    Seeding EM with k-means++ *centres* is not the same as seeding it with a
+    converged k-means solution, and the difference is not cosmetic: on
+    well-separated blobs at n = 200 the former lands EM in a local optimum
+    with prototypes at (1.06, 1.73, 6.07) where the generating means are
+    (0, 3, 6). scikit-learn's default runs k-means to convergence first, and
+    ``init_params="kmeans"`` matches that.
+    """
+    for _ in range(max_iter):
+        d2 = np.sum((X[:, None, :] - means[None, :, :]) ** 2, axis=2)
+        labels = np.argmin(d2, axis=1)
+        updated = means.copy()
+        for k in range(means.shape[0]):
+            members = X[labels == k]
+            if members.size:
+                updated[k] = members.mean(axis=0)
+        shift = np.abs(updated - means).max()
+        means = updated
+        if shift <= tol:
+            break
+    return means
+
+
 def _kmeanspp_init(X, K, rng):
     """k-means++ initialization for means."""
     n, d = X.shape
@@ -135,7 +160,7 @@ class GaussianMixtureEM(BaseSoftClusterer):
         reg_covar: float = 1e-6,
         max_iter: int = 100,
         tol: float = 1e-3,
-        init_params: str = "kmeans++",
+        init_params: str = "kmeans",
         random_state: int | None = None,
     ):
         self.covariance_type = covariance_type
@@ -178,8 +203,10 @@ class GaussianMixtureEM(BaseSoftClusterer):
         rng = np.random.default_rng(self.random_state)
 
         # initialization
-        if self.init_params == "kmeans++":
+        if self.init_params in ("kmeans", "kmeans++"):
             means = _kmeanspp_init(X, K, rng)
+            if self.init_params == "kmeans":
+                means = _lloyd(X, means)
         elif self.init_params == "random":
             idx = rng.integers(0, n, size=K)
             means = X[idx].copy()

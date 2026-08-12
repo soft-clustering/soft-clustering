@@ -142,6 +142,10 @@ class KFCM(BaseSoftClusterer):
         N, D = X.shape
         if N == 0:
             raise ValueError("Input data cannot be empty.")
+        if self.n_clusters > N:
+            raise ValueError(
+                f"n_clusters={self.n_clusters} exceeds the number of samples ({N})."
+            )
 
         # --- Step 1: Initialization ---
         self.V = self._initialize_centers_kmeans_pp(X).astype(np.float64)

@@ -40,7 +40,7 @@ keywords:
   - unsupervised learning
   - python
 license: MIT
-version: 0.1.0
+version: 0.2.0
 preferred-citation:
   type: article
   title: "SCPP: A Unified Python Library for Soft Clustering"

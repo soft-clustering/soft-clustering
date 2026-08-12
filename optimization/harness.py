@@ -127,6 +127,8 @@ for _name, _fam in [
     ("GK", "fuzzy"),
     ("GMM", "mixture"),
     ("PFCM", "possibilistic"),
+    ("GathGeva", "mixture"),
+    ("EVCLUS", "evidential"),
 ]:
     _add(
         Case(

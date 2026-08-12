@@ -27,10 +27,19 @@ license-files = ["LICENSE*"]
 dynamic = ["version", "description"]
 # Kept to what is needed to fit a model. Anything required only to benchmark,
 # document or develop the package belongs in an extra below.
+#
+# scikit-learn is a hard dependency, not a benchmarking extra: eight estimators
+# import it at module level for a supporting primitive (DBSCAN inside
+# SoftDBSCANGM, KMeans inside the three consensus methods, CountVectorizer
+# inside LDA and PLSI, rbf_kernel inside SKFCM and SoftKSC, kneighbors_graph
+# inside AFCM). Listing it under `bench` made those estimators unimportable on
+# a documented base install; the minimal-install CI job now instantiates every
+# estimator so this cannot regress.
 dependencies = [
   "numpy",
   "scipy",
-  "typeguard",  # the @typechecked decorator applied by 39 estimators
+  "scikit-learn",
+  "typeguard",  # the @typechecked decorator applied by 41 estimators
 ]
 
 [project.optional-dependencies]
@@ -48,10 +57,14 @@ docs = [
 # Needed to *run* a benchmark, never to fit a model. soft_clustering.benchmarking
 # imports these defensively, so the module is importable without them.
 bench = [
-  "scikit-learn",  # dataset loaders and the supervised/hard validity metrics
   "pandas",        # result tables
   "psutil",        # resident-set sampling for the memory and scalability backends
   "tabulate",      # BenchmarkReport.to_markdown()
+]
+# Third-party clusterers used only by the external-baseline comparison in
+# benchmarks/run_external_baselines.py and tests/test_external_agreement.py.
+baselines = [
+  "scikit-fuzzy",
 ]
 dev = [
   "matplotlib",
@@ -59,10 +72,10 @@ dev = [
   "pytest-cov>=4.0",
   # Kept in step with the bench extra above; listed explicitly rather than via a
   # self-referential extra, which does not resolve reliably for editable installs.
-  "scikit-learn",
   "pandas",
   "psutil",
   "tabulate",
+  "scikit-fuzzy",
 ]
 
 [project.urls]

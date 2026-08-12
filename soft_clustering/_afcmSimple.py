@@ -1,7 +1,7 @@
 import numpy as np
 from typeguard import typechecked
 
-from ._base import BaseSoftClusterer
+from ._base import BaseSoftClusterer, ratio_memberships
 
 
 @typechecked
@@ -33,6 +33,10 @@ class AFCMSimple(BaseSoftClusterer):
         - U (np.ndarray): Membership matrix (N x C)
         """
         N, D = X.shape
+        if self.c > N:
+            raise ValueError(
+                f"n_clusters={self.c} exceeds the number of samples ({N})."
+            )
         U = np.random.dirichlet(np.ones(self.c), size=N)
         V = np.zeros((self.c, D))
 
@@ -47,9 +51,7 @@ class AFCMSimple(BaseSoftClusterer):
                 dist[:, i] = np.linalg.norm(X - V[i], axis=1) + 1e-8
 
             # Update memberships
-            tmp = dist ** (2 / (self.m - 1))
-            denom = np.sum((1 / tmp), axis=1, keepdims=True)
-            U_new = (1 / tmp) / denom
+            U_new = ratio_memberships(dist, 2.0 / (self.m - 1.0))
 
             # Check convergence
             if np.linalg.norm(U_new - U) < self.tol:

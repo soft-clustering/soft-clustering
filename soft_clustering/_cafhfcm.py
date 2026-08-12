@@ -1,7 +1,7 @@
 import numpy as np
 from typeguard import typechecked
 
-from ._base import BaseSoftClusterer
+from ._base import BaseSoftClusterer, ratio_memberships
 
 
 @typechecked
@@ -32,9 +32,7 @@ class CAFHFCM(BaseSoftClusterer):
 
     def _update_U(self, X: np.ndarray, centroids: np.ndarray) -> np.ndarray:
         dist = np.linalg.norm(X[:, None, :] - centroids[None, :, :], axis=2) + 1e-8
-        exponent = 2.0 / (self.m - 1.0)
-        inv_dist = dist ** (-exponent)
-        U = inv_dist / np.sum(inv_dist, axis=1, keepdims=True)
+        U = ratio_memberships(dist, 2.0 / (self.m - 1.0))
         return U
 
     def _update_centroids(self, X: np.ndarray, U: np.ndarray) -> np.ndarray:

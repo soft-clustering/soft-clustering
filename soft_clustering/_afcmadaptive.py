@@ -2,7 +2,7 @@ import numpy as np
 from scipy.ndimage import gaussian_filter, laplace
 from typeguard import typechecked
 
-from ._base import BaseSoftClusterer
+from ._base import BaseSoftClusterer, ratio_memberships
 
 
 @typechecked
@@ -90,11 +90,12 @@ class AFCMAdaptive(BaseSoftClusterer):
                 dist[:, :, k] = diff**2
 
             dist = np.clip(dist, 1e-8, None)
-            for k in range(self.n_clusters):
-                denom = np.sum(
-                    (dist[:, :, k][:, :, None] / dist) ** (1 / (self.m - 1)), axis=2
-                )
-                self.membership[:, :, k] = 1.0 / denom
+            # Flatten to (pixels, clusters) so the shared, overflow-free ratio
+            # rule applies, then restore the image layout.
+            flat = ratio_memberships(
+                dist.reshape(H * W, self.n_clusters), 1.0 / (self.m - 1.0)
+            )
+            self.membership = flat.reshape(H, W, self.n_clusters)
 
             # check convergence
             if np.linalg.norm(self.centers - prev_centers) < self.tol:

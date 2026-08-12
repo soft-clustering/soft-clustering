@@ -79,7 +79,7 @@ class EVCLUS(BaseSoftClusterer):
         self,
         n_clusters: int = 3,
         max_iter: int = 200,
-        n_init: int = 1,
+        n_init: int = 3,
         tol: float = 1e-6,
         metric: str = "euclidean",
         random_state: int | None = None,
@@ -92,7 +92,12 @@ class EVCLUS(BaseSoftClusterer):
         max_iter : int
             Maximum number of L-BFGS-B iterations per restart.
         n_init : int
-            Number of random restarts; the lowest stress is kept.
+            Number of random restarts; the lowest stress is kept. The default
+            is 3 rather than 1 because the stress surface is very flat near
+            its optimum: with a single restart L-BFGS-B stops at points whose
+            stress differs by a factor of two between runs that differ only in
+            the memory layout of the input, while three restarts agree to
+            1e-11. The recovered partition is stable either way.
         tol : float
             Convergence tolerance passed to the optimiser.
         metric : {"euclidean", "precomputed"}

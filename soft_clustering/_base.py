@@ -92,6 +92,42 @@ def _n_samples_of(data: Any) -> int | None:
         return None
 
 
+def ratio_memberships(distances: np.ndarray, exponent: float) -> np.ndarray:
+    """The fuzzy c-means ratio rule, evaluated without overflow.
+
+    Returns the ``(n_samples, n_clusters)`` matrix
+
+    .. math::
+
+        u_{ik} \\;=\\; \\frac{d_{ik}^{-p}}{\\sum_j d_{ij}^{-p}}
+               \\;=\\; \\Big[\\sum_j (d_{ik}/d_{ij})^{p}\\Big]^{-1},
+
+    where ``exponent`` is :math:`p`, already matched to whether ``distances``
+    holds distances (:math:`p = 2/(m-1)`) or squared distances
+    (:math:`p = 1/(m-1)`).
+
+    Why this exists as a shared helper. Written directly as
+    ``d ** -p / (d ** -p).sum(...)``, the rule overflows whenever a sample
+    lies on a prototype (``d`` underflows, ``d ** -p`` is ``inf``) or the
+    fuzzifier approaches one (``p`` grows without bound), and the
+    normalisation then yields an all-``NaN`` row. Nine modules in this library
+    each carried their own copy of the unstable form.
+
+    The fix is to factor out the per-sample minimum distance before
+    exponentiating. That factor cancels exactly between numerator and
+    denominator, so the value is unchanged, while every ratio is at least one
+    and every power therefore lies in ``(0, 1]``. A sample coincident with a
+    prototype underflows to a clean one-hot row instead of producing ``NaN``.
+    Evaluating in log space keeps that true for any ``p``.
+    """
+    distances = np.asarray(distances, dtype=np.float64)
+    log_d = np.log(np.maximum(distances, np.finfo(np.float64).tiny))
+    scores = -exponent * (log_d - log_d.min(axis=1, keepdims=True))
+    np.exp(scores, out=scores)
+    total = scores.sum(axis=1, keepdims=True)
+    return scores / np.where(total > 0, total, 1.0)
+
+
 def _bind_params(init: Any, args: tuple, kwargs: dict) -> dict[str, Any]:
     """Constructor arguments as a name -> value mapping, defaults included."""
     try:
