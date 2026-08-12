@@ -1,3 +1,5 @@
+import copy
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -173,8 +175,17 @@ class RDFKC(BaseSoftClusterer):
 
         # Set encoder/decoder defaults if not provided
         if encoder is not None and decoder is not None:
-            self.encoder = encoder
-            self.decoder = decoder
+            # Copied rather than adopted. ``fit`` trains these modules in
+            # place, so holding the caller's objects would both mutate a
+            # constructor parameter and destroy reproducibility: two
+            # estimators built from one module pair -- what a hyper-parameter
+            # sweep or a shared test fixture produces naturally -- would have
+            # the second fit start from the weights the first left behind, and
+            # the same ``random_state`` would then give a different partition.
+            # ``sklearn.clone`` deep-copies object-valued parameters for the
+            # same reason.
+            self.encoder = copy.deepcopy(encoder)
+            self.decoder = copy.deepcopy(decoder)
         elif dataset == "coil20":
             self.encoder = COIL20Encoder()
             self.decoder = COIL20Decoder()
