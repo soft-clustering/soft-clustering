@@ -17,6 +17,8 @@ class LDA(BaseSoftClusterer):
         max_iter: int = 100,
         var_max_iter: int = 20,
         tol: float = 1e-4,
+        n_init: int = 5,
+        random_state: int | None = None,
     ):
         """
         Latent Dirichlet Allocation (LDA) with variational EM inference.
@@ -35,6 +37,16 @@ class LDA(BaseSoftClusterer):
             Number of variational inference steps per document (inner loop).
         tol : float
             Convergence tolerance on mean change in gamma.
+        n_init : int
+            Number of random restarts; the run with the highest corpus
+            log-likelihood is kept. Variational EM for LDA has many local
+            optima, and a single run collapses two topics into one on roughly
+            one initialisation in five, even on a corpus with three cleanly
+            separated topics.
+        random_state : int or None
+            Seed for the variational initialisation. Previously the
+            initialisation drew from NumPy's global generator, so a fit could
+            not be reproduced without seeding that generator externally.
         """
         self.n_topics = n_topics
         self.alpha = alpha if alpha is not None else 50.0 / n_topics
@@ -42,20 +54,21 @@ class LDA(BaseSoftClusterer):
         self.max_iter = max_iter
         self.var_max_iter = var_max_iter
         self.tol = tol
+        self.n_init = n_init
+        self.random_state = random_state
 
-    def _initialize(self, X):
+    def _initialize(self, X, seed=None):
         """
         Initialize model parameters: gamma (D x K), lambda (K x V), and alpha vector.
         """
         D, V = X.shape
+        rng = np.random.default_rng(seed)
 
         # Gamma: document-topic Dirichlet parameters
-        self.gamma = np.random.gamma(100.0, 1.0 / 100.0, (D, self.n_topics))
+        self.gamma = rng.gamma(100.0, 1.0 / 100.0, (D, self.n_topics))
 
         # Lambda: topic-word Dirichlet parameters
-        self.lambda_ = (
-            np.random.gamma(100.0, 1.0 / 100.0, (self.n_topics, V)) + self.beta
-        )
+        self.lambda_ = rng.gamma(100.0, 1.0 / 100.0, (self.n_topics, V)) + self.beta
 
         # Alpha vector: symmetric prior over topics
         self.alpha_vec = np.full(self.n_topics, self.alpha)
@@ -88,9 +101,51 @@ class LDA(BaseSoftClusterer):
             else:
                 self.vocab_ = np.array([f"w{i}" for i in range(X.shape[1])])
 
-        # Initialize gamma and lambda
-        self._initialize(X)
         X_csr = X.tocsr()
+
+        # Variational EM is run from n_init random initialisations and the run
+        # with the highest corpus log-likelihood is kept. A single run merges
+        # two topics into one on roughly one initialisation in five, even on a
+        # corpus of three cleanly separated topics.
+        base_seed = self.random_state if self.random_state is not None else 0
+        best = (-np.inf, None, None)
+        for restart in range(self.n_init):
+            self._run_em(X_csr, seed=base_seed + restart)
+            score = self._corpus_log_likelihood(X_csr)
+            if score > best[0]:
+                best = (score, self.gamma.copy(), self.lambda_.copy())
+
+        self.log_likelihood_, self.gamma, self.lambda_ = best
+
+        # The variational Dirichlet parameters gamma, normalised, are the
+        # document-topic distributions -- a soft partition of the documents
+        # over topics. Publishing them is what lets LDA be evaluated and
+        # conformance-checked alongside every other estimator; the topic-word
+        # side of the model stays available through get_topic_word_dist().
+        self.doc_topic_ = self.gamma / self.gamma.sum(axis=1, keepdims=True)
+        self.memberships_ = self.doc_topic_
+        return self
+
+    def _corpus_log_likelihood(self, X_csr) -> float:
+        """``sum_d sum_w n_dw log(sum_k theta_dk beta_kw)``.
+
+        The standard predictive likelihood used to compare LDA fits. Higher is
+        better; it is what selects between restarts.
+        """
+        theta = self.gamma / self.gamma.sum(axis=1, keepdims=True)
+        beta = self.lambda_ / self.lambda_.sum(axis=1, keepdims=True)
+        total = 0.0
+        for d in range(X_csr.shape[0]):
+            ids, counts = X_csr[d].indices, X_csr[d].data
+            if ids.size == 0:
+                continue
+            word_prob = theta[d] @ beta[:, ids]
+            total += float(np.dot(counts, np.log(np.maximum(word_prob, 1e-300))))
+        return total
+
+    def _run_em(self, X_csr, seed=None) -> None:
+        """One variational EM run from a fresh initialisation."""
+        self._initialize(X_csr, seed=seed)
 
         # Begin EM iterations
         for em_iter in range(self.max_iter):
@@ -133,17 +188,7 @@ class LDA(BaseSoftClusterer):
             # ----------- Convergence Test -----------
             mean_change = np.mean(np.abs(self.gamma - gamma_old))
             if mean_change < self.tol:
-                print(f"Converged at EM iteration {em_iter+1}")
                 break
-
-        # The variational Dirichlet parameters gamma, normalised, are the
-        # document-topic distributions -- a soft partition of the documents
-        # over topics. Publishing them is what lets LDA be evaluated and
-        # conformance-checked alongside every other estimator; the topic-word
-        # side of the model stays available through get_topic_word_dist().
-        self.doc_topic_ = self.gamma / self.gamma.sum(axis=1, keepdims=True)
-        self.memberships_ = self.doc_topic_
-        return self
 
     def get_doc_topic_dist(self):
         """

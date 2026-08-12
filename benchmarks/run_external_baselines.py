@@ -100,6 +100,7 @@ class Row:
     d: int
     k: int
     max_membership_diff: float
+    prototype_gap: float
     label_ari: float
     scpp_ms: float
     reference_ms: float
@@ -133,6 +134,8 @@ def compare_fcm(n, d, k, repeats):
         lambda: FCM(**kwargs).fit(X),
         lambda: skfuzzy.cluster.cmeans(X.T, **reference_kwargs),
         repeats,
+        ours_V=ours.centers_,
+        theirs_V=centres,
     )
 
 
@@ -160,20 +163,57 @@ def compare_gmm(n, d, k, repeats):
         lambda: GMM(**kwargs).fit(X),
         lambda: GaussianMixture(**reference_kwargs).fit(X),
         repeats,
+        ours_V=ours.centers_,
+        theirs_V=reference.means_,
     )
 
 
-def _row(name, reference_name, X, k, ours_U, theirs_U, ours_fn, theirs_fn, repeats):
+def _row(
+    name,
+    reference_name,
+    X,
+    k,
+    ours_U,
+    theirs_U,
+    ours_fn,
+    theirs_fn,
+    repeats,
+    ours_V=None,
+    theirs_V=None,
+    comparable_memberships=True,
+):
+    """Assemble one comparison row.
+
+    ``comparable_memberships=False`` marks a pair whose membership matrices
+    encode different things and therefore must not be differenced. ECM is the
+    case: ``evclust`` places its residual mass on the frame Omega ("could be
+    any cluster") while SCPP places it on a noise cluster ("none of them").
+    Both are correct readings of evidential c-means and both give the same
+    partition, but subtracting one from the other is meaningless. Prototype
+    agreement and the hard partition are compared instead.
+    """
     from sklearn.metrics import adjusted_rand_score
 
     theirs_U = align(ours_U, theirs_U)
+    gap = float("nan")
+    if ours_V is not None and theirs_V is not None:
+        distances = np.linalg.norm(
+            np.asarray(ours_V)[:, None, :] - np.asarray(theirs_V)[None, :, :], axis=2
+        )
+        gap = float(distances.min(axis=1).max())
+
     return Row(
         algorithm=name,
         reference=reference_name,
         n=X.shape[0],
         d=X.shape[1],
         k=k,
-        max_membership_diff=float(np.abs(ours_U - theirs_U).max()),
+        max_membership_diff=(
+            float(np.abs(ours_U - theirs_U).max())
+            if comparable_memberships
+            else float("nan")
+        ),
+        prototype_gap=gap,
         label_ari=float(
             adjusted_rand_score(np.argmax(ours_U, 1), np.argmax(theirs_U, 1))
         ),
@@ -183,7 +223,88 @@ def _row(name, reference_name, X, k, ours_U, theirs_U, ours_fn, theirs_fn, repea
     )
 
 
-PAIRS = {"FCM": compare_fcm, "GMM": compare_gmm}
+def compare_ecm(n, d, k, repeats):
+    from evclust.ecm import ecm
+
+    from soft_clustering import ECM
+
+    X, _ = blobs(n, d, k)
+    kwargs = dict(n_clusters=k, m=2.0, delta=10.0, max_iter=300, tol=1e-8)
+    reference_kwargs = dict(c=k, type="simple", beta=2, delta=10, ntrials=1, disp=False)
+
+    ours = ECM(**kwargs).fit(X)
+    reference = ecm(X, **reference_kwargs)
+
+    return _row(
+        "ECM",
+        "evclust ecm",
+        X,
+        k,
+        ours.memberships_,
+        reference["betp"],
+        lambda: ECM(**kwargs).fit(X),
+        lambda: ecm(X, **reference_kwargs),
+        repeats,
+        ours_V=ours.prototypes,
+        theirs_V=reference["g"],
+        comparable_memberships=False,
+    )
+
+
+def compare_lda(n, d, k, repeats):
+    """LDA is compared on a synthetic corpus rather than on `blobs`."""
+    from sklearn.decomposition import LatentDirichletAllocation
+    from sklearn.feature_extraction.text import CountVectorizer
+
+    from soft_clustering import LDA
+
+    vocab = [
+        "fuzzy clustering membership degree centroid partition",
+        "graph network community detection nodes edges",
+        "topic document word text corpus language",
+    ]
+    docs = [vocab[i % k] for i in range(n)]
+    counts = CountVectorizer().fit_transform(docs)
+
+    prior = 1.0 / k
+    kwargs = dict(
+        n_topics=k, alpha=prior, beta=prior, max_iter=100, tol=1e-8, random_state=0
+    )
+    reference_kwargs = dict(
+        n_components=k,
+        doc_topic_prior=prior,
+        topic_word_prior=prior,
+        max_iter=100,
+        random_state=0,
+        learning_method="batch",
+    )
+
+    ours = LDA(**kwargs).fit(docs)
+    reference = LatentDirichletAllocation(**reference_kwargs).fit(counts)
+    theta = reference.transform(counts)
+    theta /= theta.sum(axis=1, keepdims=True)
+
+    row = _row(
+        "LDA",
+        "scikit-learn LDA",
+        np.zeros((n, 1)),
+        k,
+        ours.memberships_,
+        theta,
+        lambda: LDA(**kwargs).fit(docs),
+        lambda: LatentDirichletAllocation(**reference_kwargs).fit(counts),
+        repeats,
+    )
+    row.d = counts.shape[1]
+    return row
+
+
+PAIRS = {
+    "FCM": compare_fcm,
+    "GMM": compare_gmm,
+    "ECM": compare_ecm,
+    "LDA": compare_lda,
+}
 
 
 # ---------------------------------------------------------------------------
@@ -223,16 +344,24 @@ def write_outputs(rows: list[Row]) -> None:
         r"Rand index between the hard partitions. Runtimes are the minimum of "
         r"three timed fits after one warm-up.}",
         r"\label{tab:external-baselines}",
-        r"\begin{tabular}{llrrrrr}",
+        r"\begin{tabular}{llrrrrrr}",
         r"\toprule",
-        r"Algorithm & Reference & $n$ & Max.\ diff. & ARI & SCPP (ms) & "
-        r"Reference (ms) \\",
+        r"Algorithm & Reference & $n$ & Max.\ diff. & Proto. gap & ARI & "
+        r"SCPP (ms) & Ref.\ (ms) \\",
         r"\midrule",
     ]
     for row in rows:
+        diff = (
+            "n/a"
+            if not np.isfinite(row.max_membership_diff)
+            else f"{row.max_membership_diff:.1e}"
+        )
+        proto = (
+            "---" if not np.isfinite(row.prototype_gap) else f"{row.prototype_gap:.1e}"
+        )
         lines.append(
             f"{row.algorithm} & {row.reference} & {row.n:,} & "
-            f"{row.max_membership_diff:.1e} & {row.label_ari:.4f} & "
+            f"{diff} & {proto} & {row.label_ari:.4f} & "
             f"{row.scpp_ms:.1f} & {row.reference_ms:.1f} \\\\"
         )
     lines += [r"\bottomrule", r"\end{tabular}", r"\end{table}", ""]
@@ -270,7 +399,8 @@ def main() -> int:
             rows.append(row)
             print(
                 f"{row.algorithm:10s} {row.n:6d} {row.max_membership_diff:10.2e} "
-                f"{row.label_ari:7.4f} {row.scpp_ms:10.1f} {row.reference_ms:10.1f}"
+                f"{row.prototype_gap:10.2e} {row.label_ari:7.4f} "
+                f"{row.scpp_ms:10.1f} {row.reference_ms:10.1f}"
             )
 
     if not rows:
@@ -278,7 +408,10 @@ def main() -> int:
         return 1
 
     write_outputs(rows)
-    worst = max(r.max_membership_diff for r in rows)
+    comparable = [
+        r.max_membership_diff for r in rows if np.isfinite(r.max_membership_diff)
+    ]
+    worst = max(comparable)
     print(f"\nworst membership disagreement across all pairs: {worst:.2e}")
     print(f"all label partitions identical: {all(r.label_ari == 1.0 for r in rows)}")
     return 0

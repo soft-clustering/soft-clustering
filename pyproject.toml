@@ -61,10 +61,14 @@ bench = [
   "psutil",        # resident-set sampling for the memory and scalability backends
   "tabulate",      # BenchmarkReport.to_markdown()
 ]
-# Third-party clusterers used only by the external-baseline comparison in
-# benchmarks/run_external_baselines.py and tests/test_external_agreement.py.
+# Third-party implementations used only as references by
+# tests/test_external_agreement.py and benchmarks/run_external_baselines.py.
+# evclust is maintained by the author of the evidential clustering methods,
+# which makes it the strongest reference available for ECM.
 baselines = [
   "scikit-fuzzy",
+  "evclust",
+  "networkx",
 ]
 dev = [
   "matplotlib",
@@ -76,6 +80,8 @@ dev = [
   "psutil",
   "tabulate",
   "scikit-fuzzy",
+  "evclust",
+  "networkx",
 ]
 
 [project.urls]

@@ -244,7 +244,6 @@ EXCLUDED = sorted(name for name, case in CASES.items() if case is None)
 CONDITIONALLY_NORMALISED = frozenset(
     {
         "KMART",  # ART vigilance: a document may match zero or several categories
-        "RoughKMeans",  # an object outside every approximation gets an all-zero row
     }
 )
 

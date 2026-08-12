@@ -112,6 +112,17 @@ def optimization_numbers() -> dict:
     }
 
 
+_NUMBER_WORDS = {2: "Two", 9: "Nine", 10: "Ten"}
+
+
+def _validated_count() -> str:
+    """The number of estimators with Tier 1/2 validation, as the paper spells it."""
+    sys.path.insert(0, str(ROOT / "tests"))
+    from test_external_agreement import VALIDATED
+
+    return _NUMBER_WORDS.get(len(VALIDATED), str(len(VALIDATED)))
+
+
 def benchmark_numbers() -> dict:
     rows = list(csv.DictReader((ROOT / "benchmarks/results/main_benchmark.csv").open()))
     external = list(
@@ -124,8 +135,13 @@ def benchmark_numbers() -> dict:
         "ok": sum(r["status"] == "ok" for r in rows),
         "degenerate": sum(r["status"] == "degenerate" for r in rows),
         "failed": sum(r["status"] in ("timeout", "crashed", "error") for r in rows),
-        "worst_external": max(float(r["max_membership_diff"]) for r in external),
+        "worst_external": max(
+            float(r["max_membership_diff"])
+            for r in external
+            if r["max_membership_diff"] not in ("", "nan")
+        ),
         "all_ari_one": all(float(r["label_ari"]) == 1.0 for r in external),
+        "validated": _validated_count(),
     }
 
 
@@ -283,6 +299,12 @@ def main() -> int:
         "degenerate fits", bench["degenerate"], r"(\d+) returned a degenerate", text
     )
     report.note("failed fits (timeout/OOM/error)", bench["failed"])
+    report.check(
+        "externally validated estimators",
+        bench["validated"],
+        r"(\w+) of 42 estimators have Tier 1 or Tier 2",
+        text,
+    )
     report.note("worst external disagreement", f"{bench['worst_external']:.1e}")
     report.note("external partitions all identical", bench["all_ari_one"])
 

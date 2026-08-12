@@ -240,17 +240,18 @@ continuous integration. The library ships an evaluation framework with 20
 datasets and 12 cluster-validity metrics, and we use it for the cross-family
 comparison the protocol makes possible: all 20 feature-matrix estimators over
 the full dataset suite under one protocol, with every failure reported rather
-than dropped. Where an independent implementation of the same algorithm
-exists, we check against it: SCPP's fuzzy c-means agrees with
-\texttt{scikit-fuzzy} to $6.2\times10^{-10}$ and its Gaussian mixture with
-\texttt{scikit-learn} to $1.0\times10^{-12}$, with identical hard partitions.
+than dropped. Nine estimators are validated against an independent
+implementation of the same algorithm or against the algorithm they provably
+reduce to in a limit, with a largest membership disagreement of
+$6.2\times10^{-10}$ and identical hard partitions throughout; the other 33
+carry weaker, property-based evidence, and we say so.
 We additionally report an implementation optimization study in which
 profiling identified bottlenecks in five implementations; rewriting them
 reduced runtime by a median of $70\times$ relative to SCPP's own
 pre-optimization code across 20 paired measurements, with a maximum of
 $4{,}507\times$, while remaining numerically indistinguishable from the
 preserved references (maximum membership difference $2.2\times10^{-14}$ across
-42 comparisons). SCPP is documented, tested with 1{,}183 automated tests
+42 comparisons). SCPP is documented, tested with 1{,}204 automated tests
 across 48 modules at 95\% line coverage, integrated with continuous
 integration across three operating systems and four Python versions, and
 distributed through PyPI under the MIT license.
@@ -328,12 +329,17 @@ reports all 20 feature-matrix estimators over the full dataset suite --- 220
 fits under one protocol, with the 32 that timed out, ran out of memory or
 returned a degenerate partition reported as such.
 
-\item \textbf{Validation against independent implementations.}
-Where a third-party implementation of the same algorithm exists, we check
-against it rather than only against ourselves. SCPP's fuzzy c-means matches
-\texttt{scikit-fuzzy} to $6.2\times10^{-10}$ and its Gaussian mixture matches
-\texttt{scikit-learn} to $1.0\times10^{-12}$, with identical hard partitions
-at every size tested (Appendix~\ref{app:external}).
+\item \textbf{Validation against evidence outside SCPP.}
+Nine estimators are checked against an independent implementation of the same
+algorithm or against the algorithm they provably reduce to in a limit ---
+\texttt{scikit-fuzzy}, \texttt{scikit-learn}, \texttt{networkx}, and
+\texttt{evclust}, the reference package of the evidential methods' author.
+The largest membership disagreement across every comparable pair is
+$6.2\times10^{-10}$ and every hard partition is identical. Building these
+checks exposed four defects that no internal test had caught
+(Appendix~\ref{app:external}); we report the remaining 33 estimators as
+having weaker, property-based evidence rather than describing the library as
+uniformly validated.
 
 \item \textbf{An implementation optimization study.}
 Profiling under a common protocol identified concrete bottlenecks in five
@@ -343,7 +349,7 @@ $4{,}507\times$, verified against preserved references
 (\S\ref{sec:benchmark}, Appendix~\ref{app:optimization}).
 
 \item \textbf{Reproducible software infrastructure.}
-1{,}183 automated tests at 95\% line coverage, CI across three operating
+1{,}204 automated tests at 95\% line coverage, CI across three operating
 systems and four Python versions, published documentation, 42 runnable
 examples, and distribution under the MIT license (\S\ref{sec:quality}).
 
@@ -578,7 +584,7 @@ regenerated from the repository by a single command.
 \label{sec:quality}
 
 \paragraph{Testing.}
-The suite contains 1{,}183 tests across 48 modules and achieves 95\% line
+The suite contains 1{,}204 tests across 48 modules and achieves 95\% line
 coverage. Each algorithm has method-specific tests; on top of those sit four
 cross-cutting suites. The \emph{conformance suite} constructs and fits all 42
 exported estimators and checks the protocol: \texttt{fit} returns
@@ -1200,48 +1206,102 @@ and the failure reason for every unsuccessful run, are released as
 \texttt{benchmarks/results/main\_benchmark.csv}, with the environment in
 \texttt{main\_benchmark\_env.json}.
 
-\section{Agreement with Independent Implementations}\label{app:external}
+\section{Validation Against Evidence Outside SCPP}\label{app:external}
 
-Every correctness check discussed so far compares SCPP to SCPP: invariants it
-declares for itself, and --- for the five optimised algorithms of
-Appendix~\ref{app:optimization} --- agreement with its own preserved earlier
-code. None of that can detect an implementation that is self-consistently
-wrong. Where a widely used independent implementation of the same algorithm
-exists, we therefore compare against it.
+Every correctness check in \S\ref{sec:quality} compares SCPP to SCPP:
+invariants it declares for itself, and --- for the five optimised algorithms
+of Appendix~\ref{app:optimization} --- agreement with its own preserved
+earlier code. None of that can detect an implementation that is
+self-consistently wrong. This appendix reports what we can establish from
+outside, graded by strength, and states plainly how far it reaches.
 
-\paragraph{Protocol.} Matched hyperparameters, identical data, tight
-convergence tolerances on both sides. Agreement is the maximum absolute
-difference between membership matrices after resolving the arbitrary cluster
-labelling, together with the adjusted Rand index between the hard partitions.
-Runtimes are the minimum of three timed fits after one warm-up.
+\paragraph{Tier 1: agreement with an independent implementation.}
+The strongest evidence short of a proof --- a second codebase, written by
+other people from the same paper, reaching the same solution. Seven
+estimators have one. Four are compared quantitatively in
+Table~\ref{tab:external-baselines}: fuzzy c-means against
+\texttt{scikit-fuzzy}, the Gaussian mixture against \texttt{scikit-learn},
+evidential c-means against \texttt{evclust} --- which is maintained by the
+author of the method, making a disagreement far more likely to be our error
+than theirs --- and LDA against \texttt{scikit-learn}'s variational
+implementation. Three more are checked against an independent computation of
+the objective rather than of the fit: CDCGS and DMoN both maximise soft
+modularity, and evaluated on a crisp assignment their objective must equal
+the modularity \texttt{networkx} computes for that partition, which it does
+to $6\times10^{-9}$; and SoftDBSCANGM's component count is determined by its
+DBSCAN stage and is checked against \texttt{scikit-learn}'s DBSCAN across
+three neighbourhood radii.
 
 \input{tables/external_baselines_table}
 
-\paragraph{Result.} The two implementations agree to $6.2\times10^{-10}$
-(FCM against \texttt{scikit-fuzzy}) and $1.0\times10^{-12}$ (GMM against
-\texttt{scikit-learn}), with identical hard partitions at every size tested.
-The comparison also found a defect while we were building it: SCPP's GMM
-seeded EM with k-means++ \emph{centres} rather than a converged k-means
-solution, and at $n = 200$ settled in a local optimum with prototypes at
-$(1.06, 1.73, 6.07)$ where the generating means were $(0, 3, 6)$ --- ARI
-$0.50$ against the reference. Running Lloyd's algorithm to convergence first,
-which is what \texttt{scikit-learn} does, closed the gap to ARI $1.00$ and
-made the fit roughly thirty times faster. That is the argument for this
-appendix: an external reference finds what self-comparison cannot.
+Across every comparable pair the largest membership disagreement is
+$6.2\times10^{-10}$ and every hard partition is identical. Where the two sides
+do not define the same quantity we say so rather than manufacture a number:
+\texttt{evclust} places residual evidential mass on the frame $\Omega$ while
+SCPP places it on a noise cluster, so for ECM we compare prototypes
+($1.4$--$2.2\times10^{-2}$) and the partition instead.
 
-\paragraph{Scope, stated plainly.} This covers 2 of 42 estimators. Four more
-are checked against a reference behaviour rather than a reference
-implementation (PCM's typicalities must be pointwise and non-normalised;
-MMSB, CDCGS and DMoN must recover a planted blockmodel). For the remaining
-36 there is no independent Python implementation we could find, and the
-available evidence is the invariants of \S\ref{sec:quality} plus recovery of
-planted structure. We regard extending this table as the most valuable single
-addition future work could make, and the harness is written so that adding a
-pair is a dozen lines.
+\paragraph{Tier 2: reduction to an independently implemented algorithm.}
+Several methods provably degenerate to a simpler one in a limit, and the
+limiting algorithm has a trusted implementation. Fuzzy c-means at $m = 1.02$
+must reproduce k-means, and does: identical partitions and prototypes
+agreeing to $10^{-3}$ with \texttt{scikit-learn}'s. A spherical Gaussian
+mixture with vanishing regularisation must too, and does. Gustafson--Kessel's
+fuzzy covariance is the identity on isotropic clusters, where it must match
+fuzzy c-means. Possibilistic fuzzy c-means at zero typicality weight reduces
+to Bezdek's objective. Each of these exercises the estimator's whole update
+path against an outside implementation, and adds two estimators (GK, PFCM) to
+the seven above.
+
+\paragraph{Tier 3: properties implied by the definition.}
+Weaker, but not vacuous, and available where no reference exists. A consensus
+function must be idempotent --- the consensus of one partition repeated must
+be that partition --- which SCSPA, SHBGF and SMCLA satisfy exactly. A
+possibilistic typicality must be a pointwise function of the distance to one
+prototype, so PCM's must be monotone in that distance and must not sum to one
+across clusters. A mixture must recover the parameters that generated its
+data, which MBMM does on Beta samples. Rough $k$-means must satisfy Lingras
+and West's interval-set axioms: the lower approximation contained in the
+upper, at most one lower approximation per object, and every object in at
+least one upper approximation. MMSB, CDCGS, DMoN, FeMIFuzzy, Gath--Geva,
+EVCLUS and PLSI must recover planted structure with a known answer.
+
+\paragraph{What this covers, and what it does not.}
+Nine of 42 estimators have Tier 1 or Tier 2 validation. The count is asserted
+in the test suite rather than only stated here, so it cannot drift. For the
+remaining 33 the evidence is Tier 3 plus the invariants and edge cases of
+Appendix~\ref{Testing} --- enough to establish that they compute something
+with the right structure and the right behaviour in the limits we can reason
+about, not enough to establish that they compute what their paper specifies.
+We regard closing that gap as the most valuable single addition to this
+library, and the harness is written so that adding a pair is roughly a dozen
+lines.
+
+\paragraph{This is not a formality: it found four defects.}
+Building this appendix changed the library. SCPP's Gaussian mixture seeded EM
+with k-means++ \emph{centres} rather than a converged k-means solution and
+settled at $n = 200$ on prototypes $(1.06, 1.73, 6.07)$ where the generating
+means were $(0, 3, 6)$ --- ARI $0.50$ against \texttt{scikit-learn}; running
+Lloyd's algorithm first, as \texttt{scikit-learn} does, closed the gap to ARI
+$1.00$ and made the fit thirty times faster. LDA merged two of three cleanly
+separated topics on two initialisations in ten, and drew its initialisation
+from NumPy's global generator so that a fit could not be reproduced without
+seeding it externally; it now takes a \texttt{random\_state} and keeps the
+best of \texttt{n\_init} restarts by corpus log-likelihood, recovering all
+three topics in ten of ten. Rough $k$-means assigned objects using absolute
+radii derived from the inter-centroid distances rather than Lingras and
+West's relative rule, so an object far from every centroid entered no
+approximation at all and received an all-zero membership row --- a violation
+of the method's defining axioms that no shape or invariant check had caught.
+EVCLUS's stress surface proved flat enough that a single restart gave
+stresses differing by a factor of two between runs that differed only in the
+memory layout of the input. Three of the four are the same failure mode:
+a non-convex objective, one initialisation, no restarts. None was visible
+from inside SCPP.
 
 \section{Testing}\label{Testing}
 
-SCPP has \textbf{1{,}183 tests across 48 modules} at \textbf{95\% line
+SCPP has \textbf{1{,}204 tests across 48 modules} at \textbf{95\% line
 coverage}. This appendix describes what they check, and --- because coverage
 is routinely over-read --- what they do not.
 
