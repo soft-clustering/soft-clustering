@@ -205,26 +205,33 @@ def test_fortran_ordered_input(name):
 
 
 def test_fortran_ordered_input_evclus():
-    """EVCLUS agrees on the partition but not bit-for-bit on the masses.
+    """EVCLUS agrees on the partition, and on the stress once it restarts.
 
-    Its dissimilarities come from a Gram matrix, so a Fortran-ordered view
-    changes the BLAS summation order in the last bits, and L-BFGS-B amplifies
-    that into a different point on a very flat objective. Restarts remove the
-    sensitivity: at the default n_init = 3 the stress agrees to 1e-11, at
-    n_init = 1 it differs by a factor of two.
+    Its dissimilarities come from a Gram matrix, so whether a Fortran-ordered
+    view gives a bit-identical result is a property of the BLAS rather than of
+    this library: OpenBLAS reduces both layouts in the same order and the two
+    fits agree to the last bit, while Accelerate does not and L-BFGS-B
+    amplifies the last-bit difference into a different point on a very flat
+    objective. Restarts absorb that: where a difference exists at all it is
+    ~9e-4 with a single restart and ~1e-11 at the default n_init = 3.
+
+    So the assertions here are the two that hold on either BLAS: the partition
+    is identical, and the stress at the default n_init agrees to 1e-8 and is
+    no more layout-sensitive than a single restart.
     """
     rng = np.random.default_rng(0)
     X = np.vstack([rng.normal(-3, 0.3, (20, 3)), rng.normal(3, 0.3, (20, 3))])
     contiguous = build("EVCLUS").fit(np.ascontiguousarray(X))
     fortran = build("EVCLUS").fit(np.asfortranarray(X))
     np.testing.assert_array_equal(contiguous.labels_, fortran.labels_)
-    assert abs(contiguous.stress_ - fortran.stress_) < 1e-8
+    restarted_gap = abs(contiguous.stress_ - fortran.stress_)
+    assert restarted_gap < 1e-8
 
-    # With a single restart the same comparison differs by ~9e-4, which is
-    # why n_init defaults to 3.
+    # Restarting must not make the layout sensitivity worse. On a BLAS that
+    # reduces both layouts identically both gaps are exactly zero.
     single_c = EVCLUS_single().fit(np.ascontiguousarray(X)).stress_
     single_f = EVCLUS_single().fit(np.asfortranarray(X)).stress_
-    assert abs(single_c - single_f) > abs(contiguous.stress_ - fortran.stress_)
+    assert abs(single_c - single_f) >= restarted_gap
 
 
 def EVCLUS_single():

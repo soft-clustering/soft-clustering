@@ -94,10 +94,11 @@ class EVCLUS(BaseSoftClusterer):
         n_init : int
             Number of random restarts; the lowest stress is kept. The default
             is 3 rather than 1 because the stress surface is very flat near
-            its optimum: with a single restart L-BFGS-B stops at points whose
-            stress differs by a factor of two between runs that differ only in
-            the memory layout of the input, while three restarts agree to
-            1e-11. The recovered partition is stable either way.
+            its optimum: on a BLAS whose reduction order depends on the memory
+            layout of the input, a single restart stops at points whose stress
+            differs by a factor of two between a C-ordered and a
+            Fortran-ordered view of the same data, while three restarts agree
+            to 1e-11. The recovered partition is stable either way.
         tol : float
             Convergence tolerance passed to the optimiser.
         metric : {"euclidean", "precomputed"}

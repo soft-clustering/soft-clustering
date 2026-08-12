@@ -19,7 +19,9 @@ if __name__ == "__main__":
     model = AFCMAdaptive(n_clusters=2, m=2.0, k1=0.1, k2=0.1, max_iter=50)
     model.fit(image)
 
-    labels = model.predict()
+    # predict() returns the flat (H*W,) labelling required by the estimator
+    # protocol; label_map() is the same assignment back on the image grid.
+    labels = model.label_map()
     membership = model.get_membership()
 
     plt.figure(figsize=(10, 3))

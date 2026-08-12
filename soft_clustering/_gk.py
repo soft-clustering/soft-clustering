@@ -4,7 +4,7 @@ import numpy as np
 import scipy.sparse as sp
 from typeguard import typechecked
 
-from ._base import BaseSoftClusterer
+from ._base import BaseSoftClusterer, ratio_memberships
 
 
 def _kmeanspp_init(X, K, rng):
@@ -70,14 +70,21 @@ def _estimate_gk_dist2(X, centers, covariances):
 
 
 def _update_U_from_d2(d2, m, eps=1e-12):
-    """Update memberships given GK distances."""
-    inv = 1.0 / (d2 + eps)
-    power = 1.0 / (m - 1.0)
-    inv_pow = inv**power
-    denom = np.sum(inv_pow, axis=1, keepdims=True)
-    U = inv_pow / (denom + eps)
+    """Update memberships given GK distances.
+
+    The ratio rule is delegated to the shared, overflow-free helper. Written
+    directly as ``d2 ** -p / sum_j d2 ** -p`` it overflows for a fuzzifier
+    close to one -- ``p = 1/(m - 1)`` is 100 at ``m = 1.01`` -- and the
+    normalisation turns the resulting ``inf`` into an all-``NaN`` row, which
+    then poisons the fuzzy covariances on the next sweep.
+
+    The floor afterwards is specific to GK: a membership of exactly zero for
+    every sample in a cluster leaves that cluster's scatter matrix with no
+    weight at all, so the memberships are kept strictly positive.
+    """
+    U = ratio_memberships(d2, 1.0 / (m - 1.0))
     U = np.maximum(U, eps)
-    U /= np.sum(U, axis=1, keepdims=True) + eps
+    U /= np.sum(U, axis=1, keepdims=True)
     return U
 
 
