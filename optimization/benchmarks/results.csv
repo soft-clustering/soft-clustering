@@ -84,3 +84,5 @@ PLSI,document,survey,smoke,documents,200,12,3,3,ok,6.710541994834784,6.710541994
 SCSPA,ensemble,survey,smoke,ensemble,200,8,3,3,ok,1042.304750000767,1042.304750000767,1,,
 SHBGF,ensemble,survey,smoke,ensemble,200,8,3,3,ok,999.8801670008106,999.8801670008106,1,,
 SMCLA,ensemble,survey,smoke,ensemble,200,8,3,3,ok,996.9185420050053,996.9185420050053,1,,
+GathGeva,mixture,survey,smoke,features,200,8,3,3,ok,7.595666997076478,7.595666997076478,1,,
+EVCLUS,evidential,survey,smoke,features,200,8,3,3,ok,109.04162500082748,109.04162500082748,1,,

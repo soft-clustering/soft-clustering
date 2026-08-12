@@ -4,7 +4,7 @@ import numpy as np
 import scipy.sparse as sp
 from typeguard import typechecked
 
-from ._base import BaseSoftClusterer
+from ._base import BaseSoftClusterer, ratio_memberships
 
 
 def _euclidean_dist2(X, centers):
@@ -53,11 +53,10 @@ def _init_centers_kpp(X, K, rng):
 def _update_U_from_centers(X, centers, m, eps=1e-12):
     """Update membership matrix given centers."""
     dist2 = _euclidean_dist2(X, centers) + eps
-    inv_dist = 1.0 / dist2
-    power = 1.0 / (m - 1.0)
-    inv_dist_pow = inv_dist**power
-    denom = np.sum(inv_dist_pow, axis=1, keepdims=True)
-    U = inv_dist_pow / (denom + eps)
+    # ratio_memberships evaluates d^-p / sum_j d^-p without ever forming the
+    # unbounded intermediate: written directly, this overflows for m near 1
+    # (p = 1/(m-1) grows without bound) and returns an all-NaN row.
+    U = ratio_memberships(dist2, 1.0 / (m - 1.0))
     return _normalize_memberships(U, eps=eps)
 
 

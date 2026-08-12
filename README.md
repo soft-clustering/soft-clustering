@@ -5,7 +5,7 @@
 <h1 align="center">SCPP · Soft Clustering Python Package</h1>
 
 <p align="center">
-  <b>40 soft, fuzzy, possibilistic, evidential, graph, document and deep clustering algorithms — behind one estimator protocol.</b>
+  <b>42 soft, fuzzy, possibilistic, evidential, graph, document and deep clustering algorithms — behind one estimator protocol.</b>
 </p>
 
 <p align="center">
@@ -26,17 +26,17 @@ communities, a cell sits between two types. **Soft clustering** assigns degrees
 of membership instead — and the methods that do it are scattered across decades
 of papers, each with its own interface, notation and output convention.
 
-SCPP collects 40 of them into one library, behind one protocol, with a
+SCPP collects 42 of them into one library, behind one protocol, with a
 benchmarking suite that lets you compare them on equal terms.
 
 ## ✨ Highlights
 
 | | |
 | --- | --- |
-| 🧩 **One protocol, 40 algorithms** | Every estimator exposes `memberships_`, `labels_`, `centers_` and `n_clusters` after `fit`, whatever the method consumes — a feature matrix, a graph, raw documents, or an ensemble of partitions. |
-| 🔬 **Checked, not asserted** | A shared conformance suite fits every exported estimator and verifies the contract: membership shape, the partition constraint where the formulation imposes one, and reproducibility under a fixed `random_state`. |
-| 📊 **Benchmarking included** | Runtime, memory, scalability and clustering quality, over 20 datasets and 12 validity metrics — shipped *inside* the package, not alongside it. |
-| 🪶 **Light by default** | A base install is `numpy`, `scipy` and `typeguard`. PyTorch, scikit-learn and pandas live behind extras you opt into. |
+| 🧩 **One protocol, 42 algorithms** | Every estimator exposes `memberships_`, `labels_`, `centers_` and `n_clusters` after `fit`, whatever the method consumes — a feature matrix, a graph, raw documents, or an ensemble of partitions. |
+| 🔬 **Checked, not asserted** | A conformance suite fits **all 42** estimators on every commit and verifies the contract: membership shape, the partition constraint where the formulation imposes one, out-of-sample behaviour, `sklearn.clone` round-tripping, and reproducibility under a fixed `random_state`. Exclusions are a hard CI failure. |
+| 📊 **Benchmarking included** | Runtime, memory, scalability and clustering quality, over 20 datasets and 12 validity metrics — shipped *inside* the package, and actually run: see [`benchmarks/`](benchmarks/) for the cross-family comparison and the agreement checks against `scikit-fuzzy` and `scikit-learn`. |
+| 🪶 **Light by default** | A base install is `numpy`, `scipy`, `scikit-learn` and `typeguard` — enough to fit 38 of the 42 estimators. PyTorch and pandas live behind extras you opt into. |
 | 🏷️ **Typed** | Ships `py.typed`; hints are checked at runtime by `typeguard` and visible to your type checker. |
 
 ## 📦 Installation
@@ -49,9 +49,10 @@ Optional extras, separated by what they are needed **for**:
 
 | Extra | Install | Provides | Needed for |
 | --- | --- | --- | --- |
-| *(base)* | `pip install soft-clustering` | numpy, scipy, typeguard | Fitting any of the 35 non-deep estimators |
-| `deep` | `pip install "soft-clustering[deep]"` | torch, torch_geometric | CDCGS, DMoN, MMSB, NOCD, RDFKC |
-| `bench` | `pip install "soft-clustering[bench]"` | scikit-learn, pandas, psutil, tabulate | Running `soft_clustering.benchmarking` |
+| *(base)* | `pip install soft-clustering` | numpy, scipy, scikit-learn, typeguard | Fitting any of the 38 non-deep estimators |
+| `deep` | `pip install "soft-clustering[deep]"` | torch, torch_geometric | CDCGS, DMoN, NOCD, RDFKC |
+| `bench` | `pip install "soft-clustering[bench]"` | pandas, psutil, tabulate | Running `soft_clustering.benchmarking` |
+| `baselines` | `pip install "soft-clustering[baselines]"` | scikit-fuzzy | Agreement checks against third-party implementations |
 | `docs` | `pip install "soft-clustering[docs]"` | sphinx, myst-parser | Building the documentation |
 | `dev` | `pip install -e ".[dev,deep]"` | pytest, pytest-cov, matplotlib | Developing and testing |
 

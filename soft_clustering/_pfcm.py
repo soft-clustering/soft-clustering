@@ -6,8 +6,11 @@ from ._base import BaseSoftClusterer
 
 @typechecked
 class PFCM(BaseSoftClusterer):
-    # combines memberships with unnormalised typicalities (Pal et al., 2005)
-    _partition_constrained = False
+    # PFCM maintains two matrices (Pal et al., 2005): memberships U, which
+    # satisfy the partition constraint, and typicalities T, which do not.
+    # ``memberships_`` exposes U, so the constraint holds; the unnormalised
+    # typicalities remain available as ``typicality_matrix``.
+    _partition_constrained = True
 
     def __init__(
         self,

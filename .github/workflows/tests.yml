@@ -26,14 +26,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
+        # The full cross-product, so that "three operating systems and four
+        # Python versions" describes what actually runs. The suite takes about
+        # 70 s, so twelve jobs stay well inside the timeout.
+        os: [ubuntu-latest, macos-latest, windows-latest]
         python-version: ["3.10", "3.11", "3.12", "3.13"]
-        include:
-          # Cross-platform coverage on a single interpreter, to keep CI time bounded.
-          - os: macos-latest
-            python-version: "3.12"
-          - os: windows-latest
-            python-version: "3.12"
 
     steps:
       - uses: actions/checkout@v4
@@ -67,6 +64,16 @@ jobs:
           --cov-report=xml
           --cov-report=term-missing
           --durations=10
+
+      - name: Verify the reported claim counts still match the source
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        # Every quantitative claim in the paper and README comes from these
+        # scripts. Running them in CI is what stops the numbers drifting, as
+        # the test count, the coverage figure and the "18 algorithms under
+        # 10 ms" claim all previously did.
+        run: |
+          python tools/paper_stats.py --json
+          python tools/check_paper_numbers.py --full
 
       - name: Upload coverage to Codecov
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
@@ -155,10 +162,60 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install .
-      - name: Import the package from a clean working directory
+      - name: Every non-deep estimator must import and construct
+        # Importing the top-level package proves nothing: estimators are
+        # imported lazily (PEP 562), so `import soft_clustering` touches none
+        # of them. This job existed in that form while six estimators were
+        # unimportable without scikit-learn. Walk the registry instead.
         run: |
           cd "$(mktemp -d)"
-          python -c "import soft_clustering as sc; print(sc.__version__, len(sc.__all__))"
+          python - <<'PY'
+          import soft_clustering as sc
+
+          print(sc.__version__, len(sc.__all__), "exports")
+          broken, deep = [], []
+          for name in sorted(sc._ESTIMATORS):
+              try:
+                  getattr(sc, name)
+              except ImportError as exc:
+                  (deep if name in sc.DEEP_ESTIMATORS else broken).append(
+                      (name, str(exc))
+                  )
+          assert not broken, f"unimportable on a base install: {broken}"
+          assert sorted(n for n, _ in deep) == sorted(sc.DEEP_ESTIMATORS), (
+              "the deep extra guard did not fire for exactly the deep "
+              f"estimators: {sorted(n for n, _ in deep)}"
+          )
+          print(f"{len(sc._ESTIMATORS) - len(deep)} estimators importable, "
+                f"{len(deep)} correctly gated behind [deep]")
+          PY
+
+      - name: Fit a representative estimator from each input modality
+        run: |
+          cd "$(mktemp -d)"
+          python - <<'PY'
+          import numpy as np
+          from soft_clustering import FCM, BayesianNMF, KMART, SCSPA
+
+          rng = np.random.default_rng(0)
+          X = np.vstack([rng.normal(-3, .3, (30, 4)), rng.normal(3, .3, (30, 4))])
+          assert FCM(n_clusters=2, random_state=0).fit(X).memberships_.shape == (60, 2)
+
+          A = (rng.random((30, 30)) < .3).astype(float)
+          A = np.maximum(A, A.T); np.fill_diagonal(A, 0)
+          assert BayesianNMF(n_clusters=3).fit(A).memberships_.shape[0] == 30
+
+          docs = ["fuzzy clustering membership", "graph community detection",
+                  "topic model document words", "gaussian mixture model"]
+          assert KMART().fit(docs).memberships_.shape[0] == 4
+
+          parts = []
+          for _ in range(3):
+              M = np.abs(rng.normal(size=(30, 3)))
+              parts.append(M / M.sum(axis=1, keepdims=True))
+          assert SCSPA(n_clusters=3).fit(parts).memberships_.shape[0] == 30
+          print("feature, graph, document and ensemble modalities all fit")
+          PY
       - name: The benchmarking suite must ship inside the wheel
         # Regression test for the packaging defect where benchmarking lived
         # outside the distributed package and so was unavailable to users who

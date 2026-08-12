@@ -3,7 +3,7 @@ from scipy.ndimage import uniform_filter
 from sklearn.metrics.pairwise import rbf_kernel
 from typeguard import typechecked
 
-from ._base import BaseSoftClusterer
+from ._base import BaseSoftClusterer, ratio_memberships
 
 
 @typechecked
@@ -63,9 +63,7 @@ class SKFCM(BaseSoftClusterer):
             d[:, k] = num + self.lambda_ * (1 - spatial_U[:, k])
 
         d = np.clip(d, 1e-10, None)
-        for i in range(self.N):
-            denom = np.sum((d[i, :] / d[i, :][:, None]) ** (1 / (self.m - 1)), axis=0)
-            self.U[i, :] = 1.0 / denom
+        self.U = ratio_memberships(d, 1.0 / (self.m - 1.0))
 
     def fit(self, X: np.ndarray, shape: tuple[int, int]):
         self.N = X.shape[0]
@@ -81,8 +79,5 @@ class SKFCM(BaseSoftClusterer):
 
         self.labels_ = np.argmax(self.U, axis=1)
 
-    def predict(self) -> np.ndarray:
-        return self.labels_
-
-    def predict_proba(self) -> np.ndarray:
-        return self.U
+    # predict() and predict_proba() come from BaseSoftClusterer, which also
+    # raises before a fit instead of returning None.

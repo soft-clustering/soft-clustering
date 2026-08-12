@@ -124,10 +124,5 @@ class MBMM(BaseSoftClusterer):
                 break
             prev_ll = ll
 
-    def predict_proba(self) -> np.ndarray:
-        self._check_fitted()
-        return self.resp
-
-    def predict(self) -> np.ndarray:
-        self._check_fitted()
-        return np.argmax(self.resp, axis=1)
+    # predict() and predict_proba() come from BaseSoftClusterer; ``resp``
+    # remains available for the raw responsibilities.

@@ -18,29 +18,31 @@ primitives (DBSCAN, KMeans, eigen-solvers) inside some methods.
 
 | Algorithm | Family | Module | Code LOC | Loops (max depth) | Numerical flags | Baseline (ms) | Measured bottleneck | Memory | Optimization status |
 | --- | --- | --- | ---: | ---: | --- | ---: | --- | --- | --- |
-| `AFCM` | fuzzy | `_afcm.py` | 72 | 2 (2) | normx2, pinvx1 | 205.3 | `scipy.linalg.eigh` 126.9 ms of 440 ms (dense eigendecomposition) | low | medium (untouched) |
-| `AFCMAdaptive` | fuzzy | `_afcmadaptive.py` | 89 | 4 (2) | normx1 | — | not yet profiled | not yet profiled | unknown — not yet profiled |
-| `AFCMSimple` | fuzzy | `_afcmSimple.py` | 45 | 2 (2) | normx2 | 0.5 | not yet profiled | not yet profiled | unknown — not yet profiled |
-| `BGMM` | mixture | `_bgmm.py` | 94 | 4 (2) | — | — | not yet profiled | not yet profiled | unknown — not yet profiled |
+| `AFCM` | fuzzy | `_afcm.py` | 70 | 2 (2) | normx2, pinvx1 | 205.3 | `scipy.linalg.eigh` 126.9 ms of 440 ms (dense eigendecomposition) | low | medium (untouched) |
+| `AFCMAdaptive` | fuzzy | `_afcmadaptive.py` | 96 | 3 (2) | normx1 | — | not yet profiled | not yet profiled | unknown — not yet profiled |
+| `AFCMSimple` | fuzzy | `_afcmSimple.py` | 47 | 2 (2) | normx2 | 0.5 | not yet profiled | not yet profiled | unknown — not yet profiled |
+| `BGMM` | mixture | `_bgmm.py` | 90 | 4 (2) | — | — | not yet profiled | not yet profiled | unknown — not yet profiled |
 | `BIGCLAM` | graph | `_bigclam.py` | 53 | 3 (3) | — | — | not yet profiled | not yet profiled | unknown — not yet profiled |
 | `BayesianNMF` | graph | `_bnmf.py` | 62 | 2 (2) | normx1 | 16.1 | not yet profiled | not yet profiled | unknown — not yet profiled |
-| `CAFCM` | fuzzy | `_cafcm.py` | 64 | 2 (2) | normx2 | 1.7 | not yet profiled | not yet profiled | unknown — not yet profiled |
-| `CAFHFCM` | fuzzy | `_cafhfcm.py` | 64 | 3 (2) | normx2 | 0.5 | not yet profiled | not yet profiled | unknown — not yet profiled |
-| `CDCGS` | deep | `_cdcgs.py` | 22 | 0 (0) | — | — | not yet profiled | not yet profiled | unknown — not yet profiled |
-| `DMoN` | deep | `_dmon.py` | 26 | 0 (0) | — | — | not yet profiled | not yet profiled | unknown — not yet profiled |
+| `CAFCM` | fuzzy | `_cafcm.py` | 62 | 2 (2) | normx2 | 1.7 | not yet profiled | not yet profiled | unknown — not yet profiled |
+| `CAFHFCM` | fuzzy | `_cafhfcm.py` | 62 | 3 (2) | normx2 | 0.5 | not yet profiled | not yet profiled | unknown — not yet profiled |
+| `CDCGS` | deep | `_cdcgs.py` | 226 | 2 (2) | appendx1 | — | not yet profiled | not yet profiled | unknown — not yet profiled |
+| `DMoN` | deep | `_dmon.py` | 166 | 1 (1) | appendx1 | — | not yet profiled | not yet profiled | unknown — not yet profiled |
 | `ECM` | evidential | `_ecm.py` | 71 | 5 (3) | normx2 | 6.8 | not yet profiled | not yet profiled | unknown — not yet profiled |
-| `ENTROPYFCM` | fuzzy | `_entropyfcm.py` | 64 | 1 (1) | normx3 | 0.7 | not yet profiled | not yet profiled | unknown — not yet profiled |
+| `ENTROPYFCM` | fuzzy | `_entropyfcm.py` | 63 | 1 (1) | normx3 | 0.7 | not yet profiled | not yet profiled | unknown — not yet profiled |
+| `EVCLUS` |  | `_evclus.py` | 194 | 1 (1) | — | 109.0 | not yet profiled | not yet profiled | unknown — not yet profiled |
 | `FCC` | fuzzy | `_fcc.py` | 57 | 4 (2) | normx2 | 4.0 | not yet profiled | not yet profiled | unknown — not yet profiled |
-| `FCM` | fuzzy | `_fcm.py` | 118 | 2 (1) | appendx1 | 2.6 | not yet profiled | not yet profiled | unknown — not yet profiled |
-| `FeMIFuzzy` | federated | `_femifuzzy.py` | 230 | 23 (3) | appendx11, normx4 | — | not yet profiled | not yet profiled | unknown — not yet profiled |
+| `FCM` | fuzzy | `_fcm.py` | 114 | 2 (1) | appendx1 | 2.6 | not yet profiled | not yet profiled | unknown — not yet profiled |
+| `FeMIFuzzy` | federated | `_femifuzzy.py` | 349 | 15 (3) | appendx13, einsumx2, normx5, svdx1 | — | not yet profiled | not yet profiled | unknown — not yet profiled |
 | `GK` | fuzzy | `_gk.py` | 159 | 6 (2) | appendx1, invx1 | 7.8 | not yet profiled | not yet profiled | unknown — not yet profiled |
-| `GMM` | mixture | `_gmm.py` | 200 | 9 (2) | appendx1 | 11.7 | not yet profiled | not yet profiled | unknown — not yet profiled |
-| `KFCCL` | kernel | `_kfccl.py` | 106 | 2 (2) | — | 143.3 | 41,346 `np.sum` calls — per-element Python reduction | unchanged (both builds hold the (N,N) kernel) | **done — 26.5-152.0x** |
-| `KFCM` | kernel | `_kfcm.py` | 141 | 2 (1) | normx1 | 51.3 | `typeguard` check_type_internal 22.5 ms + isinstance 17.5 ms of 175 ms, riding on N*k scalar kernel calls per iteration | low (0.26 -> 0.86 MB at n=1600) | **done — 81.9-545.5x** |
+| `GMM` | mixture | `_gmm.py` | 224 | 11 (2) | appendx1 | 11.7 | not yet profiled | not yet profiled | unknown — not yet profiled |
+| `GathGeva` |  | `_gathgeva.py` | 182 | 4 (1) | appendx1, einsumx2, normx1 | 7.6 | not yet profiled | not yet profiled | unknown — not yet profiled |
+| `KFCCL` | kernel | `_kfccl.py` | 110 | 2 (2) | — | 143.3 | 41,346 `np.sum` calls — per-element Python reduction | unchanged (both builds hold the (N,N) kernel) | **done — 26.5-152.0x** |
+| `KFCM` | kernel | `_kfcm.py` | 145 | 2 (1) | normx1 | 51.3 | `typeguard` check_type_internal 22.5 ms + isinstance 17.5 ms of 175 ms, riding on N*k scalar kernel calls per iteration | low (0.26 -> 0.86 MB at n=1600) | **done — 81.9-545.5x** |
 | `KMART` | document | `_kmart.py` | 208 | 9 (3) | appendx4 | 46.1 | 28,634 `np.sum` calls in `_fuzzy_and` | unchanged | **done — 9.8-71.2x** |
-| `LDA` | document | `_lda.py` | 123 | 4 (3) | — | — | not yet profiled | not yet profiled | unknown — not yet profiled |
-| `MBMM` | mixture | `_mbmm.py` | 105 | 3 (1) | — | 227.7 | `scipy.stats.beta.logpdf` called K*D times per E-step and per log-likelihood | low | **done — 6.3-16.9x** |
-| `MMSB` | graph | `_mmsb.py` | 45 | 2 (2) | — | — | not yet profiled | not yet profiled | unknown — not yet profiled |
+| `LDA` | document | `_lda.py` | 136 | 4 (3) | — | — | not yet profiled | not yet profiled | unknown — not yet profiled |
+| `MBMM` | mixture | `_mbmm.py` | 99 | 3 (1) | — | 227.7 | `scipy.stats.beta.logpdf` called K*D times per E-step and per log-likelihood | low | **done — 6.3-16.9x** |
+| `MMSB` | graph | `_mmsb.py` | 256 | 2 (2) | eigx1, einsumx4, normx1 | — | not yet profiled | not yet profiled | unknown — not yet profiled |
 | `NOCD` | deep | `_nocd.py` | 497 | 5 (1) | appendx1 | — | not yet profiled | not yet profiled | unknown — not yet profiled |
 | `PCM` | possibilistic | `_pcm.py` | 138 | 3 (1) | appendx1 | 1.7 | not yet profiled | not yet profiled | unknown — not yet profiled |
 | `PFCM` | possibilistic | `_pfcm.py` | 129 | 6 (1) | normx2 | 2.1 | not yet profiled | not yet profiled | unknown — not yet profiled |
@@ -53,17 +55,17 @@ primitives (DBSCAN, KMeans, eigen-solvers) inside some methods.
 | `SFCMEP` | semi-supervised | `_sfcmep.py` | 160 | 9 (2) | appendx3, normx5 | 18.9 | not yet profiled | not yet profiled | unknown — not yet profiled |
 | `SHBGF` | ensemble | `_shbgf.py` | 34 | 0 (0) | — | 999.9 | ~1 s floor independent of n; sklearn KMeans `n_init` + BLAS threads | 69.9 MB traced peak | high (untouched) |
 | `SISC` | document | `_sisc.py` | 292 | 18 (3) | appendx5 | 71.1 | `_tanimoto_similarity` over Python sets, 10,624 calls | low | medium (untouched) |
-| `SKFCM` | kernel | `_skfcm.py` | 74 | 4 (1) | normx1 | — | not yet profiled | not yet profiled | unknown — not yet profiled |
+| `SKFCM` | kernel | `_skfcm.py` | 68 | 3 (1) | normx1 | — | not yet profiled | not yet profiled | unknown — not yet profiled |
 | `SMCLA` | ensemble | `_smcla.py` | 35 | 2 (1) | — | 996.9 | ~1 s floor independent of n; sklearn KMeans `n_init` + BLAS threads | 69.9 MB traced peak | high (untouched) |
-| `SoftDBSCANGM` | density | `_softdbscangm.py` | 137 | 3 (1) | einsumx2, invx1, normx1 | 35,306.1 | N*k^2 scalar `scipy...mahalanobis` calls per iteration (1,036,800 at n=80) | low (scalars); optimization trades memory for time | **done — 889-4507x** |
-| `SoftKSC` | spectral | `_softksc.py` | 59 | 0 (0) | — | — | not yet profiled | not yet profiled | unknown — not yet profiled |
+| `SoftDBSCANGM` | density | `_softdbscangm.py` | 134 | 3 (1) | einsumx2, invx1, normx1 | 35,306.1 | N*k^2 scalar `scipy...mahalanobis` calls per iteration (1,036,800 at n=80) | low (scalars); optimization trades memory for time | **done — 889-4507x** |
+| `SoftKSC` | spectral | `_softksc.py` | 87 | 0 (0) | — | — | not yet profiled | not yet profiled | unknown — not yet profiled |
 | `WBSC` | document | `_wbsc.py` | 129 | 8 (3) | appendx1 | 7.1 | not yet profiled | not yet profiled | unknown — not yet profiled |
 
 ## Coverage of this study
 
-- Algorithms exported by SCPP: **40**
-- Statically audited: **40**
-- Baseline-timed in the survey: **28**
+- Algorithms exported by SCPP: **42**
+- Statically audited: **42**
+- Baseline-timed in the survey: **30**
 - Profiled in detail: **10**
 - Optimized, verified and benchmarked end to end: **5**
 

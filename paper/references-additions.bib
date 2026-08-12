@@ -1,0 +1,144 @@
+% =====================================================================
+% Bibliography entries to MERGE INTO sample.bib for the revised SCPP paper.
+%
+% Part 1 adds entries the revision cites for the first time.
+% Part 2 REPLACES existing entries whose provenance was wrong: five of the
+% foundational citations pointed at reprints or re-uploads rather than the
+% original publications, which is the kind of thing a reviewer reads as
+% carelessness about attribution.
+% =====================================================================
+
+
+% ---------------------------------------------------------------------
+% PART 1 -- NEW ENTRIES
+% ---------------------------------------------------------------------
+
+% Related work: the two graph libraries whose omission was the most
+% significant gap in the original comparison table. CDlib in particular
+% already unifies a large collection of overlapping community detection
+% methods behind one abstraction, including a fuzzy variant.
+@article{rossetti2019cdlib,
+  title     = {{CDLIB}: a python library to extract, compare and evaluate
+               communities from complex networks},
+  author    = {Rossetti, Giulio and Milli, Letizia and Cazabet, R{\'e}my},
+  journal   = {Applied Network Science},
+  volume    = {4},
+  number    = {1},
+  pages     = {52},
+  year      = {2019},
+  publisher = {Springer},
+  doi       = {10.1007/s41109-019-0165-9}
+}
+
+@inproceedings{rozemberczki2020karateclub,
+  title     = {Karate {C}lub: An {API} Oriented Open-source Python Framework
+               for Unsupervised Learning on Graphs},
+  author    = {Rozemberczki, Benedek and Kiss, Oliver and Sarkar, Rik},
+  booktitle = {Proceedings of the 29th ACM International Conference on
+               Information and Knowledge Management (CIKM '20)},
+  pages     = {3125--3132},
+  year      = {2020},
+  publisher = {ACM}
+}
+
+% Methodology now cited in the appendices.
+@article{sammon1969nonlinear,
+  title   = {A nonlinear mapping for data structure analysis},
+  author  = {Sammon, John W.},
+  journal = {IEEE Transactions on Computers},
+  volume  = {C-18},
+  number  = {5},
+  pages   = {401--409},
+  year    = {1969}
+}
+
+@inproceedings{jang2017categorical,
+  title     = {Categorical Reparameterization with {G}umbel-Softmax},
+  author    = {Jang, Eric and Gu, Shixiang and Poole, Ben},
+  booktitle = {International Conference on Learning Representations (ICLR)},
+  year      = {2017}
+}
+
+% Cluster-validity indices, previously used without citation.
+@article{xie1991validity,
+  title   = {A validity measure for fuzzy clustering},
+  author  = {Xie, Xuanli Lisa and Beni, Gerardo},
+  journal = {IEEE Transactions on Pattern Analysis and Machine Intelligence},
+  volume  = {13},
+  number  = {8},
+  pages   = {841--847},
+  year    = {1991}
+}
+
+@article{dave1996validating,
+  title   = {Validating fuzzy partitions obtained through c-shells clustering},
+  author  = {Dav{\'e}, Rajesh N.},
+  journal = {Pattern Recognition Letters},
+  volume  = {17},
+  number  = {6},
+  pages   = {613--623},
+  year    = {1996}
+}
+
+
+% ---------------------------------------------------------------------
+% PART 2 -- CORRECTED ENTRIES (replace the existing keys of the same name)
+% ---------------------------------------------------------------------
+
+% WAS: bezdek2013pattern, the Springer reprint. The original is 1981.
+% NOTE: the citation key changes to bezdek1981pattern in the revised .tex.
+@book{bezdek1981pattern,
+  title     = {Pattern Recognition with Fuzzy Objective Function Algorithms},
+  author    = {Bezdek, James C.},
+  year      = {1981},
+  publisher = {Springer US},
+  address   = {Boston, MA},
+  doi       = {10.1007/978-1-4757-0450-1}
+}
+
+% WAS: krishnapuram2002possibilistic, with the year given as 2002 while the
+% volume, issue and pages were those of the 1993 paper.
+% NOTE: the citation key changes to krishnapuram1993possibilistic.
+@article{krishnapuram1993possibilistic,
+  title   = {A possibilistic approach to clustering},
+  author  = {Krishnapuram, Raghuram and Keller, James M.},
+  journal = {IEEE Transactions on Fuzzy Systems},
+  volume  = {1},
+  number  = {2},
+  pages   = {98--110},
+  year    = {1993}
+}
+
+% WAS: hofmann2013probabilistic, citing the 2013 arXiv re-upload of a 1999
+% UAI paper. NOTE: the citation key changes to hofmann1999plsa.
+@inproceedings{hofmann1999plsa,
+  title     = {Probabilistic Latent Semantic Analysis},
+  author    = {Hofmann, Thomas},
+  booktitle = {Proceedings of the Fifteenth Conference on Uncertainty in
+               Artificial Intelligence (UAI)},
+  pages     = {289--296},
+  year      = {1999}
+}
+
+% WAS: an entry rendering in text as "oli, 2026" because the author field was
+% malformed.
+@misc{oliver_fuzzycat,
+  title        = {fuzzycat: Fuzzy clustering and cluster comparison},
+  author       = {Oliver, William H.},
+  year         = {2024},
+  howpublished = {\url{https://github.com/william-h-oliver/fuzzycat}},
+  note         = {Accessed 2026-08-12}
+}
+
+% WAS: an entry whose year field (1979) disagreed with the proceedings title
+% (1978 IEEE CDC). The conference was December 1978; proceedings 1979.
+@inproceedings{gustafson1979fuzzy,
+  title     = {Fuzzy clustering with a fuzzy covariance matrix},
+  author    = {Gustafson, Donald E. and Kessel, William C.},
+  booktitle = {1978 IEEE Conference on Decision and Control including the
+               17th Symposium on Adaptive Processes},
+  pages     = {761--766},
+  year      = {1979},
+  publisher = {IEEE},
+  note      = {Conference held December 1978; proceedings published 1979}
+}

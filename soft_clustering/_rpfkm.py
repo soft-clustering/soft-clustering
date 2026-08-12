@@ -6,8 +6,9 @@ from ._base import BaseSoftClusterer
 
 @typechecked
 class RPFKM(BaseSoftClusterer):
-    # memberships are defined in the projected subspace and left unnormalised
-    _partition_constrained = False
+    # Memberships are a softmax of the projected distances (see _update_U),
+    # so they are normalised over clusters by construction.
+    _partition_constrained = True
 
     def __init__(
         self,

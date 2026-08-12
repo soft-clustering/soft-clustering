@@ -104,6 +104,10 @@ class KFCCL(BaseSoftClusterer):
         labels : ndarray of shape (n_samples,)
         """
         N: int = X.shape[0]
+        if self.n_clusters > N:
+            raise ValueError(
+                f"n_clusters={self.n_clusters} exceeds the number of samples ({N})."
+            )
         self.K = self._gaussian_kernel_matrix(X)
         K_diag: np.ndarray = np.sqrt(np.diag(self.K))
 

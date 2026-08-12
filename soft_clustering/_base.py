@@ -67,6 +67,7 @@ K_ALIASES: tuple[str, ...] = (
     "n_topics",
     "n_components",
     "n_communities",
+    "n_blocks",
     "c_clusters",
 )
 
@@ -89,6 +90,64 @@ def _n_samples_of(data: Any) -> int | None:
         return len(data)
     except TypeError:
         return None
+
+
+def ratio_memberships(distances: np.ndarray, exponent: float) -> np.ndarray:
+    """The fuzzy c-means ratio rule, evaluated without overflow.
+
+    Returns the ``(n_samples, n_clusters)`` matrix
+
+    .. math::
+
+        u_{ik} \\;=\\; \\frac{d_{ik}^{-p}}{\\sum_j d_{ij}^{-p}}
+               \\;=\\; \\Big[\\sum_j (d_{ik}/d_{ij})^{p}\\Big]^{-1},
+
+    where ``exponent`` is :math:`p`, already matched to whether ``distances``
+    holds distances (:math:`p = 2/(m-1)`) or squared distances
+    (:math:`p = 1/(m-1)`).
+
+    Why this exists as a shared helper. Written directly as
+    ``d ** -p / (d ** -p).sum(...)``, the rule overflows whenever a sample
+    lies on a prototype (``d`` underflows, ``d ** -p`` is ``inf``) or the
+    fuzzifier approaches one (``p`` grows without bound), and the
+    normalisation then yields an all-``NaN`` row. Nine modules in this library
+    each carried their own copy of the unstable form.
+
+    The fix is to factor out the per-sample minimum distance before
+    exponentiating. That factor cancels exactly between numerator and
+    denominator, so the value is unchanged, while every ratio is at least one
+    and every power therefore lies in ``(0, 1]``. A sample coincident with a
+    prototype underflows to a clean one-hot row instead of producing ``NaN``.
+    Evaluating in log space keeps that true for any ``p``.
+    """
+    distances = np.asarray(distances, dtype=np.float64)
+    log_d = np.log(np.maximum(distances, np.finfo(np.float64).tiny))
+    scores = -exponent * (log_d - log_d.min(axis=1, keepdims=True))
+    np.exp(scores, out=scores)
+    total = scores.sum(axis=1, keepdims=True)
+    return scores / np.where(total > 0, total, 1.0)
+
+
+def _bind_params(init: Any, args: tuple, kwargs: dict) -> dict[str, Any]:
+    """Constructor arguments as a name -> value mapping, defaults included."""
+    try:
+        bound = inspect.signature(init).bind(None, *args, **kwargs)
+    except TypeError:  # pragma: no cover - the call itself would have failed
+        return {}
+    bound.apply_defaults()
+    arguments = dict(bound.arguments)
+    # Drop ``self`` and any *args / **kwargs catch-alls, which are not
+    # reconstructible parameters.
+    for name, parameter in inspect.signature(init).parameters.items():
+        if parameter.kind in (
+            inspect.Parameter.VAR_POSITIONAL,
+            inspect.Parameter.VAR_KEYWORD,
+        ):
+            arguments.pop(name, None)
+    first = next(iter(inspect.signature(init).parameters), None)
+    if first is not None:
+        arguments.pop(first, None)
+    return arguments
 
 
 def _as_2d_array(value: Any) -> np.ndarray | None:
@@ -154,6 +213,14 @@ class BaseSoftClusterer:
     #: the constructor is ignored.
     _determines_k: bool = False
 
+    #: ``True`` only for estimators that define a genuine out-of-sample rule,
+    #: i.e. that can assign a sample they were not fitted on. Most soft
+    #: clustering algorithms are transductive and cannot; for those,
+    #: ``predict(X)`` raises rather than silently returning the training
+    #: labels, which would be a partition of the wrong data with the wrong
+    #: length.
+    _supports_out_of_sample: bool = False
+
     # Populated by the fit wrapper installed in __init_subclass__.
     memberships_: np.ndarray | None = None
     labels_: np.ndarray | None = None
@@ -205,6 +272,11 @@ class BaseSoftClusterer:
                         deferred = kw.pop(alias)
                         break
             init(self, *args, **kw)
+            # Record the constructor arguments verbatim so that get_params
+            # round-trips exactly. Reading them back off the instance would
+            # not: several estimators store a parameter under a different
+            # attribute name (PFCM keeps ``typicality_fuzzifier`` as ``eta``).
+            self._scpp_params = _bind_params(init, args, kw)
             if own is not None:
                 self.n_clusters = getattr(self, own, kw.get(own))
                 if self.n_clusters is None:
@@ -212,6 +284,10 @@ class BaseSoftClusterer:
                     self.n_clusters = bound.arguments.get(own)
             elif deferred is not None:
                 self.n_clusters = deferred
+                # The estimator takes K at fit time, so it is not one of the
+                # constructor's own parameters; record it anyway or clone()
+                # would silently drop it.
+                self._scpp_params["n_clusters"] = deferred
 
         wrapper._scpp_wrapped = True  # type: ignore[attr-defined]
         cls.__init__ = wrapper  # type: ignore[assignment]
@@ -275,20 +351,36 @@ class BaseSoftClusterer:
         return self.memberships_
 
     def predict(self, X=None) -> np.ndarray:
-        """Return hard cluster assignments.
+        """Return hard cluster assignments for the fitted data.
 
         Most soft clustering algorithms in SCPP are transductive: they produce
-        a partition of the data they were fitted on and define no out-of-sample
-        rule. For those, ``predict`` ignores ``X`` and returns the stored
-        ``labels_``; estimators with a genuine out-of-sample rule override it.
+        a partition of the data they were fitted on and define no rule for
+        assigning a new sample. Calling ``predict()`` with no argument returns
+        the stored ``labels_``. Passing ``X`` to a transductive estimator
+        raises :class:`NotImplementedError`, because returning the training
+        labels would silently hand back a partition of different data, of the
+        wrong length. Estimators that do define an out-of-sample rule set
+        :attr:`_supports_out_of_sample` and override this method.
         """
         self._check_fitted()
+        self._reject_out_of_sample(X, "predict")
         return self.labels_
 
     def predict_proba(self, X=None) -> np.ndarray:
         """Return the membership matrix, with the same caveat as :meth:`predict`."""
         self._check_fitted()
+        self._reject_out_of_sample(X, "predict_proba")
         return self.memberships_
+
+    def _reject_out_of_sample(self, X, method: str) -> None:
+        if X is None or self._supports_out_of_sample:
+            return
+        raise NotImplementedError(
+            f"{type(self).__name__} is transductive: it partitions the data it "
+            f"was fitted on and defines no out-of-sample rule, so "
+            f"{method}(X) is not available. Call {method}() with no argument "
+            f"for the fitted partition, or refit on the combined data."
+        )
 
     # ------------------------------------------------------------------
     # Internals
@@ -302,7 +394,13 @@ class BaseSoftClusterer:
 
     def _normalise_fitted_state(self, result: Any, data: Any) -> None:
         """Populate ``memberships_``, ``labels_``, ``centers_`` after a fit."""
-        n_samples = _n_samples_of(data)
+        # Sample count is normally read off the fit input, but for a few
+        # estimators the input is not sample-major -- an image clusterer
+        # receives an (H, W) array and partitions H*W pixels. Those set
+        # ``_n_samples_hint`` during fit and it wins.
+        n_samples = getattr(self, "_n_samples_hint", None)
+        if n_samples is None:
+            n_samples = _n_samples_of(data)
         U = self._extract_membership(result, n_samples)
 
         if U is not None:
@@ -379,6 +477,50 @@ class BaseSoftClusterer:
     # Introspection
     # ------------------------------------------------------------------
 
+    def get_params(self, deep: bool = True) -> dict[str, Any]:
+        """Return the constructor arguments, scikit-learn style.
+
+        Implementing this (with :meth:`set_params`) is what makes
+        ``sklearn.base.clone`` and scikit-learn's parameter introspection work
+        on SCPP estimators. It does **not** make them drop-in scikit-learn
+        clusterers: ``fit`` signatures differ by input modality and no
+        estimator defines ``score``, so tools that require a uniform
+        ``fit(X, y)`` or a default scorer --- ``GridSearchCV`` without an
+        explicit ``scoring`` argument, for one --- still do not apply.
+
+        Parameters
+        ----------
+        deep : bool
+            Accepted for signature compatibility. SCPP estimators do not
+            contain nested estimators, so it has no effect.
+        """
+        params = getattr(self, "_scpp_params", None)
+        if params is None:  # pragma: no cover - estimator with no own __init__
+            return {}
+        return dict(params)
+
+    def set_params(self, **params: Any) -> BaseSoftClusterer:
+        """Set constructor arguments in place and return ``self``.
+
+        The estimator is reconstructed from the merged parameters, so any
+        derived state the constructor computes stays consistent. Fitted
+        attributes are discarded, as they are for a scikit-learn estimator.
+        """
+        current = self.get_params()
+        unknown = sorted(set(params) - set(current))
+        if unknown:
+            raise ValueError(
+                f"invalid parameter(s) {unknown} for estimator "
+                f"{type(self).__name__}; valid parameters are "
+                f"{sorted(current)}"
+            )
+        current.update(params)
+        type(self).__init__(self, **current)
+        return self
+
     def __repr__(self) -> str:  # pragma: no cover - cosmetic
-        k = self.n_clusters
-        return f"{type(self).__name__}(n_clusters={k})"
+        params = self.get_params()
+        if not params:
+            return f"{type(self).__name__}()"
+        rendered = ", ".join(f"{k}={v!r}" for k, v in sorted(params.items()))
+        return f"{type(self).__name__}({rendered})"

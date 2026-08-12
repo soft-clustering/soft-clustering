@@ -5,7 +5,7 @@ Welcome to soft-clustering documentation!
 .. image:: https://raw.githubusercontent.com/soft-clustering/soft-clustering/refs/heads/main/SCPP_Poster.png
 
 
-Soft Clustering is a comprehensive Python library for soft and fuzzy clustering algorithms. It provides a wide range of state-of-the-art methods for membership-based, possibilistic, evidential, graph, document, and deep clustering models.
+SCPP collects 42 soft clustering algorithms behind one estimator protocol, spanning fuzzy, possibilistic, evidential, probabilistic, graph, document, ensemble and deep methods, together with a benchmarking suite for comparing them on equal terms.
 
 This package is designed to support research and applied workflows involving clustering under uncertainty, overlapping memberships, and soft assignments.
 
@@ -13,11 +13,11 @@ This package is designed to support research and applied workflows involving clu
 Features
 --------
 
-- **Fuzzy clustering**: `FCM`, `PCM`, `GK`, `SCM`, `SISC`, `KFCM`, `PFCM`, `CAFCM`, and related variants
-- **Probabilistic and mixture models**: `GMM`, `LDA`, `PLSI`, `MBMM`, `MMSB`, `BGMM`
-- **Rough and possibilistic clustering**: `RoughKMeans`, `WBSC`, `NOCD`, `DMon`, `RDFKC`
-- **Nonnegative matrix factorization and graph clustering**: `BayesianNMF`, `BIGCLAM`, `CDCgS`, `SoftDBSCANGM`
-- **Document and graph clustering methods**: `KMART`, `SCSPA` and additional soft clustering algorithms
+- **Fuzzy clustering**: ``FCM``, ``PCM``, ``GK``, ``GathGeva``, ``SCM``, ``SISC``, ``KFCM``, ``PFCM``, ``CAFCM``, and related variants
+- **Probabilistic and mixture models**: ``GMM``, ``LDA``, ``PLSI``, ``MBMM``, ``MMSB``, ``BGMM``
+- **Rough, possibilistic and evidential clustering**: ``RoughKMeans``, ``WBSC``, ``ECM``, ``EVCLUS``
+- **Graph and community detection**: ``BayesianNMF``, ``BIGCLAM``, ``MMSB``, ``CDCGS``, ``NOCD``, ``DMoN``
+- **Document, density and ensemble methods**: ``KMART``, ``WBSC``, ``SISC``, ``SoftDBSCANGM``, ``SCSPA``, ``SHBGF``, ``SMCLA``
 
 
 Installation
@@ -196,3 +196,5 @@ Distributed under the terms of the MIT license.
    lda
    mbmm
    sfcmep
+   gathgeva
+   evclus

@@ -443,6 +443,17 @@ class TestAdapterIdentity:
 # ==========================================================================
 
 
+_ALL_SOFT_KEYS = {
+    "partition_coefficient",
+    "modified_partition_coefficient",
+    "partition_entropy",
+    "fuzzy_hypervolume",
+    "xie_beni",
+    "fuzzy_compactness",
+    "fuzzy_separation",
+}
+
+
 class TestSoftMetrics:
     def test_crisp_partition_is_maximally_certain(self):
         U = np.eye(3)[np.array([0, 1, 2, 0, 1, 2])]
@@ -457,9 +468,44 @@ class TestSoftMetrics:
         assert metrics.modified_partition_coefficient(U) == pytest.approx(0.0)
         assert metrics.partition_entropy(U) == pytest.approx(np.log(c), abs=1e-6)
 
-    def test_fuzzy_hypervolume(self):
-        U = np.full((5, 2), 0.5)
-        assert metrics.fuzzy_hypervolume(U) == pytest.approx(0.25)
+    def test_fuzzy_hypervolume_matches_the_analytic_volume(self):
+        """FHV = sum_i sqrt(det F_i) with F_i the fuzzy covariance.
+
+        For two crisp isotropic clusters of standard deviation s in d
+        dimensions, det F_i = s^(2d), so the index converges to 2 * s^d.
+        """
+        rng = np.random.default_rng(0)
+        s, d, n = 0.5, 2, 4000
+        X = np.vstack([rng.normal(0, s, (n, d)), rng.normal(10, s, (n, d))])
+        U = np.zeros((2 * n, 2))
+        U[:n, 0] = 1.0
+        U[n:, 1] = 1.0
+        centers = np.vstack([X[:n].mean(axis=0), X[n:].mean(axis=0)])
+
+        assert metrics.fuzzy_hypervolume(X, U, centers, m=1.0) == pytest.approx(
+            2 * s**d, rel=0.02
+        )
+
+    def test_fuzzy_hypervolume_scales_as_a_volume(self):
+        """Scaling the data by a must scale a d-dimensional volume by a**d."""
+        rng = np.random.default_rng(1)
+        X = rng.normal(size=(500, 3))
+        U = np.zeros((500, 2))
+        U[:250, 0] = 1.0
+        U[250:, 1] = 1.0
+        centers = np.vstack([X[:250].mean(axis=0), X[250:].mean(axis=0)])
+
+        base = metrics.fuzzy_hypervolume(X, U, centers, m=1.0)
+        scaled = metrics.fuzzy_hypervolume(2 * X, U, 2 * centers, m=1.0)
+        assert scaled / base == pytest.approx(2**3, rel=1e-6)
+
+    def test_fuzzy_hypervolume_is_zero_for_a_degenerate_cluster(self):
+        """A cluster confined to a line occupies no volume."""
+        X = np.zeros((100, 2))
+        X[:, 0] = np.linspace(0, 1, 100)
+        U = np.ones((100, 1))
+        centers = X.mean(axis=0, keepdims=True)
+        assert metrics.fuzzy_hypervolume(X, U, centers, m=1.0) == pytest.approx(0.0)
 
     def test_fuzzy_separation_is_mean_pairwise_distance(self):
         centers = np.array([[0.0, 0.0], [3.0, 4.0]])
@@ -491,21 +537,69 @@ class TestSoftMetrics:
         assert metrics.fuzzy_compactness(X, U, np.zeros((2, 2))) == pytest.approx(0.0)
 
     def test_soft_clustering_metrics_without_centers(self):
+        """Every key is present; the prototype-based ones are nan."""
         U = _random_memberships(20, 3)
         out = metrics.soft_clustering_metrics(np.zeros((20, 2)), U)
-        assert set(out) == {
+        assert set(out) == _ALL_SOFT_KEYS
+        assert np.isfinite(out["partition_coefficient"])
+        for key in (
+            "fuzzy_hypervolume",
+            "xie_beni",
+            "fuzzy_compactness",
+            "fuzzy_separation",
+        ):
+            assert np.isnan(out[key])
+
+    def test_soft_clustering_metrics_with_centers(self):
+        rng = np.random.default_rng(0)
+        U = _random_memberships(20, 3)
+        X = rng.normal(size=(20, 2))
+        centers = np.array([[0.0, 0.0], [5.0, 0.0], [0.0, 5.0]])
+        out = metrics.soft_clustering_metrics(X, U, centers=centers)
+        assert set(out) == _ALL_SOFT_KEYS
+        assert all(np.isfinite(v) for v in out.values())
+
+    def test_xie_beni_diverges_for_coincident_prototypes(self):
+        """Zero separation means the index is unbounded, not zero.
+
+        The previous implementation replaced the zero separation with inf and
+        then divided by it, silently reporting a perfect 0.0 for a completely
+        degenerate solution.
+        """
+        X = np.random.default_rng(0).normal(size=(10, 2))
+        U = _random_memberships(10, 3)
+        assert metrics.xie_beni_index(X, U, np.zeros((3, 2))) == np.inf
+
+    def test_fuzziness_indices_are_nan_for_unnormalised_memberships(self):
+        """PC, MPC and PE are only defined under the partition constraint.
+
+        Reporting them for possibilistic typicalities puts numbers on
+        different scales into the same table column.
+        """
+        rng = np.random.default_rng(0)
+        typicalities = np.abs(rng.normal(size=(20, 3)))
+        X = rng.normal(size=(20, 2))
+        centers = np.array([[0.0, 0.0], [5.0, 0.0], [0.0, 5.0]])
+        out = metrics.soft_clustering_metrics(X, typicalities, centers)
+        for key in (
             "partition_coefficient",
             "modified_partition_coefficient",
             "partition_entropy",
-            "fuzzy_hypervolume",
-        }
+        ):
+            assert np.isnan(out[key])
+        # The prototype-based indices do not need normalisation.
+        assert np.isfinite(out["xie_beni"])
 
-    def test_soft_clustering_metrics_with_centers(self):
+    def test_declared_constraint_overrides_detection(self):
         U = _random_memberships(20, 3)
-        X = np.random.default_rng(0).normal(size=(20, 2))
-        out = metrics.soft_clustering_metrics(X, U, centers=np.zeros((3, 2)))
-        assert {"xie_beni", "fuzzy_compactness", "fuzzy_separation"} <= set(out)
-        assert all(np.isfinite(v) for v in out.values())
+        out = metrics.soft_clustering_metrics(
+            np.zeros((20, 2)), U, partition_constrained=False
+        )
+        assert np.isnan(out["partition_coefficient"])
+
+    def test_is_partition_constrained(self):
+        assert metrics.is_partition_constrained(_random_memberships(10, 3))
+        assert not metrics.is_partition_constrained(np.ones((10, 3)))
 
 
 @needs_sklearn
@@ -523,10 +617,23 @@ class TestHardMetrics:
         assert out["ari"] == pytest.approx(1.0)
         assert out["nmi"] == pytest.approx(1.0)
 
-    def test_single_cluster_skips_internal_metrics(self):
+    def test_single_cluster_reports_internal_metrics_as_nan(self):
+        """Keys are always present so benchmark tables have no ragged rows."""
         X = np.random.default_rng(0).normal(size=(10, 2))
         out = metrics.clustering_metrics(X, np.zeros(10, dtype=int))
-        assert "silhouette" not in out
+        assert set(out) == {
+            "silhouette",
+            "calinski_harabasz",
+            "davies_bouldin",
+            "ari",
+            "nmi",
+        }
+        assert np.isnan(out["silhouette"])
+
+    def test_external_metrics_are_nan_without_ground_truth(self):
+        X = np.vstack([np.zeros((5, 2)), np.ones((5, 2)) * 5])
+        out = metrics.clustering_metrics(X, np.array([0] * 5 + [1] * 5))
+        assert np.isnan(out["ari"]) and np.isnan(out["nmi"])
 
 
 # ==========================================================================
