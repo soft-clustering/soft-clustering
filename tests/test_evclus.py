@@ -70,9 +70,7 @@ def test_ignorance_is_the_omega_mass():
 def test_labels_are_argmax():
     X, _ = blobs()
     model = EVCLUS(n_clusters=3, random_state=0).fit(X)
-    np.testing.assert_array_equal(
-        model.labels_, np.argmax(model.memberships_, axis=1)
-    )
+    np.testing.assert_array_equal(model.labels_, np.argmax(model.memberships_, axis=1))
 
 
 def test_reproducible_under_fixed_seed():
@@ -115,9 +113,7 @@ class TestObjective:
                 model._objective(alpha + bump, delta, norm)[0]
                 - model._objective(alpha - bump, delta, norm)[0]
             ) / (2 * step)
-            assert abs(numerical - gradient[index]) < 1e-5 * max(
-                1.0, abs(numerical)
-            )
+            assert abs(numerical - gradient[index]) < 1e-5 * max(1.0, abs(numerical))
 
     def test_stress_is_low_on_separable_data(self):
         X, _ = blobs(seed=1)
@@ -186,9 +182,7 @@ class TestEdgeCases:
         assert np.isfinite(U).all()
 
 
-@pytest.mark.parametrize(
-    "kwargs", [{"n_clusters": 0}, {"max_iter": 0}, {"n_init": 0}]
-)
+@pytest.mark.parametrize("kwargs", [{"n_clusters": 0}, {"max_iter": 0}, {"n_init": 0}])
 def test_invalid_hyperparameters_raise(kwargs):
     with pytest.raises(ValueError):
         EVCLUS(**kwargs)

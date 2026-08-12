@@ -184,9 +184,9 @@ def test_large_fuzzifier(name):
 def test_float32_input(name):
     """Single-precision input must not change the output contract."""
     rng = np.random.default_rng(0)
-    X = np.vstack(
-        [rng.normal(-3, 0.3, (20, 3)), rng.normal(3, 0.3, (20, 3))]
-    ).astype(np.float32)
+    X = np.vstack([rng.normal(-3, 0.3, (20, 3)), rng.normal(3, 0.3, (20, 3))]).astype(
+        np.float32
+    )
     try:
         model = build(name).fit(X)
     except (ValueError, TypeError) as exc:
@@ -224,9 +224,7 @@ def test_fortran_ordered_input_evclus():
     # why n_init defaults to 3.
     single_c = EVCLUS_single().fit(np.ascontiguousarray(X)).stress_
     single_f = EVCLUS_single().fit(np.asfortranarray(X)).stress_
-    assert abs(single_c - single_f) > abs(
-        contiguous.stress_ - fortran.stress_
-    )
+    assert abs(single_c - single_f) > abs(contiguous.stress_ - fortran.stress_)
 
 
 def EVCLUS_single():

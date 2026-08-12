@@ -73,9 +73,7 @@ def test_accessors_require_a_fit():
 def test_labels_are_argmax(planted):
     A, _ = planted
     model = MMSB(n_blocks=3, random_state=0, max_iter=10).fit(A)
-    np.testing.assert_array_equal(
-        model.labels_, np.argmax(model.memberships_, axis=1)
-    )
+    np.testing.assert_array_equal(model.labels_, np.argmax(model.memberships_, axis=1))
 
 
 def test_reproducible_under_fixed_seed(planted):

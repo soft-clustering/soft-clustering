@@ -49,7 +49,9 @@ def test_forward_output_shapes(adj):
 def test_soft_assign_sums_to_one(adj):
     model = CDCGS(num_nodes=10, n_clusters=3)
     _, soft_assign = model(adj)
-    torch.testing.assert_close(soft_assign.sum(dim=1), torch.ones(10), atol=1e-5, rtol=0)
+    torch.testing.assert_close(
+        soft_assign.sum(dim=1), torch.ones(10), atol=1e-5, rtol=0
+    )
 
 
 def test_legacy_loss_signature_is_scalar(adj):
@@ -166,7 +168,13 @@ class TestOptimisation:
 
 @pytest.mark.parametrize(
     "kwargs",
-    [{"n_clusters": 0}, {"tau": 0.0}, {"tau_min": 0.0}, {"max_epochs": 0}, {"n_init": 0}],
+    [
+        {"n_clusters": 0},
+        {"tau": 0.0},
+        {"tau_min": 0.0},
+        {"max_epochs": 0},
+        {"n_init": 0},
+    ],
 )
 def test_invalid_hyperparameters_raise(kwargs):
     with pytest.raises(ValueError):

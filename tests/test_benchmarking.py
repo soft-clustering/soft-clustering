@@ -542,8 +542,12 @@ class TestSoftMetrics:
         out = metrics.soft_clustering_metrics(np.zeros((20, 2)), U)
         assert set(out) == _ALL_SOFT_KEYS
         assert np.isfinite(out["partition_coefficient"])
-        for key in ("fuzzy_hypervolume", "xie_beni", "fuzzy_compactness",
-                    "fuzzy_separation"):
+        for key in (
+            "fuzzy_hypervolume",
+            "xie_beni",
+            "fuzzy_compactness",
+            "fuzzy_separation",
+        ):
             assert np.isnan(out[key])
 
     def test_soft_clustering_metrics_with_centers(self):
@@ -577,8 +581,11 @@ class TestSoftMetrics:
         X = rng.normal(size=(20, 2))
         centers = np.array([[0.0, 0.0], [5.0, 0.0], [0.0, 5.0]])
         out = metrics.soft_clustering_metrics(X, typicalities, centers)
-        for key in ("partition_coefficient", "modified_partition_coefficient",
-                    "partition_entropy"):
+        for key in (
+            "partition_coefficient",
+            "modified_partition_coefficient",
+            "partition_entropy",
+        ):
             assert np.isnan(out[key])
         # The prototype-based indices do not need normalisation.
         assert np.isfinite(out["xie_beni"])
@@ -614,8 +621,13 @@ class TestHardMetrics:
         """Keys are always present so benchmark tables have no ragged rows."""
         X = np.random.default_rng(0).normal(size=(10, 2))
         out = metrics.clustering_metrics(X, np.zeros(10, dtype=int))
-        assert set(out) == {"silhouette", "calinski_harabasz",
-                            "davies_bouldin", "ari", "nmi"}
+        assert set(out) == {
+            "silhouette",
+            "calinski_harabasz",
+            "davies_bouldin",
+            "ari",
+            "nmi",
+        }
         assert np.isnan(out["silhouette"])
 
     def test_external_metrics_are_nan_without_ground_truth(self):

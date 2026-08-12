@@ -18,7 +18,9 @@ def planted_graph(n=60, k=3, p_in=0.6, p_out=0.05, n_features=4, seed=0):
     z = np.repeat(np.arange(k), n // k)
     probabilities = np.full((k, k), p_out)
     np.fill_diagonal(probabilities, p_in)
-    adj = (rng.random((n, n)) < probabilities[z[:, None], z[None, :]]).astype(np.float32)
+    adj = (rng.random((n, n)) < probabilities[z[:, None], z[None, :]]).astype(
+        np.float32
+    )
     adj = np.maximum(adj, adj.T)
     np.fill_diagonal(adj, 0.0)
 

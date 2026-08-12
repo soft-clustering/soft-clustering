@@ -244,9 +244,7 @@ class FeMIFuzzy(BaseSoftClusterer):
 
         def stress(Z):
             d = np.linalg.norm(Z[:, None, :] - Z[None, :, :], axis=2)
-            return float(
-                np.sum(((d_high - d)[off] ** 2) / d_high[off]) / 2.0 / c
-            )
+            return float(np.sum(((d_high - d)[off] ** 2) / d_high[off]) / 2.0 / c)
 
         previous = stress(Y)
         for _ in range(max(self.max_iter, 1)):

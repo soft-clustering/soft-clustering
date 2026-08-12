@@ -135,7 +135,9 @@ class CDCGS(nn.Module, BaseSoftClusterer):
 
         if random_state is not None:
             torch.manual_seed(random_state)
-        self.W_C = nn.Parameter(torch.randn(num_nodes, n_clusters)) if num_nodes else None
+        self.W_C = (
+            nn.Parameter(torch.randn(num_nodes, n_clusters)) if num_nodes else None
+        )
 
     # ------------------------------------------------------------------
     # Module interface
@@ -191,7 +193,7 @@ class CDCGS(nn.Module, BaseSoftClusterer):
     # Estimator interface
     # ------------------------------------------------------------------
 
-    def fit(self, adjacency_matrix) -> "CDCGS":
+    def fit(self, adjacency_matrix) -> CDCGS:
         """Fit on a binary ``(n_nodes, n_nodes)`` adjacency matrix."""
         adj = _as_tensor(adjacency_matrix)
         if adj.ndim != 2 or adj.shape[0] != adj.shape[1]:

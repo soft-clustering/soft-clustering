@@ -67,10 +67,13 @@ jobs:
 
       - name: Verify the reported claim counts still match the source
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
-        # Every quantitative claim in the paper and README comes from this
-        # script. Running it in CI is what stops those numbers drifting, as
-        # the test count and coverage figure previously did.
-        run: python tools/paper_stats.py --json
+        # Every quantitative claim in the paper and README comes from these
+        # scripts. Running them in CI is what stops the numbers drifting, as
+        # the test count, the coverage figure and the "18 algorithms under
+        # 10 ms" claim all previously did.
+        run: |
+          python tools/paper_stats.py --json
+          python tools/check_paper_numbers.py --full
 
       - name: Upload coverage to Codecov
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'

@@ -142,7 +142,7 @@ class DMoN(nn.Module, BaseSoftClusterer):
     # Estimator interface
     # ------------------------------------------------------------------
 
-    def fit(self, x, edge_index=None, adj=None) -> "DMoN":
+    def fit(self, x, edge_index=None, adj=None) -> DMoN:
         """Fit the encoder on a graph.
 
         Parameters

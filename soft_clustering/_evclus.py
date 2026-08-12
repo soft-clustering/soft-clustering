@@ -182,7 +182,7 @@ class EVCLUS(BaseSoftClusterer):
     # Estimator interface
     # ------------------------------------------------------------------
 
-    def fit(self, X: np.ndarray) -> "EVCLUS":
+    def fit(self, X: np.ndarray) -> EVCLUS:
         """Fit on a feature matrix, or on a dissimilarity matrix when
         ``metric='precomputed'``."""
         X = np.asarray(X, dtype=np.float64)

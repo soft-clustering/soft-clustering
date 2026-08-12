@@ -103,9 +103,7 @@ def _two_views(n=N, seed=13):
         [rng.normal(-2.0, 0.3, n // 2), rng.normal(2.0, 0.3, n - n // 2)]
     )
     beta = np.clip(
-        np.concatenate(
-            [rng.beta(2.0, 6.0, n // 2), rng.beta(6.0, 2.0, n - n // 2)]
-        ),
+        np.concatenate([rng.beta(2.0, 6.0, n // 2), rng.beta(6.0, 2.0, n - n // 2)]),
         1e-3,
         1 - 1e-3,
     )

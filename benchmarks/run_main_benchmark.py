@@ -338,7 +338,9 @@ def write_outputs(rows: list[dict], summary: list[dict], groups: list[str]) -> N
         r"NMI $\uparrow$ & $\bar{t}$ (ms) \\",
         r"\midrule",
     ]
-    for entry in sorted(summary, key=lambda e: -(e["mean_ari"] if np.isfinite(e["mean_ari"]) else -9)):
+    for entry in sorted(
+        summary, key=lambda e: -(e["mean_ari"] if np.isfinite(e["mean_ari"]) else -9)
+    ):
         lines.append(
             f"{entry['algorithm']} & {entry['datasets']} & {entry['completed']} & "
             f"{entry['degenerate']} & {entry['errors']} & "
@@ -366,7 +368,9 @@ def print_modalities() -> None:
     for modality, names in sorted(by_modality.items()):
         total += len(names)
         print(f"  {modality:36s} {len(names):2d}  {', '.join(names)}")
-    assert total == len(sc._ESTIMATORS), "modality table is out of step with the registry"
+    assert total == len(
+        sc._ESTIMATORS
+    ), "modality table is out of step with the registry"
     print(
         f"\n{len(FEATURE_ESTIMATORS)} of them take a plain feature matrix and are "
         "compared by this script."
@@ -383,9 +387,13 @@ def main() -> int:
         help="dataset groups to use; openml downloads over the network",
     )
     parser.add_argument("--timeout", type=float, default=60.0)
-    parser.add_argument("--max-samples", type=int, default=2000,
-                        help="subsample larger datasets, so one estimator "
-                             "cannot dominate the wall time")
+    parser.add_argument(
+        "--max-samples",
+        type=int,
+        default=2000,
+        help="subsample larger datasets, so one estimator "
+        "cannot dominate the wall time",
+    )
     parser.add_argument("--list-modalities", action="store_true")
     args = parser.parse_args()
 
@@ -423,10 +431,14 @@ def main() -> int:
 
     summary = summarise(rows)
     print("\n" + "=" * 72)
-    print(f"{'algorithm':16s} {'compl.':>7s} {'degen.':>7s} {'err':>4s} "
-          f"{'mean ARI':>9s} {'mean t (ms)':>12s}")
+    print(
+        f"{'algorithm':16s} {'compl.':>7s} {'degen.':>7s} {'err':>4s} "
+        f"{'mean ARI':>9s} {'mean t (ms)':>12s}"
+    )
     print("-" * 72)
-    for entry in sorted(summary, key=lambda e: -(e["mean_ari"] if np.isfinite(e["mean_ari"]) else -9)):
+    for entry in sorted(
+        summary, key=lambda e: -(e["mean_ari"] if np.isfinite(e["mean_ari"]) else -9)
+    ):
         print(
             f"{entry['algorithm']:16s} {entry['completed']:7d} "
             f"{entry['degenerate']:7d} {entry['errors']:4d} "

@@ -145,9 +145,7 @@ class MMSB(BaseSoftClusterer):
     # Inference
     # ------------------------------------------------------------------
 
-    def _initial_partition(
-        self, Y: np.ndarray, rng: np.random.Generator
-    ) -> np.ndarray:
+    def _initial_partition(self, Y: np.ndarray, rng: np.random.Generator) -> np.ndarray:
         """Hard partition used to break the mean-field symmetry."""
         n, K = Y.shape[0], self.n_blocks
         if self.init == "random" or K == 1 or n <= K:
@@ -173,7 +171,7 @@ class MMSB(BaseSoftClusterer):
         )
         return np.asarray(labels)
 
-    def fit(self, adjacency_matrix: np.ndarray) -> "MMSB":
+    def fit(self, adjacency_matrix: np.ndarray) -> MMSB:
         """Fit the model to a binary ``(n_nodes, n_nodes)`` adjacency matrix."""
         Y = np.asarray(adjacency_matrix, dtype=np.float64)
         if Y.ndim != 2 or Y.shape[0] != Y.shape[1]:
@@ -206,9 +204,11 @@ class MMSB(BaseSoftClusterer):
         )
         B = np.clip(edge_mass / (pair_mass + _EPS), _EPS, 1.0 - _EPS)
 
-        gamma = self.alpha + (phi_out * mask).sum(axis=1) + (
-            phi_in * mask
-        ).transpose(1, 0, 2).sum(axis=1)
+        gamma = (
+            self.alpha
+            + (phi_out * mask).sum(axis=1)
+            + (phi_in * mask).transpose(1, 0, 2).sum(axis=1)
+        )
         memberships = gamma / gamma.sum(axis=1, keepdims=True)
         self.n_iter_ = self.max_iter
 

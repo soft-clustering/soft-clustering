@@ -55,9 +55,7 @@ def test_memberships_sum_to_one():
 def test_labels_are_argmax():
     X, _ = blobs()
     model = GathGeva(n_clusters=3, random_state=0).fit(X)
-    np.testing.assert_array_equal(
-        model.labels_, np.argmax(model.memberships_, axis=1)
-    )
+    np.testing.assert_array_equal(model.labels_, np.argmax(model.memberships_, axis=1))
 
 
 def test_priors_sum_to_one():

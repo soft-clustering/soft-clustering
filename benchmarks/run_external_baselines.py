@@ -60,7 +60,9 @@ def blobs(n: int, d: int = 8, k: int = 3, spread: float = 0.45, seed: int = 0):
     per = n // k
     parts = [rng.normal(3.0 * i, spread, (per, d)) for i in range(k - 1)]
     parts.append(rng.normal(3.0 * (k - 1), spread, (n - per * (k - 1), d)))
-    return np.vstack(parts), np.repeat(np.arange(k), [per] * (k - 1) + [n - per * (k - 1)])
+    return np.vstack(parts), np.repeat(
+        np.arange(k), [per] * (k - 1) + [n - per * (k - 1)]
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -250,8 +252,10 @@ def main() -> int:
     args = parser.parse_args()
 
     rows: list[Row] = []
-    header = f"{'algorithm':10s} {'n':>6s} {'max diff':>10s} {'ARI':>7s} " \
-             f"{'SCPP ms':>10s} {'ref ms':>10s}"
+    header = (
+        f"{'algorithm':10s} {'n':>6s} {'max diff':>10s} {'ARI':>7s} "
+        f"{'SCPP ms':>10s} {'ref ms':>10s}"
+    )
     print(header)
     print("-" * len(header))
 

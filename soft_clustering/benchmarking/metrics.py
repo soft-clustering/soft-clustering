@@ -213,9 +213,7 @@ def xie_beni_index(
     distances = np.linalg.norm(X[:, None, :] - centers[None, :, :], axis=2)
     numerator = np.sum((U**m) * (distances**2))
 
-    center_distances = np.linalg.norm(
-        centers[:, None, :] - centers[None, :, :], axis=2
-    )
+    center_distances = np.linalg.norm(centers[:, None, :] - centers[None, :, :], axis=2)
     center_distances[center_distances == 0] = np.inf
     min_center_distance = np.min(center_distances)
     if not np.isfinite(min_center_distance):

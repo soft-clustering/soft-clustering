@@ -198,7 +198,7 @@ class GathGeva(BaseSoftClusterer):
     # Estimator interface
     # ------------------------------------------------------------------
 
-    def fit(self, X: np.ndarray) -> "GathGeva":
+    def fit(self, X: np.ndarray) -> GathGeva:
         """Fit the model on a feature matrix ``X`` of shape ``(n_samples, n_features)``."""
         X = np.asarray(X, dtype=np.float64)
         if X.ndim != 2:

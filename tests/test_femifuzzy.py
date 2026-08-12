@@ -1,8 +1,8 @@
 """Unit and integration tests for FeMIFuzzy (Federated Fuzzy Clustering with MI)."""
 
 import numpy as np
-from sklearn.metrics import adjusted_rand_score
 import pytest
+from sklearn.metrics import adjusted_rand_score
 
 from soft_clustering import FeMIFuzzy
 
