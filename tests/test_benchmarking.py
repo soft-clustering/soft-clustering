@@ -765,6 +765,38 @@ class SleepingFit:
         return self
 
 
+def counting_memory(target, **kwargs):
+    """A real ``MemoryBenchmark`` that signals once the sampler has run.
+
+    Returns ``(benchmark, sampled)``. ``sampled`` is set as soon as the
+    background thread has taken ``target`` readings. A test that needs the
+    sampler to have run waits on that event inside ``fit`` rather than sleeping
+    for a fixed span, so what it asserts is the sampler's behaviour and not how
+    quickly the machine happens to schedule a thread. Readings still come from
+    the real psutil-backed reader, so the production path is what runs.
+    """
+    from soft_clustering.benchmarking import MemoryBenchmark
+
+    sampled = threading.Event()
+
+    class Counting(MemoryBenchmark):
+        def __init__(self, **inner):
+            super().__init__(**inner)
+            self._reads = 0
+            self._count_lock = threading.Lock()
+
+        def _memory_mb(self):
+            value = super()._memory_mb()
+            with self._count_lock:
+                self._reads += 1
+                # Reading one is the pre-fit endpoint; the rest are samples.
+                if self._reads > target:
+                    sampled.set()
+            return value
+
+    return Counting(**kwargs), sampled
+
+
 def scripted_memory(readings, baseline, **kwargs):
     """A ``MemoryBenchmark`` whose RSS reader replays a fixed sequence.
 
@@ -815,18 +847,32 @@ class TestMemoryBenchmark:
         assert out["peak_memory_mb"] >= out["memory_after_mb"]
 
     def test_poll_interval_is_actually_used(self):
-        """The sampler must run: a fit long enough to span several intervals
-        has to yield samples. Before this was implemented, poll_interval was
-        accepted and documented but never read."""
-        from soft_clustering.benchmarking import MemoryBenchmark
+        """The sampler must run repeatedly while ``fit`` is in flight. Before
+        this was implemented, ``poll_interval`` was accepted and documented but
+        never read.
 
-        class SlowFit:
+        The fit blocks until the sampler has taken ``target`` readings instead
+        of sleeping for a fixed span. An earlier version slept 0.25 s and
+        asserted five samples at a 0.01 s interval, which assumes the runner
+        schedules the background thread at least twenty times in that window;
+        under coverage tracing on a loaded macOS runner it managed three, and
+        the job failed on a property of the scheduler rather than of this
+        class. Waiting on the sampler removes that assumption while keeping the
+        assertion: if ``poll_interval`` is ignored the sampler never fires, the
+        wait times out and the test fails.
+        """
+        target = 5
+        benchmark, sampled = counting_memory(target, poll_interval=0.01)
+
+        class FitUntilSampled:
             def fit(self, X):
-                time.sleep(0.25)
+                # A guard against a sampler that never runs, not a pacing
+                # device: fit returns the moment the readings have been taken.
+                assert sampled.wait(60.0), "the sampler thread never ran"
                 return self
 
-        out = MemoryBenchmark(poll_interval=0.01).evaluate(SlowFit(), None)
-        assert out["n_samples_taken"] >= 5, out
+        out = benchmark.evaluate(FitUntilSampled(), None)
+        assert out["n_samples_taken"] >= target, out
 
     def test_peak_captures_a_transient_allocation(self):
         """A spike that is over by the time fit() returns must still be
@@ -869,18 +915,25 @@ class TestMemoryBenchmark:
 
     def test_a_real_allocation_keeps_the_reported_readings_consistent(self):
         """The psutil-backed path on a genuine workload. Only the invariants
-        that hold on every allocator are asserted here."""
-        from soft_clustering.benchmarking import MemoryBenchmark
+        that hold on every allocator are asserted here.
+
+        The allocation loop runs until the sampler has taken a reading rather
+        than for a fixed twelve passes, for the reason given in
+        :meth:`test_poll_interval_is_actually_used`: a fixed span makes
+        ``n_samples_taken > 0`` a bet on the scheduler.
+        """
+        benchmark, sampled = counting_memory(1, poll_interval=0.005)
 
         class TransientAllocation:
             def fit(self, X):
-                for _ in range(12):
+                deadline = time.monotonic() + 60.0
+                while not sampled.is_set() and time.monotonic() < deadline:
                     block = np.ones((1024, 1024))  # 8 MB, released each pass
                     time.sleep(0.01)
                     del block
                 return self
 
-        out = MemoryBenchmark(poll_interval=0.005).evaluate(TransientAllocation(), None)
+        out = benchmark.evaluate(TransientAllocation(), None)
         assert out["n_samples_taken"] > 0
         assert out["peak_memory_mb"] >= out["memory_before_mb"]
         assert out["peak_memory_mb"] >= out["memory_after_mb"]
