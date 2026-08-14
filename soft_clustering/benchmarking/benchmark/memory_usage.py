@@ -82,12 +82,28 @@ class MemoryBenchmark(BaseBenchmark):
             raise ValueError(f"poll_interval must be positive, got {poll_interval!r}")
         self.poll_interval = poll_interval
         self.warmup = warmup
+        self._process: Any = None
 
-    @staticmethod
-    def _memory_mb() -> float:
-        psutil = require_psutil("MemoryBenchmark.evaluate()")
-        process = psutil.Process()
-        return process.memory_info().rss / _BYTES_PER_MB
+    def _memory_mb(self) -> float:
+        """Current resident set size, in MiB.
+
+        Every reading :meth:`evaluate` takes --- both endpoints and each
+        background sample --- goes through here, so this is the single place
+        that touches ``psutil`` and the seam a test can replace.
+
+        That seam exists because the peak-tracking logic cannot otherwise be
+        tested reliably. Whether resident set size actually falls when NumPy
+        frees a block is decided by the platform allocator, which is free to
+        keep the pages; on macOS it commonly does. A test that allocates and
+        frees a real array and then asserts the peak exceeds the closing
+        reading is therefore asserting a property of the allocator, not of
+        this class, and fails intermittently. Substituting a scripted
+        sequence of readings tests what this class is responsible for.
+        """
+        if self._process is None:
+            psutil = require_psutil("MemoryBenchmark.evaluate()")
+            self._process = psutil.Process()
+        return self._process.memory_info().rss / _BYTES_PER_MB
 
     def evaluate(
         self,
@@ -96,13 +112,10 @@ class MemoryBenchmark(BaseBenchmark):
         y: np.ndarray | None = None,
     ) -> dict[str, float]:
 
-        psutil = require_psutil("MemoryBenchmark.evaluate()")
-        process = psutil.Process()
-
         if self.warmup:
             gc.collect()
 
-        memory_before = process.memory_info().rss / _BYTES_PER_MB
+        memory_before = self._memory_mb()
         peak = memory_before
         n_samples = 0
         stop = threading.Event()
@@ -113,8 +126,12 @@ class MemoryBenchmark(BaseBenchmark):
             # waiting out a further interval.
             while not stop.wait(self.poll_interval):
                 try:
-                    rss = process.memory_info().rss / _BYTES_PER_MB
-                except psutil.Error:  # pragma: no cover - process went away
+                    rss = self._memory_mb()
+                except Exception:  # pragma: no cover - sampling is best effort
+                    # Sampling is diagnostic. If a reading fails -- the process
+                    # went away, or a subclass's reader raised -- stop
+                    # sampling rather than let it disturb the fit whose memory
+                    # we are here to measure.
                     return
                 n_samples += 1
                 if rss > peak:
@@ -135,7 +152,7 @@ class MemoryBenchmark(BaseBenchmark):
             stop.set()
             sampler.join()
 
-        memory_after = process.memory_info().rss / _BYTES_PER_MB
+        memory_after = self._memory_mb()
         peak = max(peak, memory_after)
 
         # Round the endpoints first and derive the delta from them, so the

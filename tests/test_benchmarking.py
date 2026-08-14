@@ -753,6 +753,44 @@ class TestRuntimeBenchmark:
         assert np.isnan(out["predict_time_sec"])
 
 
+class SleepingFit:
+    """A model whose ``fit`` occupies a known amount of wall time."""
+
+    def __init__(self, seconds: float):
+        self.seconds = seconds
+
+    def fit(self, X):
+        if self.seconds:
+            time.sleep(self.seconds)
+        return self
+
+
+def scripted_memory(readings, baseline, **kwargs):
+    """A ``MemoryBenchmark`` whose RSS reader replays a fixed sequence.
+
+    ``readings`` are handed out in order --- the first to the pre-fit
+    endpoint, the rest to whichever thread asks next --- after which every
+    call returns ``baseline``. How many samples the background thread manages
+    within a given interval is not fixed, so a script must not depend on that
+    count: draining into a steady ``baseline`` is what makes the result
+    deterministic on every platform.
+    """
+    from soft_clustering.benchmarking import MemoryBenchmark
+
+    class Scripted(MemoryBenchmark):
+        def __init__(self, **inner):
+            super().__init__(**inner)
+            self._script = list(readings)
+            self._lock = threading.Lock()
+
+        def _memory_mb(self):
+            # Called from the sampler thread as well as the caller's.
+            with self._lock:
+                return self._script.pop(0) if self._script else baseline
+
+    return Scripted(**kwargs)
+
+
 @needs_psutil
 class TestMemoryBenchmark:
     def test_reports_memory_and_time(self, X):
@@ -791,8 +829,47 @@ class TestMemoryBenchmark:
         assert out["n_samples_taken"] >= 5, out
 
     def test_peak_captures_a_transient_allocation(self):
-        """A large array allocated and freed inside fit() is invisible to the
-        before/after readings, and must be caught by the sampler."""
+        """A spike that is over by the time fit() returns must still be
+        reported: it is invisible to the before/after readings, so only the
+        sampler can catch it.
+
+        Driven through a scripted reader rather than a real allocation. An
+        earlier version of this test allocated and freed an 8 MB array and
+        asserted ``peak > memory_after``, which assumes the platform allocator
+        hands the freed pages back to the OS. It is free not to, and on macOS
+        it commonly does not -- the assertion then compares a number with
+        itself and the job fails. That made the test a check on the allocator
+        rather than on MemoryBenchmark.
+        """
+        out = scripted_memory(
+            readings=[100.0, 180.0, 140.0],
+            baseline=100.0,
+            poll_interval=0.001,
+        ).evaluate(SleepingFit(0.15), None)
+
+        assert out["n_samples_taken"] > 0
+        assert out["memory_before_mb"] == 100.0
+        assert out["memory_after_mb"] == 100.0
+        # 180.0 was observed only mid-fit, and must survive into the result.
+        assert out["peak_memory_mb"] == 180.0
+        assert out["peak_memory_mb"] > out["memory_after_mb"]
+
+    def test_peak_degenerates_to_the_endpoints_when_no_sample_is_taken(self):
+        """A fit shorter than one poll interval yields no samples, and the
+        peak is then documented to fall back to the larger endpoint."""
+        out = scripted_memory(
+            readings=[100.0, 130.0],
+            baseline=130.0,
+            poll_interval=30.0,  # longer than the fit, so the sampler never fires
+        ).evaluate(SleepingFit(0.0), None)
+
+        assert out["n_samples_taken"] == 0
+        assert out["peak_memory_mb"] == 130.0
+        assert out["memory_delta_mb"] == 30.0
+
+    def test_a_real_allocation_keeps_the_reported_readings_consistent(self):
+        """The psutil-backed path on a genuine workload. Only the invariants
+        that hold on every allocator are asserted here."""
         from soft_clustering.benchmarking import MemoryBenchmark
 
         class TransientAllocation:
@@ -805,7 +882,11 @@ class TestMemoryBenchmark:
 
         out = MemoryBenchmark(poll_interval=0.005).evaluate(TransientAllocation(), None)
         assert out["n_samples_taken"] > 0
-        assert out["peak_memory_mb"] > out["memory_after_mb"]
+        assert out["peak_memory_mb"] >= out["memory_before_mb"]
+        assert out["peak_memory_mb"] >= out["memory_after_mb"]
+        assert out["memory_delta_mb"] == pytest.approx(
+            out["memory_after_mb"] - out["memory_before_mb"], abs=1e-3
+        )
 
     def test_rejects_a_non_positive_poll_interval(self):
         from soft_clustering.benchmarking import MemoryBenchmark
