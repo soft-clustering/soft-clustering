@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
+
 """Equivalence tests for the optimized implementations.
 
 The optimization study replaced some algorithm bodies with vectorised

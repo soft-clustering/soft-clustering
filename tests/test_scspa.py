@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
+
 """Unit and integration tests for SCSPA (Soft Consensus Spectral Partition Analysis)."""
 
 import numpy as np

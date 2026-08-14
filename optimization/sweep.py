@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
+
 """Drive ``run_case.py`` across many configurations, one subprocess each.
 
 Each case gets its own process and its own timeout, so a single pathological

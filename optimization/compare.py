@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
+
 """Compare an optimized implementation against its preserved reference.
 
 Fits both builds on identical inputs across several sizes and seeds, then

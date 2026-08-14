@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
+
 """Tests for MMSB (Mixed Membership Stochastic Blockmodel).
 
 These check inference, not just shapes: the estimator has to recover a planted

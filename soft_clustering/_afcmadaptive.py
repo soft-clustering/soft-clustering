@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
+
 import numpy as np
 from scipy.ndimage import gaussian_filter, laplace
 from typeguard import typechecked

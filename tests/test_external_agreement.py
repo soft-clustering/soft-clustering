@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
+
 """Validation of SCPP estimators against evidence outside SCPP.
 
 Every other test in this suite compares SCPP to itself: invariants it declares

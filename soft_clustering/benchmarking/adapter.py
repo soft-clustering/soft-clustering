@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
+
 """
 BenchmarkAdapter — presents any model to the benchmarking backends through one
 ``fit(X)`` / ``predict(X)`` / ``membership_`` contract.

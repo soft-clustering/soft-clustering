@@ -138,6 +138,72 @@ jobs:
           print(f"{sdist.name}: {len(names)} entries, all packages present")
           PY
 
+      - name: Distributions must carry no editor, OS or bytecode cruft
+        # JMLR's MLOSS submission checklist requires a source package free of
+        # version-control and platform metadata, and warns that some of it is
+        # invisible on the author's own machine. It was: flit does not consult
+        # .gitignore for files inside the package directory, so a macOS
+        # `.DS_Store` shipped in both artifacts. Enforced here rather than
+        # remembered.
+        run: |
+          python - <<'PY'
+          import fnmatch, pathlib, tarfile, zipfile
+
+          FORBIDDEN = [
+              "*/.DS_Store", ".DS_Store", "*/._*", "._*", "*/Thumbs.db",
+              "*.pyc", "*.pyo", "*/__pycache__/*", "*/.git/*", "*/.gitignore",
+              "*/.pytest_cache/*", "*/.ruff_cache/*", "*/.ipynb_checkpoints/*",
+              "*.orig", "*.rej", "*~", "*.swp",
+          ]
+
+          def offenders(names):
+              return sorted({n for n in names
+                             for p in FORBIDDEN if fnmatch.fnmatch(n, p)})
+
+          wheel = next(pathlib.Path("dist").glob("*.whl"))
+          bad = offenders(zipfile.ZipFile(wheel).namelist())
+          assert not bad, f"cruft in wheel {wheel.name}: {bad}"
+
+          sdist = next(pathlib.Path("dist").glob("*.tar.gz"))
+          with tarfile.open(sdist) as tar:
+              names = tar.getnames()
+          bad = offenders(names)
+          assert not bad, f"cruft in sdist {sdist.name}: {bad}"
+          print("both artifacts are clean")
+
+          # The sdist must be self-sufficient: a reviewer who receives only the
+          # source package has to be able to run the suite and reproduce the
+          # published results.
+          required = ["tests/", "example/", "benchmarks/", "optimization/",
+                      "tools/", "LICENSE", "README.md", "CHANGELOG.md"]
+          missing = [r for r in required
+                     if not any(f"/{r}" in n or n.endswith(f"/{r}")
+                                for n in names)]
+          assert not missing, f"missing from sdist: {missing}"
+          print(f"sdist ships {len(names)} entries including tests and benchmarks")
+          PY
+
+      - name: Every source file must carry its licence
+        # "Ensure the licensing terms ... are clearly stated in the source
+        # package and mentioned in each source file" -- JMLR MLOSS checklist.
+        run: |
+          python - <<'PY'
+          import pathlib, subprocess
+
+          tracked = subprocess.run(
+              ["git", "ls-files", "*.py"],
+              capture_output=True, text=True, check=True,
+          ).stdout.split()
+          missing = [f for f in tracked
+                     if "SPDX-License-Identifier" not in
+                     pathlib.Path(f).read_text(encoding="utf-8")]
+          assert not missing, (
+              f"{len(missing)} source file(s) without an SPDX header: "
+              f"{missing[:10]}"
+          )
+          print(f"all {len(tracked)} tracked Python files carry an SPDX header")
+          PY
+
       - uses: actions/upload-artifact@v4
         with:
           name: dist-${{ github.sha }}

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
+
 """Gath--Geva clustering on anisotropic Gaussian clusters.
 
 Gath--Geva replaces the Euclidean distance of fuzzy c-means with an

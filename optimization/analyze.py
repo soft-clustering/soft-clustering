@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
+
 """Turn raw measurements into the study's results, tables and figures.
 
 Reads every ``optimization/benchmarks/raw/*.jsonl`` produced by ``sweep.py``

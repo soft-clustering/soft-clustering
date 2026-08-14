@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
+
 """Reference (pre-optimization) SCPP implementations.
 
 Verbatim copies of the algorithm modules as they stood before the optimization

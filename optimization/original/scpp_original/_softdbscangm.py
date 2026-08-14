@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
+
 import numpy as np
 from scipy.linalg import inv
 from scipy.spatial.distance import mahalanobis

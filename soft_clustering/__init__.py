@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
+
 """Soft Clustering - A library of soft and fuzzy clustering algorithms."""
 
 __version__ = "0.2.0"

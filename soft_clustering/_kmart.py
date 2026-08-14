@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
+
 """KMART — a modified Fuzzy ART for soft document clustering.
 
 Implementation note (optimization study)
