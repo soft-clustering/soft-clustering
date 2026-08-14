@@ -88,6 +88,43 @@ dev = [
 Homepage = "https://soft-clustering.readthedocs.io/en/latest/index.html"
 Issues = "https://github.com/soft-clustering/soft-clustering/issues"
 
+# What travels in the source distribution.
+#
+# flit ships only the importable package by default, which left the sdist with
+# no tests, no examples and no benchmark or optimization artifacts -- so nobody
+# who obtained SCPP as a source package could run the suite or reproduce a
+# published number. `include` fixes that.
+#
+# `exclude` is the other half. flit copies everything under the package
+# directory verbatim and does not consult .gitignore, so a macOS `.DS_Store`
+# sitting next to __init__.py was being published inside both the sdist and the
+# wheel. These patterns are enforced in CI by the `packaging` job.
+[tool.flit.sdist]
+include = [
+  "tests/",
+  "example/",
+  "benchmarks/",
+  "optimization/",
+  "docs/",
+  "tools/",
+  "CHANGELOG.md",
+  "CONTRIBUTING.md",
+  "CODE_OF_CONDUCT.md",
+  "CITATION.cff",
+]
+exclude = [
+  "**/.DS_Store",
+  "**/__pycache__/",
+  "**/*.py[cod]",
+  "**/.pytest_cache/",
+  "**/.ruff_cache/",
+  "**/.ipynb_checkpoints/",
+  "**/Thumbs.db",
+  "**/._*",
+  # 4.4 MB promotional image; not part of the software.
+  "SCPP_Poster.png",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--tb=short -q"

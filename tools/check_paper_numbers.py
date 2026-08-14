@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
+
 """Verify that every quantitative claim in the manuscript matches the source.
 
 The previous revision of this paper reported 532 tests across 42 modules at a

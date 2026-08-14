@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
+
 """Tests for ``soft_clustering.benchmarking``.
 
 The benchmarking suite ships inside the installed package, so it falls under

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
+
 """Unit and integration tests for SFCMEP (Semi-supervised FCM with Membership Prior)."""
 
 import warnings

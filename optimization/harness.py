@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
+
 """Shared experiment harness for the SCPP optimization study.
 
 One registry of runnable, *scalable* estimator configurations, used by the

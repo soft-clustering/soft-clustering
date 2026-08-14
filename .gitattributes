@@ -1,0 +1,34 @@
+# Keep `git archive` output fit to submit.
+#
+# JMLR's MLOSS checklist asks that the source package contain no extra files,
+# naming version-control files specifically. `git archive` already omits
+# untracked and ignored files, so the only things left to strip are the VCS
+# metadata that *is* tracked, plus a large promotional image that is not part
+# of the software.
+#
+#   git archive --format=tar.gz --prefix=scpp/ HEAD -o scpp-submission.tar.gz
+#
+.gitignore      export-ignore
+.gitattributes  export-ignore
+SCPP_Poster.png export-ignore
+
+# Normalise line endings so a checkout on Windows and one on Linux produce
+# byte-identical sources, and never let Git rewrite the binaries.
+*           text=auto
+*.py        text diff=python
+*.md        text
+*.rst       text
+*.txt       text
+*.toml      text
+*.yml       text
+*.yaml      text
+*.cff       text
+*.tex       text
+*.jsonl     text
+*.png       binary
+*.pdf       binary
+
+# Left alone deliberately: Python's `csv` module writes RFC 4180 CRLF
+# terminators, so normalising these would put every regenerated results file
+# permanently in conflict with the checkout.
+*.csv       -text

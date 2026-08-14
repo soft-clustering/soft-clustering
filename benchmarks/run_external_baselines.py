@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
+
 """Compare SCPP against independent implementations of the same algorithms.
 
 The optimization study in ``optimization/`` measures SCPP against SCPP: it

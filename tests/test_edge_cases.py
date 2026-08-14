@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
+
 """Numerical edge cases across the estimator families.
 
 The per-algorithm modules check that each method does the right thing on

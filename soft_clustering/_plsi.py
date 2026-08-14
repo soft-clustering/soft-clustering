@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
+
 import numpy as np
 from scipy.sparse import csr_matrix, issparse
 from sklearn.feature_extraction.text import CountVectorizer

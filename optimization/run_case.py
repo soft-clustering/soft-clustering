@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
+
 """Run one estimator configuration in isolation and report JSON on stdout.
 
 Isolating each case in its own process keeps a single pathological algorithm

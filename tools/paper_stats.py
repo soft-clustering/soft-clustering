@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
+
 """Regenerate every quantitative claim made about SCPP in the paper and README.
 
 Any number describing the size of the library — estimator count, test count,

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
+
 """Tests for DMoN (Deep Modularity Networks).
 
 The encoder is checked against the objective it optimises and against a

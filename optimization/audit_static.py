@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
+
 """Static audit of every SCPP algorithm module.
 
 Emits measured facts only — line counts, loop nesting, and the specific

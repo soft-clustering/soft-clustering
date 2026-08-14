@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
+
 """The cross-family comparison SCPP exists to make possible.
 
 Every estimator that consumes a feature matrix is run over the dataset suite

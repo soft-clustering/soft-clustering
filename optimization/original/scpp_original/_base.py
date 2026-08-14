@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
+
 """The common estimator protocol shared by every SCPP soft clustering model.
 
 Soft clustering algorithms differ irreducibly in what they consume: prototype

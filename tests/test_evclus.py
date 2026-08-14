@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
+
 """Tests for EVCLUS (evidential clustering of proximity data)."""
 
 import numpy as np

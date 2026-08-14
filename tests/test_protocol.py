@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
+
 """Conformance tests for the SCPP estimator protocol.
 
 Every estimator exported by ``soft_clustering`` is fitted here on a small,
