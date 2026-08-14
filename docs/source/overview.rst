@@ -374,13 +374,3 @@ License
 -------
 
 Distributed under the terms of the `MIT license <https://github.com/soft-clustering/soft-clustering/blob/main/LICENSE>`_.
-
-
-API Reference
--------------
-
-.. toctree::
-  :maxdepth: 2
-
-  benchmarking
-  algorithms/index
