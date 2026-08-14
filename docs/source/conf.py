@@ -10,7 +10,7 @@ from importlib.metadata import version as _package_version
 
 project = "Soft Clustering"
 copyright = "2025-2026, the SCPP authors"
-author = "University of Guilan"
+author = "Kiyan Rezaee and Morteza Ziabakhsh and Artin Bahrampour and Seyed Mohammad Ghoreishi and Asal Khaje and Ali Sajedifar and Manny Chalak and Ava Zerafatangiz and Sadegh Eskandari"
 
 # Read from the installed distribution rather than restating it here, so the
 # documentation cannot claim a version the package does not have.

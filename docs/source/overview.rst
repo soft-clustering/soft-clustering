@@ -382,6 +382,5 @@ API Reference
 .. toctree::
   :maxdepth: 2
 
-  overview
   benchmarking
   algorithms/index
