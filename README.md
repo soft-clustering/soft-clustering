@@ -12,7 +12,6 @@
   <a href="https://pypi.org/project/soft-clustering/"><img alt="PyPI" src="https://img.shields.io/pypi/v/soft-clustering?color=1f6feb&label=pypi"></a>
   <a href="https://pypi.org/project/soft-clustering/"><img alt="Python versions" src="https://img.shields.io/pypi/pyversions/soft-clustering?color=1f6feb"></a>
   <a href="https://github.com/soft-clustering/soft-clustering/actions/workflows/tests.yml"><img alt="Tests" src="https://github.com/soft-clustering/soft-clustering/actions/workflows/tests.yml/badge.svg"></a>
-  <a href="https://codecov.io/gh/soft-clustering/soft-clustering"><img alt="Coverage" src="https://codecov.io/gh/soft-clustering/soft-clustering/branch/main/graph/badge.svg"></a>
   <a href="https://soft-clustering.readthedocs.io/en/latest/"><img alt="Docs" src="https://readthedocs.org/projects/soft-clustering/badge/?version=latest"></a>
   <a href="https://github.com/soft-clustering/soft-clustering/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/pypi/l/soft-clustering?color=green"></a>
   <a href="https://arxiv.org/abs/2607.19620"><img alt="arXiv" src="https://img.shields.io/badge/arXiv-2607.19620-b31b1b.svg"></a>
