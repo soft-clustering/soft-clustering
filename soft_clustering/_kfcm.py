@@ -46,17 +46,96 @@ in ``SoftDBSCANGM`` where it grows with ``N``.
 import numpy as np
 from typeguard import typechecked
 
-from ._base import BaseSoftClusterer
+from ._base import BaseSoftClusterer, ratio_memberships
+from ._validation import (
+    check_array,
+    check_n_clusters,
+    check_n_features,
+    check_random_state,
+    check_scalar,
+)
 
 
 @typechecked
 class KFCM(BaseSoftClusterer):
-    """
-    An improved Python implementation of the Kernelized Fuzzy C-Means (KFCM) algorithm.
+    r"""Kernelized fuzzy c-means (KFCM) with a Gaussian kernel.
 
-    This version incorporates K-Means++ initialization for more robust and consistent
-    clustering results, addressing the issue of poor random starts.
+    Fuzzy c-means in the feature space of the Gaussian kernel
+    :math:`K(x, v) = \exp(-\lVert x - v\rVert^2/\sigma^2)`, with prototypes
+    kept in the input space (Zhang and Chen, 2004). Because
+    :math:`\lVert\phi(x) - \phi(v)\rVert^2 = 2(1 - K(x, v))`, the objective is
+
+    .. math::
+
+        J = 2 \sum_{i,k} u_{ik}^m \big(1 - K(x_i, v_k)\big),
+
+    with updates
+
+    .. math::
+
+        u_{ik} \propto \big(1 - K(x_i, v_k)\big)^{-1/(m-1)},
+        \qquad
+        v_k = \frac{\sum_i u_{ik}^m K(x_i, v_k)\, x_i}{\sum_i u_{ik}^m K(x_i, v_k)} .
+
+    The prototype update is a fixed-point iteration (``v_k`` appears on both
+    sides), as in the reference. Prototypes are seeded with k-means++.
+
+    ``sigma`` is in the units of ``X``: when it is much smaller than the
+    distances between points, every kernel value underflows towards zero,
+    every distance ``1 - K`` tends to one and the memberships become uniform.
+
+    Parameters
+    ----------
+    n_clusters : int, default=3
+    m : float, default=2.0
+        Fuzzifier, ``m > 1``.
+    sigma : float, default=1.0
+        Kernel bandwidth, ``sigma > 0``.
+    epsilon : float, default=0.01
+        Stop when no membership changes by more than ``epsilon``.
+    max_iter : int, default=100
+    random_state : int, numpy RandomState or None, default=None
+        Seed for the k-means++ draws and the random initial memberships.
+        ``None`` draws from NumPy's global random state, as earlier releases
+        did.
+
+    Attributes
+    ----------
+    memberships_ : ndarray of shape (n_samples, n_clusters)
+    centers_ : ndarray of shape (n_clusters, n_features)
+        Prototypes in the input space (also ``V``).
+    U : ndarray of shape (n_clusters, n_samples)
+        Cluster-major memberships.
+    n_iter_ : int
+
+    References
+    ----------
+    D.-Q. Zhang and S.-C. Chen. A novel kernelized fuzzy c-means algorithm
+    with application in medical image segmentation. *Artificial Intelligence
+    in Medicine*, 32(1):37--50, 2004. doi:10.1016/j.artmed.2004.01.012
     """
+
+    _supports_out_of_sample = True
+
+    # ``V`` and ``U`` are the names the reference implementation used; they
+    # are stored privately so that fit changes no public attribute.
+    @property
+    def V(self) -> np.ndarray | None:
+        """Prototypes, ``(n_clusters, n_features)``; also ``centers_``."""
+        return getattr(self, "_V", None)
+
+    @V.setter
+    def V(self, value) -> None:
+        self._V = value
+
+    @property
+    def U(self) -> np.ndarray | None:
+        """Cluster-major memberships, ``(n_clusters, n_samples)``."""
+        return getattr(self, "_U", None)
+
+    @U.setter
+    def U(self, value) -> None:
+        self._U = value
 
     def __init__(
         self,
@@ -65,24 +144,17 @@ class KFCM(BaseSoftClusterer):
         sigma: float = 1.0,
         epsilon: float = 0.01,
         max_iter: int = 100,
+        random_state: int | np.random.RandomState | None = None,
     ):
         """
         Initializes the KFCM algorithm with given parameters.
         """
-        if n_clusters <= 0:
-            raise ValueError("n_clusters must be a positive integer.")
-        if m <= 1.0:
-            raise ValueError("Fuzziness exponent m must be > 1.")
-        if sigma <= 0:
-            raise ValueError("Sigma must be a positive float.")
-
         self.n_clusters: int = n_clusters
         self.m: float = m
         self.sigma: float = sigma
         self.epsilon: float = epsilon
         self.max_iter: int = max_iter
-        self.V: np.ndarray | None = None
-        self.U: np.ndarray | None = None
+        self.random_state = random_state
 
     def _squared_distances(self, X: np.ndarray, centers: np.ndarray) -> np.ndarray:
         """
@@ -103,16 +175,20 @@ class KFCM(BaseSoftClusterer):
         """
         return np.exp(-self._squared_distances(X, centers) / self.sigma**2)
 
-    def _initialize_centers_kmeans_pp(self, X: np.ndarray) -> np.ndarray:
+    def _initialize_centers_kmeans_pp(
+        self, X: np.ndarray, rng: np.random.RandomState | None = None
+    ) -> np.ndarray:
         """
         Initializes cluster centers using the K-Means++ strategy.
         This method spreads out the initial centers, leading to better convergence.
         """
+        if rng is None:
+            rng = check_random_state(None)
         N, D = X.shape
         centers = np.zeros((self.n_clusters, D))
 
         # 1. Choose the first center uniformly at random from the data points
-        first_center_idx = np.random.randint(N)
+        first_center_idx = rng.randint(N)
         centers[0] = X[first_center_idx]
 
         # 2. For the remaining centers
@@ -121,15 +197,22 @@ class KFCM(BaseSoftClusterer):
             dist_sq = np.min(self._squared_distances(X, centers[:i]), axis=1)
 
             # 3. Choose the next center with probability proportional to the squared distance
-            probs = dist_sq / np.sum(dist_sq)
-            cumulative_probs = np.cumsum(probs)
-            r = np.random.rand()
+            total = np.sum(dist_sq)
+            r = rng.rand()
+            if not np.isfinite(total) or total <= 0.0:
+                # Every sample coincides with a chosen center, so the
+                # distribution is undefined (0/0). The reference left the
+                # center at the origin, which need not be a data point; draw
+                # uniformly instead, from the same random number.
+                centers[i] = X[min(int(r * N), N - 1)]
+                continue
+            cumulative_probs = np.cumsum(dist_sq / total)
 
-            # First index whose cumulative probability exceeds r. If there is
-            # none, the center is left at zero, as in the reference.
+            # First index whose cumulative probability exceeds r. Rounding can
+            # leave the last cumulative value just below r; the reference then
+            # left the center at the origin, here it takes the last sample.
             j = int(np.searchsorted(cumulative_probs, r, side="right"))
-            if j < N:
-                centers[i] = X[j]
+            centers[i] = X[min(j, N - 1)]
         return centers
 
     def _gaussian_kernel(self, x: np.ndarray, y: np.ndarray) -> float:
@@ -139,21 +222,21 @@ class KFCM(BaseSoftClusterer):
         return float(np.exp(-np.linalg.norm(x - y) ** 2 / self.sigma**2))
 
     def fit(self, X: np.ndarray) -> np.ndarray:
-        """
-        Fits the KFCM model to the data X.
-        """
+        """Fit on a feature matrix of shape ``(n_samples, n_features)``."""
+        X = check_array(X, estimator=type(self).__name__)
         N, D = X.shape
-        if N == 0:
-            raise ValueError("Input data cannot be empty.")
-        if self.n_clusters > N:
-            raise ValueError(
-                f"n_clusters={self.n_clusters} exceeds the number of samples ({N})."
-            )
+        name = type(self).__name__
+        check_n_clusters(self.n_clusters, N, estimator=name)
+        check_scalar(self.m, "m", estimator=name, lower=1.0, lower_inclusive=False)
+        check_scalar(
+            self.sigma, "sigma", estimator=name, lower=0.0, lower_inclusive=False
+        )
+        rng = check_random_state(self.random_state)
 
         # --- Step 1: Initialization ---
-        self.V = self._initialize_centers_kmeans_pp(X).astype(np.float64)
+        self.V = self._initialize_centers_kmeans_pp(X, rng).astype(np.float64)
 
-        self.U = np.random.rand(self.n_clusters, N)
+        self.U = rng.rand(self.n_clusters, N)
 
         self.U = self.U / np.sum(self.U, axis=0)
 
@@ -174,23 +257,28 @@ class KFCM(BaseSoftClusterer):
 
             # --- Step 4: Update Membership Matrix (U) ---
             # Recomputed against the centers just updated, as in the reference.
-            dist = 1 - self._kernel_matrix(X, self.V)  # (N, n_clusters)
-            dist[dist == 0] = np.finfo(float).eps
-            inv_powers = (1 / dist) ** (1 / (self.m - 1))  # (N, n_clusters)
-            denominators = np.sum(inv_powers, axis=1)  # (N,)
-
-            updatable = denominators > 1e-9
-            self.U[:, updatable] = (
-                inv_powers[updatable] / denominators[updatable, None]
-            ).T
+            self.U = self._memberships(X).T
 
             # --- Check for convergence ---
             if np.max(np.abs(self.U - U_old)) < self.epsilon:
-                print(f"Converged at iteration {t+1}")
                 break
 
-        if self.U is None:
-            raise RuntimeError("Fitting failed, membership matrix is None.")
-
-        print("KFCM fitting completed.")
+        self.n_iter_ = t + 1
+        self.centers_ = self.V
+        self.memberships_ = self.U.T
         return np.argmax(self.U, axis=0)
+
+    def _memberships(self, X: np.ndarray) -> np.ndarray:
+        """``u_ik`` proportional to ``(1 - K(x_i, v_k))^(-1/(m-1))``, samples-first."""
+        V = self.V
+        assert V is not None  # set by fit before memberships are computed
+        dist = 1 - self._kernel_matrix(X, V)  # (N, n_clusters)
+        dist[dist <= 0] = np.finfo(float).eps
+        # Evaluated without forming the unbounded powers, so m close to one
+        # does not overflow.
+        return ratio_memberships(dist, 1.0 / (self.m - 1.0))
+
+    def _predict_memberships(self, X) -> np.ndarray:
+        X = check_array(X, estimator=type(self).__name__)
+        check_n_features(X, self.centers_.shape[1], estimator=type(self).__name__)
+        return self._memberships(X)

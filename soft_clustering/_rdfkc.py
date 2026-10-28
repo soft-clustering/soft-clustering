@@ -1,16 +1,19 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
 
+from __future__ import annotations
+
 import copy
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import DataLoader, TensorDataset
 from typeguard import typechecked
 
 from ._base import BaseSoftClusterer
+from ._torch_utils import isolated_torch_rng
+from ._validation import check_n_clusters
 
 
 class COIL20Encoder(nn.Module):
@@ -132,11 +135,110 @@ class FashionMNISTDecoder(nn.Module):
         return x
 
 
+def _simplex_quadratic(p: torch.Tensor, q: torch.Tensor) -> torch.Tensor:
+    """Row-wise ``argmin_u sum_c q_c u_c^2 - p_c u_c`` over the probability simplex.
+
+    The KKT conditions give ``u_c = max(0, (p_c + lam) / (2 q_c))`` with the
+    multiplier ``lam`` chosen so that the row sums to one; the row sum is
+    non-decreasing in ``lam``, so it is found by bisection (60 halvings give
+    double-precision accuracy). ``q`` must be positive.
+    """
+    # Bracket: at lam = lo every (p_c + lam) <= 0, so the row sums to 0 < 1;
+    # at lam = hi the largest u_c is already >= 1, so the row sums to >= 1.
+    lo = (-p - 2.0 * q).min(dim=1, keepdim=True).values
+    hi = (2.0 * q - p).max(dim=1, keepdim=True).values
+    lo = torch.minimum(lo, hi - 1.0)
+    for _ in range(60):
+        mid = 0.5 * (lo + hi)
+        total = torch.clamp((p + mid) / (2.0 * q), min=0.0).sum(dim=1, keepdim=True)
+        lo = torch.where(total < 1.0, mid, lo)
+        hi = torch.where(total < 1.0, hi, mid)
+    U = torch.clamp((p + hi) / (2.0 * q), min=0.0)
+    return U / U.sum(dim=1, keepdim=True)
+
+
 @typechecked
 class RDFKC(BaseSoftClusterer):
+    r"""Robust deep fuzzy k-means clustering (RD-FKC) for image data.
+
+    Jointly trains an autoencoder and a fuzzy k-means model in its latent
+    space (Wu et al., 2024). With latent codes :math:`z_n`, prototypes
+    :math:`v_c`, memberships :math:`U` and the adaptive robust loss
+    :math:`\ell_\tau(d) = (1 + \tau) d^2 / (d + \tau)`, the method alternates
+
+    1. one gradient step on the network weights for the reconstruction
+       error, plus the re-weighted clustering loss
+       :math:`\sum_{n,c} u_{nc}^2 k_{nc} \lVert z_n - v_c\rVert^2`, with
+       :math:`k_{nc} = (1+\tau)(d_{nc} + 2\tau) / (2 (d_{nc} + \tau)^2)`, plus
+       an :math:`L_2` penalty ``gamma`` on the weights;
+    2. the closed-form prototype update
+       :math:`v_c = \sum_n u_{nc}^2 k_{nc} z_n / \sum_n u_{nc}^2 k_{nc}`;
+    3. the membership update, which minimises, row by row,
+       :math:`\sum_c \ell_\tau(d_{nc})\, u_{nc}^2 + \mu \sum_j S_{nj}
+       (u_{nc} - u_{jc})^2` over the probability simplex, where :math:`S`
+       is a Gaussian 10-nearest-neighbour graph built on the initial latent
+       codes.
+
+    Step 3 is solved exactly, non-negativity included (see
+    :func:`_simplex_quadratic`); the unconstrained Lagrange solution used by
+    earlier releases can produce negative memberships.
+
+    Parameters
+    ----------
+    n_clusters : int, default=3
+        Number of clusters (``K`` is accepted as an alias).
+    encoder, decoder : torch.nn.Module, optional
+        The autoencoder. Copied, never trained in place. Required unless
+        ``dataset`` names a bundled architecture.
+    dataset : {"coil20", "fashion"} or None
+        Use the bundled convolutional autoencoder for that image format.
+    random_state : int or None, default=None
+        Seed for the network initialisation, the initial memberships and the
+        prototypes. The global torch stream is not modified.
+    max_iter : int, default=100
+        Number of alternating rounds.
+    batch_size : int or None, default=None
+        Mini-batch size of the forward passes; ``None`` picks 64, 256 or 1000
+        by data size.
+    lr : float, default=1e-4
+        Adam learning rate.
+    mu : float, default=1.0
+        Weight of the graph smoothness term.
+    gamma : float, default=1e-4
+        Weight decay on the network parameters.
+    tau : float, default=0.1
+        Robustness parameter of the adaptive loss.
+
+    Attributes
+    ----------
+    memberships_ : ndarray of shape (n_samples, n_clusters)
+    latent_ : ndarray of shape (n_samples, latent_dim)
+        Final latent codes.
+    latent_centers_ : ndarray of shape (n_clusters, latent_dim)
+    encoder_, decoder_ : torch.nn.Module
+        The trained copies of the autoencoder.
+
+    References
+    ----------
+    X. Wu, Y.-F. Yu, L. Chen, W. Ding and Y. Wang. Robust deep fuzzy
+    k-means clustering for image data. *Pattern Recognition*, 153:110504,
+    2024. doi:10.1016/j.patcog.2024.110504
+
+    Notes
+    -----
+    Earlier releases left the memberships in a torch tensor that the
+    estimator protocol did not read, so ``memberships_`` silently fell back
+    to the one-hot encoding of the hard labels. The update rules follow the
+    reference as implemented by the original contributors and have not been
+    checked against an independent implementation.
+    """
+
+    _membership_attrs = ("memberships_",)
+    _centers_attrs = ()
+
     def __init__(
         self,
-        K: int,
+        n_clusters: int = 3,
         encoder: torch.nn.Module | None = None,
         decoder: torch.nn.Module | None = None,
         dataset: str | None = None,
@@ -148,201 +250,119 @@ class RDFKC(BaseSoftClusterer):
         gamma: float = 1e-4,
         tau: float = 0.1,
     ):
-        """
-        Initialize the Robust Deep Fuzzy K-Means Clustering model.
-
-        Parameters:
-            K: Number of clusters.
-            encoder: Encoder network (optional).
-            decoder: Decoder network (optional).
-            dataset: Dataset name/path (optional).
-            random_state: Random seed (optional).
-            max_iter: Max iterations (default 100).
-            batch_size: Batch size (optional).
-            lr: Learning rate (default 1e-4).
-            mu: Laplacian regularization weight.
-            gamma: Weight regularization coefficient.
-            tau: Robustness coefficient.
-        """
-        self.K = K
+        self.n_clusters = n_clusters
+        self.K = n_clusters
         self.mu = mu
         self.gamma = gamma
         self.tau = tau
         self.batch_size = batch_size
         self.lr = lr
         self.max_iter = max_iter
+        self.random_state = random_state
+        self.dataset = dataset
 
-        if random_state is not None:
-            np.random.seed(random_state)
-            torch.manual_seed(random_state)
-
-        # Set encoder/decoder defaults if not provided
-        if encoder is not None and decoder is not None:
-            # Copied rather than adopted. ``fit`` trains these modules in
-            # place, so holding the caller's objects would both mutate a
-            # constructor parameter and destroy reproducibility: two
-            # estimators built from one module pair -- what a hyper-parameter
-            # sweep or a shared test fixture produces naturally -- would have
-            # the second fit start from the weights the first left behind, and
-            # the same ``random_state`` would then give a different partition.
-            # ``sklearn.clone`` deep-copies object-valued parameters for the
-            # same reason.
-            self.encoder = copy.deepcopy(encoder)
-            self.decoder = copy.deepcopy(decoder)
-        elif dataset == "coil20":
-            self.encoder = COIL20Encoder()
-            self.decoder = COIL20Decoder()
-        elif dataset == "fashion":
-            self.encoder = FashionMNISTEncoder()
-            self.decoder = FashionMNISTDecoder()
-        else:
+        if (encoder is None or decoder is None) and dataset not in (
+            "coil20",
+            "fashion",
+        ):
             raise ValueError(
-                "Either provide encoder/decoder or specify a known dataset."
+                "RDFKC: provide both encoder and decoder, or dataset='coil20' "
+                "or dataset='fashion' for a bundled architecture."
             )
+        # The caller's modules are parameters and are never trained: fit
+        # trains copies, published as ``encoder_`` and ``decoder_``.
+        self.encoder = encoder
+        self.decoder = decoder
 
-        self.optimizer = torch.optim.Adam(
-            list(self.encoder.parameters()) + list(self.decoder.parameters()),
-            lr=self.lr,
-        )
+    def _build_networks(self):
+        if self.encoder is not None and self.decoder is not None:
+            self.encoder_ = copy.deepcopy(self.encoder)
+            self.decoder_ = copy.deepcopy(self.decoder)
+            for module in list(self.encoder_.modules()) + list(self.decoder_.modules()):
+                if module is not self.encoder_ and hasattr(module, "reset_parameters"):
+                    module.reset_parameters()
+        elif self.dataset == "coil20":
+            self.encoder_, self.decoder_ = COIL20Encoder(), COIL20Decoder()
+        else:
+            self.encoder_, self.decoder_ = FashionMNISTEncoder(), FashionMNISTDecoder()
 
-    def _k_nearest_to_nth_sample(self, n: int, k: int = 10) -> list:
-        distances = torch.norm(self.Z[n] - self.Z, dim=1)
-        neighbors = torch.argsort(distances)[1 : k + 1]
-        return neighbors.tolist()
+    def _robust_weight(self, dist):
+        return (1 + self.tau) * (dist + 2 * self.tau) / (2 * (dist + self.tau) ** 2)
 
-    def _initialize_membership_matrix(self) -> torch.Tensor:
-        """Randomly initialize and normalize the membership matrix."""
-        U = torch.rand(self.N, self.K)
-        return U / U.sum(dim=1, keepdim=True)
+    def _encode_decode(self, X, batch_size):
+        Z, R = [], []
+        for start in range(0, X.shape[0], batch_size):
+            z = self.encoder_(X[start : start + batch_size])
+            Z.append(z)
+            R.append(self.decoder_(z))
+        return torch.cat(Z), torch.cat(R)
 
-    def _initialize_cluster_centers(self) -> torch.Tensor:
-        """Initialize cluster centers with standard normal distribution."""
-        return torch.randn(self.K, self.Z.shape[1])
-
-    def _initialize_similarity_matrix(self) -> torch.Tensor:
-        """Construct the similarity matrix using k-nearest neighbors"""
-        S = torch.zeros(self.N, self.N)
-        for i in range(self.N):
-            distances = torch.tensor(
-                [torch.norm(self.Z[i] - self.Z[j]) for j in range(self.N)]
-            )
-            neighbors = self._k_nearest_to_nth_sample(i)
-            for j in neighbors:
-                S[i, j] = torch.exp(-distances[j] / 0.5)
-        return (S + S.T) / 2
-
-    def _compute_ki(self, dist) -> torch.Tensor:
-        """Compute the robustness coefficient k_i for adaptive loss."""
-        numerator = (1 + self.tau) * (dist + 2 * self.tau)
-        denominator = 2 * (dist + self.tau) ** 2
-        return numerator / denominator
-
-    def _update_network_parameters(self) -> None:
-        """Step 1: Update encoder/decoder parameters using backpropagation."""
-        self.encoder.train()
-        self.decoder.train()
-        self.optimizer.zero_grad()
-
-        loader = DataLoader(
-            TensorDataset(self.X), batch_size=self.batch_size or 256, shuffle=False
-        )
-        all_Z, all_X_recon = [], []
-        for (x_batch,) in loader:
-            z_batch = self.encoder(x_batch)
-            x_recon_batch = self.decoder(z_batch)
-            all_Z.append(z_batch)
-            all_X_recon.append(x_recon_batch)
-
-        self.Z = torch.cat(all_Z, dim=0)
-        self.X_recon = torch.cat(all_X_recon, dim=0)
-
-        recon_loss = F.mse_loss(self.X_recon, self.X)
-
-        cluster_loss = 0.0
-        for n in range(self.N):
-            for c in range(self.K):
-                dist = torch.norm(self.Z[n] - self.V[c])
-                k_i = self._compute_ki(dist)
-                cluster_loss += self.U[n, c] ** 2 * k_i * dist**2
-
-        reg_loss = 0.0
-        for module in list(self.encoder.modules()) + list(self.decoder.modules()):
-            if hasattr(module, "weight") and module.weight is not None:
-                reg_loss += torch.norm(module.weight, p="fro") ** 2
-            if hasattr(module, "bias") and module.bias is not None:
-                reg_loss += torch.norm(module.bias, p=2) ** 2
-        reg_loss *= self.gamma
-
-        total_loss = recon_loss + cluster_loss + reg_loss
-        total_loss.backward()
-        self.optimizer.step()
-
-        self.Z = self.Z.detach()
-        self.X_recon = self.X_recon.detach()
-
-    def _update_cluster_center_matrix(self) -> None:
-        """Step 2: Update cluster centers V using the current membership and latent features."""
-        d = self.Z.shape[1]
-        V_new = torch.zeros((self.K, d))
-        for c in range(self.K):
-            numerator = torch.zeros(d)
-            denominator = 0.0
-            for n in range(self.N):
-                dist = torch.norm(self.Z[n] - self.V[c])
-                k_i = self._compute_ki(dist)
-                w = self.U[n, c] ** 2 * k_i
-                numerator += w * self.Z[n]
-                denominator += w
-            V_new[c] = numerator / (denominator + 1e-8)
-
-        self.V = V_new
-
-    def _update_membership_matrix(self) -> None:
-        """Step 3: Update membership matrix U using closed-form solution with Lagrange multipliers."""
-        U_new = torch.zeros(self.N, self.K)
-        for n in range(self.N):
-            neighbors = self._k_nearest_to_nth_sample(n)
-            p = torch.zeros(self.K)
-            q = torch.zeros(self.K)
-            for c in range(self.K):
-                p[c] = 2 * self.mu * sum(self.S[n, j] * self.U[j, c] for j in neighbors)
-                dist = torch.norm(self.Z[n] - self.V[c]) + 1e-8
-                q[c] = ((1 + self.tau) * dist**2) / (dist + self.tau)
-                q[c] += self.mu * sum(self.S[n, j] for j in neighbors)
-
-            lambda_n = (2 - torch.sum(p / q)) / (torch.sum(1 / q) + 1e-8)
-            for c in range(self.K):
-                U_new[n, c] = (p[c] + lambda_n) / (2 * q[c] + 1e-8)
-
-        self.U = U_new
+    def _similarity(self, Z, k=10):
+        n = Z.shape[0]
+        k = min(k, n - 1)
+        D = torch.cdist(Z, Z)
+        idx = torch.argsort(D, dim=1)[:, 1 : k + 1]
+        S = torch.zeros(n, n)
+        S.scatter_(1, idx, torch.exp(-torch.gather(D, 1, idx) / 0.5))
+        return 0.5 * (S + S.T)
 
     def fit_predict(self, X: np.ndarray | torch.Tensor) -> np.ndarray:
-        """Train the RD-FKC model and return soft cluster assignments."""
-        if isinstance(X, np.ndarray):
-            self.X = torch.tensor(X, dtype=torch.float32)
-        else:
-            self.X = X.float()
+        """Train RD-FKC on ``X`` and return the membership matrix."""
+        X = (
+            X.float()
+            if isinstance(X, torch.Tensor)
+            else torch.as_tensor(np.asarray(X), dtype=torch.float32)
+        )
+        if not torch.isfinite(X).all():
+            raise ValueError("RDFKC: X contains NaN or infinite values.")
+        N = X.shape[0]
+        K = check_n_clusters(self.n_clusters, N, estimator="RDFKC")
+        if N < 2:
+            raise ValueError("RDFKC: at least 2 samples are required.")
+        batch_size = self.batch_size or (64 if N < 1000 else 256 if N < 10000 else 1000)
 
-        self.N = len(X)
-        # Auto batch size selection
-        if self.batch_size is None:
-            if self.N < 1000:
-                self.batch_size = 64
-            elif self.N < 10000:
-                self.batch_size = 256
-            else:
-                self.batch_size = 1000
+        with isolated_torch_rng(self.random_state):
+            self._build_networks()
+            params = list(self.encoder_.parameters()) + list(self.decoder_.parameters())
+            optimizer = torch.optim.Adam(params, lr=self.lr)
 
-        self.Z = self.encoder(self.X)
-        self.X_recon = self.decoder(self.Z)
+            with torch.no_grad():
+                Z, _ = self._encode_decode(X, batch_size)
+            U = torch.rand(N, K)
+            U = U / U.sum(dim=1, keepdim=True)
+            V = torch.randn(K, Z.shape[1])
+            S = self._similarity(Z)
+            S_rowsum = S.sum(dim=1, keepdim=True)
 
-        self.U = self._initialize_membership_matrix()
-        self.V = self._initialize_cluster_centers()
-        self.S = self._initialize_similarity_matrix()
+            for _ in range(self.max_iter):
+                # 1. network step
+                self.encoder_.train()
+                self.decoder_.train()
+                optimizer.zero_grad()
+                Z, R = self._encode_decode(X, batch_size)
+                dist = torch.cdist(Z, V)
+                cluster = (U**2 * self._robust_weight(dist) * dist**2).sum()
+                reg = sum((w**2).sum() for w in params)
+                loss = torch.nn.functional.mse_loss(R, X) + cluster + self.gamma * reg
+                loss.backward()
+                optimizer.step()
+                Z = Z.detach()
 
-        for _ in range(self.max_iter):
-            self._update_network_parameters()
-            self._update_cluster_center_matrix()
-            self._update_membership_matrix()
+                # 2. prototypes
+                dist = torch.cdist(Z, V)
+                w = U**2 * self._robust_weight(dist)
+                V = (w.T @ Z) / (w.sum(dim=0)[:, None] + 1e-8)
 
-        return torch.argmax(self.U, dim=1).numpy()
+                # 3. memberships, exactly on the simplex
+                dist = torch.cdist(Z, V) + 1e-8
+                q = (1 + self.tau) * dist**2 / (dist + self.tau) + self.mu * S_rowsum
+                p = 2 * self.mu * (S @ U)
+                U = _simplex_quadratic(p, torch.clamp(q, min=1e-12))
+
+        self.encoder_.eval()
+        self.decoder_.eval()
+        self.U = U.detach().numpy().astype(np.float64)
+        self.memberships_ = self.U
+        self.latent_ = Z.numpy().astype(np.float64)
+        self.latent_centers_ = V.detach().numpy().astype(np.float64)
+        return self.memberships_

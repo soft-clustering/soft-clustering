@@ -40,10 +40,33 @@ from sklearn.cluster import DBSCAN
 from typeguard import typechecked
 
 from ._base import BaseSoftClusterer
+from ._validation import check_array, check_scalar
 
 
 @typechecked
 class SoftDBSCANGM(BaseSoftClusterer):
+    r"""Soft DBSCAN with Gaussian-mixture refinement.
+
+    DBSCAN first finds dense clusters; every DBSCAN cluster, and every noise
+    point on its own, becomes a component. The memberships are then refined
+    by alternating membership-weighted means and covariances with the fuzzy
+    c-means ratio rule on Mahalanobis distances,
+    :math:`u_{ij} \propto d_{ij}^{-2/(m-1)}`, so rows sum to one. The number
+    of clusters is discovered by DBSCAN.
+
+    Because every noise point founds its own component, the number of
+    components grows with the amount of noise; choose ``eps`` and
+    ``min_samples`` so that DBSCAN finds the intended structure.
+
+    Parameters are documented under ``__init__`` below.
+
+    References
+    ----------
+    A. Smiti and Z. Elouedi. Fuzzy density based clustering method: Soft
+    DBSCAN-GM. In *Proc. 8th IEEE International Conference on Intelligent
+    Systems (IS)*, pp. 443--448, 2016. doi:10.1109/IS.2016.7737459
+    """
+
     # The membership update is the fuzzy c-means ratio rule applied to
     # Mahalanobis distances, so rows sum to one by construction:
     # sum_j d_j^-p / sum_t d_t^-p = 1. See the closed form in the module
@@ -51,6 +74,11 @@ class SoftDBSCANGM(BaseSoftClusterer):
     _partition_constrained = True
     # Discovers the cluster count; see BaseSoftClusterer._determines_k.
     _determines_k = True
+
+    # Fitted attributes, set by ``fit`` (not before).
+    U: np.ndarray
+    centers: np.ndarray
+    cov_inv: list[np.ndarray]
 
     def __init__(
         self,
@@ -73,10 +101,6 @@ class SoftDBSCANGM(BaseSoftClusterer):
         self.m = m
         self.max_iter = max_iter
         self.tol = tol
-        self.labels_ = None
-        self.U = None
-        self.centers = None
-        self.cov_inv = None
 
     @staticmethod
     def _chunk_rows(n_samples: int, k: int, n_features: int) -> int:
@@ -126,6 +150,10 @@ class SoftDBSCANGM(BaseSoftClusterer):
         return np.sqrt(d2)
 
     def fit(self, X: np.ndarray):
+        X = check_array(X, estimator=type(self).__name__)
+        check_scalar(
+            self.m, "m", estimator=type(self).__name__, lower=1.0, lower_inclusive=False
+        )
         N, D = X.shape
 
         # Step 1: DBSCAN clustering

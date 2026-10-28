@@ -3,8 +3,8 @@
 
 """Unit and integration tests for KMART (Fuzzy ART document clustering)."""
 
+import numpy as np
 import pytest
-import scipy.sparse as sp
 
 from soft_clustering import KMART
 
@@ -23,10 +23,17 @@ def docs():
     ]
 
 
-def test_fit_predict_returns_sparse(docs):
+def test_fit_predict_returns_dense_incidence(docs):
+    """fit_predict returns memberships_, a dense binary incidence matrix.
+
+    Earlier releases returned a scipy sparse matrix from fit_predict, unlike
+    every other estimator.
+    """
     model = KMART(vigilance_param=0.3)
     result = model.fit_predict(docs)
-    assert sp.issparse(result)
+    assert isinstance(result, np.ndarray)
+    np.testing.assert_array_equal(result, model.memberships_)
+    assert set(np.unique(result)).issubset({0.0, 1.0})
 
 
 def test_membership_rows(docs):

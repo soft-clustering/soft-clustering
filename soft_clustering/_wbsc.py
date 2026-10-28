@@ -2,6 +2,7 @@
 # Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
 
 from collections import defaultdict
+from typing import TypedDict
 
 import numpy as np
 from scipy.sparse import csr_matrix, lil_matrix
@@ -10,26 +11,44 @@ from typeguard import typechecked
 from ._base import BaseSoftClusterer
 
 
+class _Cluster(TypedDict):
+    docs: set[int]
+    words: set[str]
+
+
 @typechecked
 class WBSC(BaseSoftClusterer):
-    # documents may belong to several word-based clusters to independent degrees
-    _partition_constrained = False
-    # Discovers the cluster count; see BaseSoftClusterer._determines_k.
-    _determines_k = True
-    """
+    r"""
     Implements the Word-Based Soft Clustering (WBSC) algorithm.
 
     This algorithm performs soft clustering on documents based on the words they share,
     meaning a single document can belong to multiple clusters. This is useful for
     capturing multiple themes within a document.
 
-    Attributes:
-        similarity_threshold (float): The similarity score required to merge two clusters.
-        min_doc_freq (int): The minimum number of documents a word must appear in to be considered.
-        max_doc_freq_ratio (float): The maximum ratio of documents a word can appear in to be considered.
-        clusters_ (List[Set[int]]): A list of the final clusters. Each cluster is a set of document indices.
-        cluster_words_ (List[Set[str]]): The representative words for each final cluster.
+    Every sufficiently frequent word seeds a cluster of the documents that
+    contain it; clusters are then merged hierarchically while one is a subset
+    of another or their Tanimoto similarity exceeds the threshold. The number
+    of clusters is discovered and ``memberships_`` is the binary
+    document-cluster incidence matrix (a document may be in several).
+
+    Reference: K.-I. Lin and R. Kondadadi. A word-based soft clustering
+    algorithm for documents. In *Proc. ISCA 16th International Conference on
+    Computers and Their Applications (CATA)*, pp. 391--394, 2001.
+
+    Attributes
+    ----------
+    memberships_ : ndarray of shape (n_documents, n_clusters)
+        Binary document-cluster incidence; a document may be in several.
+    clusters\_ : list of set of int
+        Document indices of every final cluster.
+    cluster_words\_ : list of set of str
+        Words that seeded every final cluster.
     """
+
+    # documents may belong to several word-based clusters to independent degrees
+    _partition_constrained = False
+    # Discovers the cluster count; see BaseSoftClusterer._determines_k.
+    _determines_k = True
 
     def __init__(
         self,
@@ -53,15 +72,13 @@ class WBSC(BaseSoftClusterer):
         self.clusters_: list[set[int]] = []
         self.cluster_words_: list[set[str]] = []
 
-    def _initialize_clusters(
-        self, docs: list[str]
-    ) -> list[dict[str, set[int] | set[str]]]:
+    def _initialize_clusters(self, docs: list[str]) -> list[_Cluster]:
         """
         Performs initial processing of documents, filters the vocabulary, and creates initial word-based clusters.
         """
         num_docs = len(docs)
-        word_doc_counts = defaultdict(int)
-        word_to_docs_map = defaultdict(set)
+        word_doc_counts: defaultdict[str, int] = defaultdict(int)
+        word_to_docs_map: defaultdict[str, set[int]] = defaultdict(set)
 
         # First pass: Count document frequencies and build word-to-document mapping
         for i, doc in enumerate(docs):
@@ -79,10 +96,15 @@ class WBSC(BaseSoftClusterer):
             if count >= self.min_doc_freq and count <= max_doc_freq
         }
 
-        # Create an initial cluster for each word in the filtered vocabulary
-        initial_clusters = [
+        # Create an initial cluster for each word in the filtered vocabulary.
+        # Sorted: the merge below is greedy and order-dependent, and a set of
+        # strings iterates in an order that changes with PYTHONHASHSEED, i.e.
+        # between interpreter processes. Unsorted, the same corpus gave a
+        # differently ordered (and, when merges occur, possibly different)
+        # partition in every new Python process.
+        initial_clusters: list[_Cluster] = [
             {"docs": word_to_docs_map[word], "words": {word}}
-            for word in filtered_vocabulary
+            for word in sorted(filtered_vocabulary)
         ]
         return initial_clusters
 
@@ -109,6 +131,8 @@ class WBSC(BaseSoftClusterer):
         Returns:
             csr_matrix: A sparse matrix of shape (num_docs, num_clusters) indicating membership.
         """
+        if isinstance(docs, str) or not all(isinstance(d, str) for d in docs):
+            raise TypeError("WBSC: docs must be a list of strings, one per document.")
         # Phase 1: Create initial clusters
         clusters = self._initialize_clusters(docs)
 

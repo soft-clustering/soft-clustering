@@ -18,14 +18,18 @@ What SCPP does standardize is everything downstream of the fit call. After
     constraint; see :attr:`BaseSoftClusterer._partition_constrained`.
 
 ``labels_``
-    ``ndarray`` of shape ``(n_samples,)``, the arg-max over ``memberships_``.
+    ``ndarray`` of shape ``(n_samples,)``, the arg-max over ``memberships_``,
+    or ``-1`` for a sample whose memberships are all zero (possible only for
+    estimators without the partition constraint).
 
 ``centers_``
     ``ndarray`` of shape ``(n_clusters, n_features)`` for prototype-based
     methods, ``None`` otherwise.
 
-``n_clusters``
-    The number of clusters the model was fitted with.
+``n_clusters_``
+    The number of clusters actually produced. For methods that discover the
+    count it may differ from any requested ``n_clusters``, which is never
+    modified by ``fit``.
 
 Subclasses opt in by inheriting from :class:`BaseSoftClusterer` and declaring
 where their solution lives::
@@ -46,7 +50,9 @@ from __future__ import annotations
 
 import functools
 import inspect
-from typing import Any
+import numbers
+import warnings
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
@@ -57,6 +63,20 @@ try:  # SciPy is a hard dependency, but keep the import defensive for clarity.
 except ImportError:  # pragma: no cover
     sp = None
     _HAVE_SCIPY = False
+
+
+try:  # scikit-learn is a hard dependency; the guard keeps the base importable.
+    from sklearn.exceptions import NotFittedError as _SklearnNotFittedError
+except ImportError:  # pragma: no cover
+    _SklearnNotFittedError = ValueError
+
+
+class NotFittedError(RuntimeError, _SklearnNotFittedError):
+    """Raised when a fitted attribute or method is used before ``fit``.
+
+    Subclasses both :class:`RuntimeError`, which SCPP raised before, and
+    scikit-learn's ``NotFittedError``, so code catching either keeps working.
+    """
 
 
 # Constructor keywords that historically stood for "number of clusters".
@@ -129,6 +149,20 @@ def ratio_memberships(distances: np.ndarray, exponent: float) -> np.ndarray:
     np.exp(scores, out=scores)
     total = scores.sum(axis=1, keepdims=True)
     return scores / np.where(total > 0, total, 1.0)
+
+
+def _labels_from(U: np.ndarray) -> np.ndarray:
+    """Hard labels: ``argmax`` of each row, or ``-1`` for an all-zero row.
+
+    Methods without the partition constraint (typicality-, affiliation- and
+    threshold-based ones) can leave a sample with no membership at all.
+    ``argmax`` would silently put such a sample in cluster 0; ``-1`` marks it
+    as unassigned, the convention scikit-learn uses for noise.
+    """
+    labels = np.argmax(U, axis=1)
+    if U.shape[1]:
+        labels[np.max(U, axis=1) <= 0] = -1
+    return labels
 
 
 def _bind_params(init: Any, args: tuple, kwargs: dict) -> dict[str, Any]:
@@ -224,11 +258,26 @@ class BaseSoftClusterer:
     #: length.
     _supports_out_of_sample: bool = False
 
-    # Populated by the fit wrapper installed in __init_subclass__.
-    memberships_: np.ndarray | None = None
-    labels_: np.ndarray | None = None
-    centers_: np.ndarray | None = None
-    n_clusters: int | None = None
+    #: Sample count recorded by estimators whose input is not one array.
+    _n_samples_hint: int | None = None
+
+    # Populated by the fit wrapper installed in __init_subclass__. They are
+    # None until then; estimator code reads them only after fitting (and
+    # ``_check_fitted`` enforces that for public methods), so they are typed
+    # as fitted for the type checker. ``n_clusters`` is None for estimators
+    # that have no such parameter.
+    if TYPE_CHECKING:
+        memberships_: np.ndarray
+        labels_: np.ndarray
+        centers_: np.ndarray
+        n_clusters: int
+        n_clusters_: int
+    else:
+        memberships_ = None
+        labels_ = None
+        centers_ = None
+        n_clusters = None
+        n_clusters_ = None
 
     # ------------------------------------------------------------------
     # Subclass instrumentation
@@ -293,7 +342,7 @@ class BaseSoftClusterer:
                 self._scpp_params["n_clusters"] = deferred
 
         wrapper._scpp_wrapped = True  # type: ignore[attr-defined]
-        cls.__init__ = wrapper  # type: ignore[assignment]
+        cls.__init__ = wrapper  # type: ignore[method-assign]
 
     @classmethod
     def _install_fit_wrapper(cls) -> None:
@@ -307,6 +356,36 @@ class BaseSoftClusterer:
                 params = list(inspect.signature(func).parameters.values())
             except (TypeError, ValueError):  # pragma: no cover
                 params = []
+            # Unsupervised single-input entry points, fit(X) or the legacy
+            # fit_predict(X, K=None), follow scikit-learn's convention of
+            # accepting and ignoring ``y``: Pipelines and model-selection tools
+            # call fit(X, y). Estimators whose second argument means something
+            # (two views, partial labels, an image shape, ...) are left alone.
+            data_params = [
+                p
+                for p in params[1:]
+                if p.kind
+                in (
+                    inspect.Parameter.POSITIONAL_ONLY,
+                    inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                )
+            ]
+            # An optional ``y`` is scikit-learn's ignored target; a required
+            # one (SFCMEP's partial labels) is real input and is passed on.
+            explicit_y = (
+                len(data_params) >= 2
+                and data_params[1].name == "y"
+                and data_params[1].default is not inspect.Parameter.empty
+            )
+            rest = data_params[2:] if explicit_y else data_params[1:]
+            legacy_k = (
+                rest[0].name
+                if len(rest) == 1
+                and rest[0].name in K_ALIASES
+                and rest[0].default is not inspect.Parameter.empty
+                else None
+            )
+            unsupervised = len(rest) == 0 or legacy_k is not None
             # Does the entry point demand K positionally, e.g. fit_predict(X, K)?
             k_positional = next(
                 (
@@ -317,8 +396,26 @@ class BaseSoftClusterer:
                 None,
             )
 
-            @functools.wraps(func)
-            def wrapper(self, *args, __func=func, __k=k_positional, __name=name, **kw):
+            # Loop variables are bound through defaults; mypy cannot type the
+            # resulting signature against functools.wraps.
+            @functools.wraps(func)  # type: ignore[arg-type]
+            def wrapper(
+                self,
+                *args,
+                __func=func,
+                __k=k_positional,
+                __name=name,
+                __unsup=unsupervised,
+                __legacy_k=legacy_k,
+                **kw,
+            ):
+                # Every fit starts from the constructor's parameters, not from
+                # whatever a previous fit left behind: ``n_clusters`` is
+                # overwritten with the discovered count after a fit, and stale
+                # fitted attributes must not leak into a failed refit.
+                self._reset_fitted_state()
+                if __unsup:
+                    args, kw = self._absorb_y(args, kw, __legacy_k)
                 # Supply K from the constructor when the legacy signature wants
                 # it positionally and the caller did not provide it.
                 if __k is not None and __k not in kw:
@@ -327,53 +424,100 @@ class BaseSoftClusterer:
                         kw[__k] = self.n_clusters
                 result = __func(self, *args, **kw)
                 self._normalise_fitted_state(result, args[0] if args else kw.get("X"))
-                # fit() returns self; fit_predict() returns the memberships.
+                # fit() returns self; fit_predict() returns the memberships,
+                # whatever the algorithm's own body returned. Earlier releases
+                # passed that through, so fit_predict returned a tuple, a dict,
+                # a sparse matrix or hard labels depending on the estimator.
                 if __name == "fit":
                     return self
-                return self.memberships_ if result is None else result
+                return self.memberships_
 
+            if unsupervised and not explicit_y and legacy_k is None:
+                # Advertise scikit-learn's fit(X, y=None) signature.
+                sig = inspect.signature(func)
+                new_params = list(sig.parameters.values())
+                new_params.insert(
+                    2,
+                    inspect.Parameter(
+                        "y", inspect.Parameter.POSITIONAL_OR_KEYWORD, default=None
+                    ),
+                )
+                wrapper.__signature__ = sig.replace(  # type: ignore[attr-defined]
+                    parameters=new_params
+                )
             wrapper._scpp_wrapped = True  # type: ignore[attr-defined]
-            setattr(cls, name, wrapper)
+            setattr(cls, name, wrapper)  # noqa: B010
 
     # ------------------------------------------------------------------
     # Canonical interface
     # ------------------------------------------------------------------
 
-    def fit(self, X, *args, **kwargs) -> BaseSoftClusterer:
+    def fit(self, X, y=None, *args, **kwargs) -> BaseSoftClusterer:
         """Fit the estimator and return ``self``.
 
         Estimators that define their own ``fit`` override this; those that
-        only define ``fit_predict`` inherit it.
+        only define ``fit_predict`` inherit it. For unsupervised estimators
+        ``y`` is ignored, as in scikit-learn; for estimators whose second input
+        is meaningful (partial labels, a second view, ...) it is passed on.
         """
-        self.fit_predict(X, *args, **kwargs)
+        if y is None and not args:
+            self.fit_predict(X, **kwargs)
+        else:
+            self.fit_predict(X, y, *args, **kwargs)
         return self
 
-    def fit_predict(self, X, *args, **kwargs) -> np.ndarray:
-        """Fit the estimator and return ``memberships_``."""
-        self.fit(X, *args, **kwargs)
-        return self.memberships_
+    def fit_predict(self, X, y=None, *args, **kwargs) -> np.ndarray:
+        """Fit the estimator and return ``memberships_``.
+
+        ``y`` is ignored by unsupervised estimators, as in scikit-learn, and
+        passed on to estimators whose second input is meaningful.
+        """
+        if y is None and not args:
+            self.fit(X, **kwargs)
+        else:
+            self.fit(X, y, *args, **kwargs)
+        return self._fitted_memberships()
 
     def predict(self, X=None) -> np.ndarray:
-        """Return hard cluster assignments for the fitted data.
+        """Return hard cluster assignments.
 
-        Most soft clustering algorithms in SCPP are transductive: they produce
-        a partition of the data they were fitted on and define no rule for
-        assigning a new sample. Calling ``predict()`` with no argument returns
-        the stored ``labels_``. Passing ``X`` to a transductive estimator
-        raises :class:`NotImplementedError`, because returning the training
-        labels would silently hand back a partition of different data, of the
-        wrong length. Estimators that do define an out-of-sample rule set
-        :attr:`_supports_out_of_sample` and override this method.
+        Called with no argument, returns ``labels_``, the partition of the
+        data the model was fitted on.
+
+        Called with new data ``X``, returns ``argmax`` of
+        :meth:`predict_proba(X) <predict_proba>` for estimators that define an
+        out-of-sample rule (``_supports_out_of_sample = True``), such as the
+        prototype-based fuzzy and possibilistic methods, whose membership
+        update is a closed-form function of the fitted prototypes. Most other
+        soft clustering algorithms in SCPP are transductive: they partition
+        the data they were fitted on and define no rule for a new sample.
+        For those, passing ``X`` raises :class:`NotImplementedError`, because
+        returning the training labels would silently hand back a partition of
+        different data, of the wrong length.
         """
         self._check_fitted()
+        if X is None:
+            assert self.labels_ is not None  # set together with memberships_
+            return self.labels_
         self._reject_out_of_sample(X, "predict")
-        return self.labels_
+        return _labels_from(self._predict_memberships(X))
 
     def predict_proba(self, X=None) -> np.ndarray:
-        """Return the membership matrix, with the same caveat as :meth:`predict`."""
+        """Return memberships; see :meth:`predict` for the meaning of ``X``.
+
+        With no argument this is ``memberships_``. With new data it applies
+        the estimator's membership rule to ``X`` against the fitted model
+        parameters, without refitting them.
+        """
+        if X is None:
+            return self._fitted_memberships()
         self._check_fitted()
         self._reject_out_of_sample(X, "predict_proba")
-        return self.memberships_
+        return self._predict_memberships(X)
+
+    def _predict_memberships(self, X) -> np.ndarray:
+        """Membership rule for unseen data; overridden by inductive estimators."""
+        raise NotImplementedError  # pragma: no cover - guarded by the flag
 
     def _reject_out_of_sample(self, X, method: str) -> None:
         if X is None or self._supports_out_of_sample:
@@ -389,10 +533,61 @@ class BaseSoftClusterer:
     # Internals
     # ------------------------------------------------------------------
 
+    def _absorb_y(self, args: tuple, kw: dict, legacy_k: str | None):
+        """Drop scikit-learn's ``y`` from an unsupervised fit call.
+
+        A second positional argument used to be the cluster count for FCM,
+        PCM, GK and GMM (``fit_predict(X, K)``). An integer there is still
+        honoured, with a deprecation warning; anything else is ``y`` and is
+        ignored, as for every unsupervised scikit-learn estimator.
+        """
+        kw.pop("y", None)
+        if len(args) > 2:
+            raise TypeError(
+                f"{type(self).__name__}.fit takes the data and an optional, "
+                f"ignored y; got {len(args)} positional arguments."
+            )
+        if len(args) == 2:
+            extra = args[1]
+            args = args[:1]
+            if (
+                legacy_k is not None
+                and isinstance(extra, numbers.Integral)
+                and not isinstance(extra, bool)
+            ):
+                warnings.warn(
+                    "Passing the number of clusters to fit is deprecated; set "
+                    "n_clusters in the constructor instead.",
+                    DeprecationWarning,
+                    stacklevel=4,
+                )
+                kw[legacy_k] = int(extra)
+        return args, kw
+
+    def __sklearn_is_fitted__(self) -> bool:
+        return self.memberships_ is not None
+
+    def _reset_fitted_state(self) -> None:
+        """Clear the protocol attributes before a fit."""
+        for name in ("memberships_", "labels_", "centers_", "n_clusters_"):
+            setattr(self, name, None)  # back to "not fitted"
+        self._n_samples_hint = None
+        self.__dict__.pop("n_features_in_", None)
+
+    def _fitted_memberships(self) -> np.ndarray:
+        """``memberships_``, or a clear error if the estimator is not fitted."""
+        if self.memberships_ is None:
+            raise NotFittedError(
+                f"This {type(self).__name__} instance is not fitted yet; call "
+                "fit() first."
+            )
+        return self.memberships_
+
     def _check_fitted(self) -> None:
         if self.memberships_ is None:
-            raise RuntimeError(
-                f"{type(self).__name__} is not fitted yet; call fit() first."
+            raise NotFittedError(
+                f"This {type(self).__name__} instance is not fitted yet; call "
+                "fit() first."
             )
 
     def _normalise_fitted_state(self, result: Any, data: Any) -> None:
@@ -414,20 +609,24 @@ class BaseSoftClusterer:
                 # sample as unassigned rather than raising from argmax.
                 self.labels_ = np.full(U.shape[0], -1, dtype=int)
             else:
-                self.labels_ = np.argmax(U, axis=1)
-            # After fitting, ``n_clusters`` reports the partition that was
-            # actually produced. For non-parametric methods (:attr:`_determines_k`)
-            # this is the discovered count, which may differ from any requested
-            # value; reporting the request would be misleading.
-            self.n_clusters = int(U.shape[1])
+                self.labels_ = _labels_from(U)
+            # The partition actually produced. For methods that discover the
+            # count (:attr:`_determines_k`) it can differ from any requested
+            # value. The ``n_clusters`` parameter itself is left unchanged, as
+            # scikit-learn requires of parameters; earlier releases overwrote it.
+            self.n_clusters_ = int(U.shape[1])
 
         centers = self._extract_centers()
         if centers is not None:
             self.centers_ = centers
 
+        shape = getattr(data, "shape", None)
+        if shape is not None and len(shape) == 2:
+            self.n_features_in_ = int(shape[1])
+
     def _extract_membership(self, result: Any, n_samples: int | None):
         """Find the membership matrix in the return value or on the instance."""
-        candidates = []
+        candidates: list[Any] = []
 
         if isinstance(result, tuple):
             candidates.extend(result)
@@ -497,10 +696,17 @@ class BaseSoftClusterer:
             Accepted for signature compatibility. SCPP estimators do not
             contain nested estimators, so it has no effect.
         """
-        params = getattr(self, "_scpp_params", None)
-        if params is None:  # pragma: no cover - estimator with no own __init__
+        snapshot = getattr(self, "_scpp_params", None)
+        if snapshot is None:  # pragma: no cover - estimator with no own __init__
             return {}
-        return dict(params)
+        # As in scikit-learn, a parameter's value is the attribute of the same
+        # name, so ``model.n_clusters = 4`` is a parameter change. The
+        # constructor snapshot only covers a parameter that is not stored as
+        # an attribute.
+        return {
+            name: getattr(self, name) if hasattr(self, name) else value
+            for name, value in snapshot.items()
+        }
 
     def set_params(self, **params: Any) -> BaseSoftClusterer:
         """Set constructor arguments in place and return ``self``.
@@ -520,6 +726,24 @@ class BaseSoftClusterer:
         current.update(params)
         type(self).__init__(self, **current)
         return self
+
+    def __sklearn_tags__(self):
+        """Estimator tags for scikit-learn >= 1.6.
+
+        Declares SCPP estimators as unsupervised clusterers, so that
+        scikit-learn utilities that query tags (``is_clusterer``, pipelines,
+        ``check_estimator``) can inspect them. Only defined in terms of the
+        public tag API; older scikit-learn versions do not call it.
+        """
+        from sklearn.base import BaseEstimator
+
+        tags = BaseEstimator().__sklearn_tags__()
+        tags.estimator_type = "clusterer"
+        tags.target_tags.required = False
+        tags.non_deterministic = False
+        # Sparse feature matrices are accepted and densified.
+        tags.input_tags.sparse = True
+        return tags
 
     def __repr__(self) -> str:  # pragma: no cover - cosmetic
         params = self.get_params()

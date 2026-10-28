@@ -10,11 +10,14 @@ partition, and recover that partition.
 
 import numpy as np
 import pytest
-import torch
-from sklearn.metrics import adjusted_rand_score
 
-from soft_clustering import CDCGS
-from soft_clustering._cdcgs import _soft_modularity
+pytest.importorskip("torch", reason="needs the `deep` extra")
+
+import torch  # noqa: E402
+from sklearn.metrics import adjusted_rand_score  # noqa: E402
+
+from soft_clustering import CDCGS  # noqa: E402
+from soft_clustering._cdcgs import _soft_modularity  # noqa: E402
 
 
 def planted_blockmodel(n=60, k=3, p_in=0.6, p_out=0.05, seed=0):
@@ -104,7 +107,7 @@ def test_fit_populates_the_protocol_attributes():
     assert np.all(U >= 0)
     np.testing.assert_allclose(U.sum(axis=1), 1.0, atol=1e-5)
     np.testing.assert_array_equal(model.labels_, np.argmax(U, axis=1))
-    assert model.n_clusters == 3
+    assert model.n_clusters_ == 3
 
 
 def test_predict_before_fit_raises():
@@ -123,7 +126,8 @@ def test_reproducible_under_fixed_seed():
 def test_infers_node_count_from_the_graph():
     A, _ = planted_blockmodel(n=30, k=3)
     model = CDCGS(n_clusters=3, random_state=0, max_epochs=20, n_init=1).fit(A)
-    assert model.num_nodes == 30
+    assert model.n_nodes_ == 30
+    assert model.num_nodes is None  # the parameter is not modified by fit
 
 
 # ---------------------------------------------------------------------------

@@ -1,31 +1,22 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
 
-import sys
-from os import path
+"""MBMM: Mixture of Beta distributions for data in (0, 1).
+
+Run with ``python example/example_mbmm.py`` after ``pip install soft-clustering``.
+"""
 
 import numpy as np
 
-if __name__ == "__main__":
-    base_dir = path.dirname(path.realpath(__file__))
-    sys.path.append(base_dir[:-4])
-    from soft_clustering import MBMM
+from soft_clustering import MBMM
 
-    np.random.seed(0)
+rng = np.random.default_rng(0)
+X = np.vstack([rng.beta(2, 8, (60, 3)), rng.beta(8, 2, (60, 3))])
+X = np.clip(X, 1e-3, 1 - 1e-3)
 
-    # Generate Beta data for 2 clusters
-    X1 = np.random.beta(2, 5, size=(50, 2))
-    X2 = np.random.beta(5, 2, size=(50, 2))
-    X = np.vstack([X1, X2])
+model = MBMM(n_clusters=2, random_state=0).fit(X)
 
-    model = MBMM(n_components=2, max_iter=100)
-    model.fit(X)
-
-    labels = model.predict()
-    probs = model.predict_proba()
-
-    print("Predicted Labels:")
-    print(labels)
-
-    print("\nMembership Probabilities:")
-    print(probs)
+print("memberships_ shape:", model.memberships_.shape)
+print("first three rows:\n", np.round(model.memberships_[:3], 3))
+print("labels_:", model.labels_)
+print("clusters produced:", model.n_clusters_)

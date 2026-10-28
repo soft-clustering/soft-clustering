@@ -1,27 +1,29 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
 
-import sys
-from os import path
+"""SFCMEP: Semi-supervised fuzzy clustering from a few labels.
+
+Run with ``python example/example_sfcmep.py`` after ``pip install soft-clustering``.
+"""
 
 import numpy as np
 
-if __name__ == "__main__":
-    base_dir = path.dirname(path.realpath(__file__))
-    sys.path.append(base_dir[:-4])
-    from soft_clustering import SFCMEP
+from soft_clustering import SFCMEP
 
-    # Generate synthetic data for 2 clusters
-    rng = np.random.default_rng(0)
-    X1 = rng.normal(loc=0, scale=0.5, size=(50, 2))
-    X2 = rng.normal(loc=5, scale=0.5, size=(50, 2))
-    X = np.vstack([X1, X2])
+rng = np.random.default_rng(0)
+X = np.vstack(
+    [
+        rng.normal([0.0, 0.0], 0.5, (40, 2)),
+        rng.normal([4.0, 0.0], 0.5, (40, 2)),
+        rng.normal([2.0, 3.5], 0.5, (40, 2)),
+    ]
+)
+y = np.full(120, -1)  # -1 marks an unlabelled sample
+y[[0, 1, 40, 41, 80, 81]] = [0, 0, 1, 1, 2, 2]
 
-    # Semi-supervised labels (only a few given)
-    y = np.array([0] * 5 + [None] * 45 + [1] * 5 + [None] * 45, dtype=object)
+model = SFCMEP(n_clusters=3, random_state=0).fit(X, y)
 
-    model = SFCMEP(K=2, random_state=0, max_iter=50)
-    result = model.fit_predict(X, y)
-
-    U = result["membership_matrix"]
-    V = result["centroids"]
+print("memberships_ shape:", model.memberships_.shape)
+print("first three rows:\n", np.round(model.memberships_[:3], 3))
+print("labels_:", model.labels_)
+print("clusters produced:", model.n_clusters_)

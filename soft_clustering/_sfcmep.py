@@ -5,44 +5,87 @@ import numpy as np
 from typeguard import typechecked
 
 from ._base import BaseSoftClusterer
+from ._validation import check_array, check_generator, check_n_clusters
 
 
 @typechecked
 class SFCMEP(BaseSoftClusterer):
+    r"""Semi-supervised fuzzy clustering with a prior membership matrix.
+
+    Builds a prior membership matrix :math:`\tilde U` from a partially
+    labelled target vector and an expert-preference parameter :math:`\rho`,
+    then alternates
+
+    .. math::
+
+        u_{ij} = \frac{\tilde u_{ij} \exp(-\lVert x_j - v_i\rVert^2/\lambda)}
+                      {\sum_l \tilde u_{lj} \exp(-\lVert x_j - v_l\rVert^2/\lambda)},
+        \qquad
+        v_i = \frac{\sum_j u_{ij} x_j}{\sum_j u_{ij}},
+
+    which is the closed-form minimiser of a k-means data term plus
+    :math:`\lambda` times the Kullback--Leibler divergence from the prior
+    (with ``lam = 0``, hard c-means). Cluster :math:`i` is initialised at the
+    mean of the samples labelled :math:`i`, so cluster indices follow the
+    label values.
+
+    Parameters
+    ----------
+    n_clusters : int, default=3
+        Number of clusters :math:`C`; labels must lie in ``0 .. C-1``.
+    random_state : int, numpy Generator or None, default=None
+        Seed for the random fallbacks (unsupervised initialisation and the
+        sub-sampling step of the prior construction).
+    max_iter : int, default=200
+    rho : float, default=0.5
+        Expert preference :math:`\rho \in [0, 1]`: the weight given to the
+        labelled class in the prior.
+    lam : float, default=1.0
+        Temperature :math:`\lambda \ge 0` of the exponential distance
+        weighting, in units of squared distance.
+    tol : float, default=1e-6
+
+    Attributes
+    ----------
+    memberships_ : ndarray of shape (n_samples, n_clusters)
+    centers_ : ndarray of shape (n_clusters, n_features)
+    prior_memberships_ : ndarray of shape (n_samples, n_clusters)
+        The prior :math:`\tilde U` built from the labels.
+    n_iter_ : int
+
+    References
+    ----------
+    S. Xu, Z. Hao, Y. Zhu, Z. Wang, Y. Xiao and B. Liu. Semi-supervised fuzzy
+    clustering algorithm based on prior membership degree matrix with expert
+    preference. *Expert Systems with Applications*, 238:121812, 2024.
+    doi:10.1016/j.eswa.2023.121812
+
+    Notes
+    -----
+    Earlier releases multiplied by the *previous iteration's* memberships
+    instead of the prior, so the prior compounded at every sweep and the
+    memberships collapsed to crisp assignments regardless of ``lam``. The
+    construction of the prior from the labels follows the reference as
+    implemented here but has not been checked against an independent
+    implementation.
+    """
+
     def __init__(
         self,
-        K: int,
-        random_state: int | None = None,
+        n_clusters: int = 3,
+        random_state: int | np.random.Generator | None = None,
         max_iter: int = 200,
         rho: float = 0.5,
         lam: float = 1.0,
         tol: float = 1e-6,
     ):
-        """
-        Semi-supervised Fuzzy Clustering with Membership Prior (SFCMEP).
-
-        Parameters
-        ----------
-        K : int
-            Number of clusters (C).
-        random_state : int, optional
-            Random seed for reproducibility.
-        max_iter : int, default=200
-            Maximum number of iterations.
-        rho : float, default=0.5
-            Expert preference
-        lam : float, default=1.0
-            Scaling parameter used in exponential distance weighting.
-        tol : float, default=1e-6
-            Tolerance for convergence (used as stopping criterion).
-        """
-        self.C = K
+        self.n_clusters = n_clusters
+        self.C = n_clusters
         self.random_state = random_state
         self.max_iter = max_iter
         self.rho = rho
         self.lam = lam
         self.tol = tol
-        self.rng = np.random.default_rng(random_state)
 
     def _init_centroids(self, X: np.ndarray, y: np.ndarray) -> np.ndarray:
         """
@@ -51,7 +94,7 @@ class SFCMEP(BaseSoftClusterer):
         """
         V_0 = np.zeros((self.C, X.shape[1]))
 
-        if y is None or np.all(y is None):  # fully unsupervised
+        if y is None or all(v is None for v in y):  # fully unsupervised
             idx = self.rng.choice(len(X), size=self.C, replace=False)
             V_0 = X[idx]
         else:
@@ -81,9 +124,16 @@ class SFCMEP(BaseSoftClusterer):
             labeled_idx.append(j)
             dists = np.linalg.norm(V - X[j], axis=1)
             d_min = dists.min()
+            # d_min / d_i, with its limit 1 where the sample sits on centroid i.
+            # A class with a single labelled sample has that sample as its
+            # initial centroid, so d_i = 0 is the common case, not an edge
+            # case; computed directly it gave 0/0 = NaN, which propagated
+            # through rho_hat into the whole prior and every membership.
+            ratios = np.ones_like(dists)
+            positive = dists > 0
+            ratios[positive] = d_min / dists[positive]
             for i in range(self.C):
-                dist = dists[i]
-                value = d_min / dist
+                value = ratios[i]
                 if y[j] == i:
                     u_org[i, j] = 1e-6 + self.rho * value
                 else:
@@ -134,66 +184,97 @@ class SFCMEP(BaseSoftClusterer):
     def _update_membership_matrix(
         self, X: np.ndarray, U: np.ndarray, V: np.ndarray
     ) -> np.ndarray:
-        """
-        Update membership matrix U given cluster centers V.
-        """
-        U_new = np.zeros((self.C, self.N))
-        for j in range(self.N):
-            if self.lam == 0:
-                # HCM: hard assignment
-                i_min = np.argmin(np.linalg.norm(V - X[j], axis=1))
-                U_new[i_min, j] = 1.0
-            else:
-                num = []
-                dists = np.linalg.norm(V - X[j], axis=1)
-                # Shift the exponents so the largest is 0 before exponentiating
-                # (log-sum-exp). Every term picks up the same constant factor,
-                # which cancels in the normalisation below, so the result is
-                # unchanged mathematically. Without the shift, a point further
-                # than a few multiples of ``lam`` from *every* centroid makes
-                # each exp underflow to 0; the 1e-12 guard in the denominator
-                # then dominates and the column collapses to zero, leaving that
-                # sample with no membership in any cluster.
-                weights = -(dists**2) / self.lam
-                weights = weights - weights.max()
-                for i in range(self.C):
-                    exp = np.exp(weights[i])
-                    if np.isclose(U[i, j], 0.0):
-                        # If membership is zero, recompute using exponential distance kernel
-                        num.append(exp)
-                    else:
-                        num.append(U[i, j] * exp)
-                den = float(np.sum(num) + 1e-12)
-                U_new[:, j] = np.array(num) / den
-        return U_new
+        """Re-weight the cluster-major matrix ``U`` by ``exp(-d^2 / lam)``.
 
-    def fit_predict(self, X: np.ndarray, y: np.ndarray) -> dict:
+        With ``lam = 0`` this is the hard c-means assignment. The exponents
+        are shifted by their per-sample maximum before exponentiating, which
+        cancels in the normalisation and keeps a sample far from every
+        centroid from underflowing to an all-zero column. A zero prior entry
+        is floored at the smallest positive double, so a column can never be
+        all zero.
+
+        Earlier releases replaced a zero prior entry by one, the largest
+        prior weight. A zero arises for the non-labelled classes of a
+        labelled sample when ``rho = 1``, so full trust in the labels gave
+        those classes the most weight and enforced the labels less than
+        ``rho = 0.9`` did.
         """
-        Perform clustering with prior membership constraints.
+        d2 = np.sum((X[None, :, :] - V[:, None, :]) ** 2, axis=2)  # (C, N)
+        if self.lam == 0:
+            U_new = np.zeros((self.C, self.N))
+            U_new[np.argmin(d2, axis=0), np.arange(self.N)] = 1.0
+            return U_new
+        logits = -d2 / self.lam
+        logits -= logits.max(axis=0, keepdims=True)
+        prior = np.maximum(U, np.finfo(np.float64).tiny)
+        num = prior * np.exp(logits)
+        return num / (num.sum(axis=0, keepdims=True) + 1e-12)
+
+    @staticmethod
+    def _normalise_labels(y, n_samples: int, n_clusters: int, name: str):
+        """Object array of int labels with ``None`` for unlabelled samples.
+
+        ``None``, ``NaN`` and negative values (scikit-learn's ``-1``
+        convention) all mean "unlabelled".
+        """
+        y = np.asarray(y, dtype=object).ravel()
+        if y.shape[0] != n_samples:
+            raise ValueError(
+                f"{name}: y has {y.shape[0]} entries but X has {n_samples} samples."
+            )
+        out = np.full(n_samples, None, dtype=object)
+        for i, value in enumerate(y):
+            if value is None:
+                continue
+            try:
+                f = float(value)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"{name}: label {value!r} is not numeric.") from exc
+            if np.isnan(f) or f < 0:
+                continue
+            if f != int(f) or int(f) >= n_clusters:
+                raise ValueError(
+                    f"{name}: labels must be integers in [0, {n_clusters - 1}] "
+                    f"(or -1/None/NaN for unlabelled); got {value!r}."
+                )
+            out[i] = int(f)
+        return out
+
+    def fit_predict(self, X: np.ndarray, y) -> np.ndarray:
+        """Cluster ``X`` guided by the partial labels ``y``.
 
         Parameters
         ----------
-        X : ndarray of shape (N, D)
-            Input data.
-        y:  ndarray of labeled data.
+        X : array-like of shape (n_samples, n_features)
+        y : array-like of shape (n_samples,)
+            Class index in ``0 .. n_clusters-1`` for labelled samples and
+            ``None``, ``NaN`` or ``-1`` for unlabelled ones.
 
         Returns
         -------
-        U : ndarray of shape (C, N)
-            Final membership matrix.
-        V : ndarray of shape (C, D)
-            Final cluster centers.
+        ndarray of shape (n_samples, n_clusters)
+            The membership matrix.
         """
+        name = type(self).__name__
+        X = check_array(X, estimator=name)
+        self.C = check_n_clusters(self.n_clusters, X.shape[0], estimator=name)
+        if self.lam < 0:
+            raise ValueError(f"{name}: lam must be >= 0; got {self.lam}.")
+        if not 0.0 <= self.rho <= 1.0:
+            raise ValueError(f"{name}: rho must lie in [0, 1]; got {self.rho}.")
+        y = self._normalise_labels(y, X.shape[0], self.C, name)
+        self.rng = check_generator(self.random_state)
         self.N = X.shape[0]
         V_0 = self._init_centroids(X, y)
         U_prior = self._init_prior_membership(X, y, V_0)
         U_prev = self._update_membership_matrix(X, U_prior, V_0)
         V_prev = V_0.copy()
 
-        # Iterative optimization loop
+        # Every sweep re-weights the *prior*, not the previous memberships:
+        # u_ij is proportional to prior_ij * exp(-d_ij^2 / lam).
         for t in range(self.max_iter):
             V = self._update_centroids(X, U_prev)
-            U = self._update_membership_matrix(X, U_prev, V)
+            U = self._update_membership_matrix(X, U_prior, V)
             # Convergence check
             if (
                 np.linalg.norm(U - U_prev) <= self.tol
@@ -207,6 +288,9 @@ class SFCMEP(BaseSoftClusterer):
         # memberships_, labels_, centers_ and n_clusters are populated like
         # every other estimator. See soft_clustering/_base.py.
         self.centroids = V
+        self.centers_ = V
         self.membership_matrix = U.T
-
-        return {"centroids": V, "membership_matrix": U.T}
+        self.memberships_ = U.T
+        self.prior_memberships_ = U_prior.T
+        self.n_iter_ = t + 1
+        return self.memberships_

@@ -164,3 +164,11 @@ cython_debug/
 
 # Tooling caches not covered by the upstream template
 .ruff_cache/
+
+# Generated at build time by docs/source/conf.py
+docs/source/algorithms/
+
+# IDE/agent tool worktrees
+.kilo/
+
+paper

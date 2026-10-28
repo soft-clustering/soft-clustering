@@ -1,7 +1,34 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
+#
+# Portions of this module (the edge sampler, the GCN and Bernoulli-Poisson
+# decoder, the model saver and the early-stopping monitor) are adapted from
+# the reference implementation of NOCD,
+# https://github.com/shchur/overlapping-community-detection, which carries
+# the following notice:
+#
+# Copyright (c) 2019 Oleksandr Shchur
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 
-import random
+from __future__ import annotations
+
 from copy import deepcopy
 
 import numpy as np
@@ -10,12 +37,14 @@ import torch
 from typeguard import typechecked
 
 from ._base import BaseSoftClusterer
+from ._torch_utils import isolated_torch_rng
+from ._validation import check_n_clusters, int_seed
 
 
 def _to_sparse_tensor(
     matrix: sp.spmatrix | torch.Tensor,
-    cuda: bool = torch.cuda.is_available(),
-) -> torch.sparse.FloatTensor | torch.cuda.sparse.FloatTensor:
+    cuda: bool = False,
+) -> torch.Tensor:
     """Convert a scipy sparse matrix to a torch sparse tensor.
     Args:
     matrix: Sparse matrix to convert.
@@ -26,17 +55,15 @@ def _to_sparse_tensor(
 
     """
     if sp.issparse(matrix):
-        coo = matrix.tocoo()
-        indices = torch.LongTensor(np.vstack([coo.row, coo.col]))
-        values = torch.FloatTensor(coo.data)
-        shape = torch.Size(coo.shape)
-        sparse_tensor = torch.sparse.FloatTensor(indices, values, shape)
+        coo = sp.coo_matrix(matrix)
+        indices = torch.as_tensor(np.vstack([coo.row, coo.col]), dtype=torch.long)
+        values = torch.as_tensor(coo.data, dtype=torch.float32)
+        sparse_tensor = torch.sparse_coo_tensor(indices, values, coo.shape)
     elif torch.is_tensor(matrix):
         row, col = matrix.nonzero().t()
         indices = torch.stack([row, col])
         values = matrix[row, col]
-        shape = torch.Size(matrix.shape)
-        sparse_tensor = torch.sparse.FloatTensor(indices, values, shape)
+        sparse_tensor = torch.sparse_coo_tensor(indices, values, matrix.shape)
     else:
         raise ValueError(
             f"matrix must be scipy.sparse or torch.Tensor (got {type(matrix)} instead)."
@@ -47,11 +74,10 @@ def _to_sparse_tensor(
 
 
 def _sparse_or_dense_dropout(x, p=0.5, training=True):
-    if isinstance(x, (torch.sparse.FloatTensor, torch.cuda.sparse.FloatTensor)):
+    if x.is_sparse:
+        x = x.coalesce()
         new_values = torch.nn.functional.dropout(x.values(), p=p, training=training)
-        if torch.cuda.is_available():
-            return torch.cuda.sparse.FloatTensor(x.indices(), new_values, x.size())
-        return torch.sparse.FloatTensor(x.indices(), new_values, x.size())
+        return torch.sparse_coo_tensor(x.indices(), new_values, x.size())
     else:
         return torch.nn.functional.dropout(x, p=p, training=training)
 
@@ -69,12 +95,6 @@ def _collate_fn(batch):
     return (edges, nonedges)
 
 
-def _seed_worker(worker_id):
-    worker_seed = torch.initial_seed() % 2**32
-    np.random.seed(worker_seed)
-    random.seed(worker_seed)
-
-
 def _get_edge_sampler(
     A, num_pos=1000, num_neg=1000, num_workers=0, random_seed=None, device="cpu"
 ):
@@ -87,15 +107,12 @@ def _get_edge_sampler(
     and the parent blocks on an empty queue. Sampling a batch is a few NumPy
     operations, so in-process loading is also faster here.
     """
-    data_source = _EdgeSampler(A, num_pos, num_neg)
-    if random_seed:
-        return torch.utils.data.DataLoader(
-            data_source,
-            num_workers=num_workers,
-            collate_fn=_collate_fn,
-            worker_init_fn=_seed_worker,
-            generator=torch.Generator(device=device).manual_seed(random_seed),
-        )
+    base_seed = (
+        int(random_seed)
+        if random_seed is not None
+        else int(np.random.default_rng().integers(0, 2**31 - 1))
+    )
+    data_source = _EdgeSampler(A, num_pos, num_neg, base_seed=base_seed)
     return torch.utils.data.DataLoader(
         data_source, num_workers=num_workers, collate_fn=_collate_fn
     )
@@ -110,7 +127,8 @@ class _EdgeSampler(torch.utils.data.Dataset):
         num_neg: number of non-edges per batch.
     """
 
-    def __init__(self, A, num_pos=1000, num_neg=1000):
+    def __init__(self, A, num_pos=1000, num_neg=1000, base_seed=0):
+        self.base_seed = base_seed
         self.num_pos = num_pos
         self.num_neg = num_neg
         self.A = A
@@ -119,16 +137,16 @@ class _EdgeSampler(torch.utils.data.Dataset):
         self.num_edges = self.edges.shape[0]
 
     def __getitem__(self, key):
-        np.random.seed(key)
-        edges_idx = np.random.randint(
-            0, self.num_edges, size=self.num_pos, dtype=np.int64
-        )
+        # A private generator per batch, derived from the fit's seed and the
+        # batch index. The reference reseeded NumPy's global generator here.
+        rng = np.random.default_rng([self.base_seed, key])
+        edges_idx = rng.integers(0, self.num_edges, size=self.num_pos, dtype=np.int64)
         next_edges = self.edges[edges_idx, :]
 
         # Select num_neg non-edges
         generated = False
         while not generated:
-            candidate_ne = np.random.randint(
+            candidate_ne = rng.integers(
                 0, self.num_nodes, size=(2 * self.num_neg, 2), dtype=np.int64
             )
             cne1, cne2 = candidate_ne[:, 0], candidate_ne[:, 1]
@@ -204,9 +222,9 @@ class _GCN(torch.nn.Module):
                 deg_sqrt_inv[None, :]
             )
         elif torch.is_tensor(adj):
-            deg = adj.sum(1)
-            deg_sqrt_inv = 1 / torch.sqrt(deg)
-            adj_norm = adj * deg_sqrt_inv[:, None] * deg_sqrt_inv[None, :]
+            deg_t = adj.sum(1)
+            deg_t_sqrt_inv = 1 / torch.sqrt(deg_t)
+            adj_norm = adj * deg_t_sqrt_inv[:, None] * deg_t_sqrt_inv[None, :]
         return _to_sparse_tensor(adj_norm)
 
     def forward(self, x, adj):
@@ -491,14 +509,67 @@ class _NoImprovementStopping(_EarlyStopping):
 
 @typechecked
 class NOCD(BaseSoftClusterer):
+    r"""Neural overlapping community detection (NOCD).
+
+    A graph convolutional network maps every node to a non-negative
+    affiliation vector :math:`F_u`, trained so that the Bernoulli--Poisson
+    model :math:`P(A_{uv} = 1) = 1 - \exp(-F_u^\top F_v)` explains the observed
+    edges, with a loss balanced between edges and non-edges, mini-batches of
+    sampled edges and non-edges, weight decay, and early stopping on the full
+    loss (Shchur and Gunnemann, 2019). The weights with the best loss are
+    restored and the affiliations are computed in evaluation mode.
+
+    ``memberships_`` holds the affiliations divided by their global maximum,
+    so they lie in ``[0, 1]`` and keep their relative magnitudes; the raw
+    strengths are in ``affiliations_``. The reference obtains hard,
+    overlapping communities by thresholding the raw strengths.
+
+    Parameters
+    ----------
+    n_clusters : int, default=3
+        Number of communities.
+    random_state : int or None, default=None
+        Seed for the network initialisation, dropout and edge sampling. A
+        seeded fit is reproducible and leaves the global NumPy and PyTorch
+        random states untouched.
+    hidden_sizes : sequence of int, default=(128,)
+        Widths of the hidden GCN layers.
+    weight_decay : float, default=1e-2
+    dropout : float, default=0.5
+    batch_norm : bool, default=True
+    lr : float, default=1e-3
+    max_epochs : int, default=500
+    balance_loss : bool, default=True
+        Weight edges and non-edges equally in the loss.
+    stochastic_loss : bool, default=True
+        Train on sampled mini-batches rather than the full graph.
+    batch_size : int, default=20000
+        Edges (and non-edges) per mini-batch.
+    num_workers : int, default=0
+        DataLoader worker processes; 0 samples in-process.
+
+    References
+    ----------
+    O. Shchur and S. Gunnemann. Overlapping community detection with graph
+    neural networks. arXiv:1909.12201, 2019.
+
+    Notes
+    -----
+    Earlier releases seeded torch, CUDA and NumPy globally and enabled
+    ``torch.use_deterministic_algorithms`` for the whole process in the
+    constructor, set the global default device in ``fit``, never restored
+    the best weights they saved, and computed the output with dropout active.
+    """
+
     # Bernoulli-Poisson affiliations for overlapping communities are independent
     # per community (Shchur and Guennemann, 2019)
     _partition_constrained = False
 
     def __init__(
         self,
+        n_clusters: int = 3,
         random_state: int | None = None,
-        hidden_sizes: list[int] = [128],
+        hidden_sizes: list[int] | tuple[int, ...] = (128,),
         weight_decay: float = 1e-2,
         dropout: float = 0.5,
         batch_norm: bool = True,
@@ -510,14 +581,11 @@ class NOCD(BaseSoftClusterer):
         num_workers: int = 0,
     ):
 
+        # Earlier releases seeded torch, CUDA and NumPy globally here and
+        # switched on torch.use_deterministic_algorithms for the whole
+        # process. Randomness is now confined to a private stream inside fit.
+        self.n_clusters = n_clusters
         self.random_state = random_state
-        if random_state:
-            torch.manual_seed(random_state)
-            torch.cuda.manual_seed(random_state)
-            torch.cuda.manual_seed_all(random_state)
-            torch.backends.cudnn.deterministic = True
-            torch.use_deterministic_algorithms(True)
-            np.random.seed(random_state)
 
         # hyperparameters
         self.hidden_sizes = hidden_sizes  # hidden sizes of the GNN
@@ -534,19 +602,37 @@ class NOCD(BaseSoftClusterer):
         # DataLoader worker processes; 0 loads in-process (see _get_edge_sampler)
         self.num_workers = num_workers
 
-    def fit_predict(self, adjacency_matrix, feature_matrix, K):
-        """Train the model and compute community memberships.
-        Args:
-            adjacency_matrix: Adjacency matrix of the graph (scipy.sparse.csr_matrix).
-            feature_matrix: Feature matrix of the graph nodes (scipy.sparse.csr_matrix).
-            K: Number of communities (int).
+    def fit_predict(self, adjacency_matrix, feature_matrix=None, K: int | None = None):
+        """Train the model and return community affiliations.
 
-        Returns:
-            memberships: Community membership probabilities (numpy.ndarray, shape (num_nodes, K)).
+        Parameters
+        ----------
+        adjacency_matrix : scipy sparse matrix or ndarray of shape (n_nodes, n_nodes)
+        feature_matrix : scipy sparse matrix or ndarray of shape (n_nodes, n_features), optional
+            Node attributes. ``None`` uses the identity (no attributes); the
+            adjacency rows are always appended, as in the reference.
+        K : int, optional
+            Deprecated fit-time community count; prefer ``n_clusters``.
+
+        Returns
+        -------
+        ndarray of shape (n_nodes, n_clusters)
         """
-        # set torch device: cuda vs cpu
+        adjacency_matrix = sp.csr_matrix(adjacency_matrix, dtype=np.float32)
+        n = adjacency_matrix.shape[0]
+        if adjacency_matrix.shape != (n, n):
+            raise ValueError(
+                f"NOCD: adjacency_matrix must be square; got {adjacency_matrix.shape}."
+            )
+        K = check_n_clusters(self.n_clusters if K is None else K, n, estimator="NOCD")
+        if feature_matrix is None:
+            feature_matrix = sp.identity(n, format="csr", dtype=np.float32)
+        feature_matrix = sp.csr_matrix(feature_matrix, dtype=np.float32)
+        with isolated_torch_rng(self.random_state):
+            return self._fit(adjacency_matrix, feature_matrix, K)
+
+    def _fit(self, adjacency_matrix, feature_matrix, K):
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        torch.set_default_device(device)
         x_norm = sp.hstack([feature_matrix, adjacency_matrix])
         x_norm = _to_sparse_tensor(x_norm).to(device)
         sampler = _get_edge_sampler(
@@ -554,7 +640,7 @@ class NOCD(BaseSoftClusterer):
             self.batch_size,
             self.batch_size,
             num_workers=self.num_workers,
-            random_seed=self.random_state,
+            random_seed=int_seed(self.random_state),
             device=device,
         )
         gnn = _GCN(
@@ -564,7 +650,7 @@ class NOCD(BaseSoftClusterer):
             dropout=self.dropout,
             batch_norm=self.batch_norm,
         ).to(device)
-        adj_norm = gnn.normalize_adj(adjacency_matrix)
+        adj_norm = gnn.normalize_adj(adjacency_matrix).to(device)
         decoder = _BerpoDecoder(
             adjacency_matrix.shape[0],
             adjacency_matrix.nnz,
@@ -609,10 +695,20 @@ class NOCD(BaseSoftClusterer):
             loss.backward()
             opt.step()
 
-        Z = torch.nn.functional.relu(gnn(x_norm, adj_norm))
-        Z_min = torch.min(Z)
-        Z_max = torch.max(Z)
-        denominator = Z_max - Z_min + 1e-8
-        Z = (Z - Z_min) / denominator
-        memberships = Z.cpu().detach().numpy()
-        return memberships
+        # Restore the weights with the best validation loss and evaluate
+        # without dropout. Earlier releases saved those weights but never
+        # restored them, and computed the output in training mode, so the
+        # memberships carried dropout noise.
+        if hasattr(model_saver, "state_dict"):
+            model_saver.restore()
+        gnn.eval()
+        with torch.no_grad():
+            Z = torch.nn.functional.relu(gnn(x_norm, adj_norm))
+        F = Z.cpu().numpy().astype(np.float64)
+        self.affiliations_ = F
+        # Affiliation strengths are rescaled to [0, 1] by the global maximum,
+        # which keeps their relative magnitudes; the reference thresholds the
+        # raw strengths to obtain hard, overlapping communities.
+        top = float(F.max())
+        self.memberships_ = F / top if top > 0 else F
+        return self.memberships_

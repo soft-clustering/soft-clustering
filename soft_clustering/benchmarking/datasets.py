@@ -182,12 +182,22 @@ def get_dataset(
         return load_breast_cancer(return_X_y=True)
 
     if name == "olivetti_faces":
-
-        dataset = fetch_olivetti_faces()
-
+        try:
+            dataset = fetch_olivetti_faces()
+            return dataset.data.astype(np.float64), dataset.target
+        except Exception as exc:  # the figshare mirror refuses some clients
+            primary_error = exc
+        # Fallback: the copy of the same data set on OpenML (data id 41083,
+        # 400 images of 64 x 64 pixels in [0, 1], 40 subjects x 10 images).
+        # Shape, range and class structure match; pixel identity with the
+        # scikit-learn copy could not be checked while that was unreachable.
+        try:
+            dataset = fetch_openml(data_id=41083, as_frame=False, parser="liac-arff")
+        except Exception as exc:
+            raise exc from primary_error
         return (
-            dataset.data.astype(np.float64),
-            dataset.target,
+            np.asarray(dataset.data, dtype=np.float64),
+            np.asarray(dataset.target).astype(np.int64),
         )
 
     # ========================================================
@@ -309,9 +319,22 @@ def dataset_info(name: str) -> dict:
 
 def benchmark_suite(
     group: str = "real",
+    skip_unavailable: bool = False,
 ) -> dict[str, tuple[np.ndarray, np.ndarray]]:
     """
     Load a full benchmark suite.
+
+    Parameters
+    ----------
+    group : str
+        One of :func:`available_groups`. ``"olivetti_faces"`` (group
+        ``"real"``) and every ``"openml"`` dataset are downloaded on first use
+        and cached by scikit-learn; the others need no network access.
+    skip_unavailable : bool, default=False
+        If ``True``, a dataset that cannot be loaded (typically because the
+        download fails) is skipped with a warning instead of raising, so one
+        unreachable server does not abort a whole benchmark. The names of
+        skipped datasets are recorded in ``benchmark_suite.skipped``.
 
     Example
     -------
@@ -320,10 +343,25 @@ def benchmark_suite(
     >>>     ...
     """
 
+    import warnings
+
     datasets = {}
+    skipped: list[str] = []
+    benchmark_suite.skipped = skipped  # type: ignore[attr-defined]
 
     for name in datasets_in_group(group):
-        datasets[name] = get_dataset(name)
+        try:
+            datasets[name] = get_dataset(name)
+        except Exception as exc:  # network errors surface as many types
+            if not skip_unavailable:
+                raise
+            warnings.warn(
+                f"benchmark_suite: skipping {name!r}, which could not be "
+                f"loaded ({type(exc).__name__}: {exc})",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            skipped.append(name)
 
     return datasets
 

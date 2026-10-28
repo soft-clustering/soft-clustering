@@ -125,10 +125,13 @@ class BenchmarkAdapter:
     # ------------------------------------------------------------------
 
     def _fit_scpp(self, X) -> None:
-        if self.n_clusters is not None and self.model.n_clusters is None:
-            # A count passed here rather than to the constructor; the fit
-            # wrapper in _base picks it up from the instance.
-            self.model.n_clusters = self.n_clusters
+        if self.n_clusters is not None and not self.model._determines_k:
+            # A count passed here rather than to the constructor. It goes
+            # through set_params so that it becomes a constructor parameter:
+            # every fit restores n_clusters from those, so assigning the
+            # attribute directly would be undone.
+            if self.model.get_params().get("n_clusters") != self.n_clusters:
+                self.model.set_params(n_clusters=self.n_clusters)
         self.model.fit(X)
         self.membership_ = self.model.memberships_
         self.centers_ = self.model.centers_

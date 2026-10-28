@@ -98,7 +98,7 @@ class TestSoftDBSCANGM:
         X = _blobs(seed=seed)
         opt, ref = _fit_pair("SoftDBSCANGM", X, global_seed=seed)
         assert np.array_equal(opt.labels_, ref.labels_)
-        assert opt.n_clusters == ref.n_clusters
+        assert opt.n_clusters_ == ref.n_clusters
         # This estimator publishes its prototypes as ``centers`` (no trailing
         # underscore), which is not one of the names
         # ``BaseSoftClusterer._centers_attrs`` searches, so ``centers_`` is None
@@ -185,35 +185,12 @@ class TestMBMM:
         np.testing.assert_allclose(got, expected, rtol=1e-12, atol=1e-12)
 
 
-class TestKFCCL:
-    """Hoisted normalised kernel matrix, and the per-sample inner-product loop
-    collapsed to a matrix-vector product."""
-
-    @pytest.mark.parametrize("seed", [0, 1, 2])
-    def test_memberships_match_reference(self, seed):
-        X = _blobs(seed=seed)
-        opt, ref = _fit_pair("KFCCL", X, kwargs={"n_clusters": 3}, global_seed=seed)
-        np.testing.assert_allclose(opt.memberships_, ref.memberships_, atol=ATOL)
-        np.testing.assert_allclose(opt.p_ik, ref.p_ik, atol=ATOL)
-
-    @pytest.mark.parametrize("seed", [0, 1])
-    def test_labels_match_reference(self, seed):
-        X = _blobs(seed=seed)
-        opt, ref = _fit_pair("KFCCL", X, kwargs={"n_clusters": 3}, global_seed=seed)
-        assert np.array_equal(opt.labels_, ref.labels_)
-
-    def test_normalised_kernel_is_the_hoisted_quantity(self):
-        """``K / outer(diag, diag)`` must equal the per-column expression the
-        reference rebuilt inside the innermost loop."""
-        X = _blobs(n=40, d=4)
-        model = sc.KFCCL(n_clusters=2)
-        K = model._gaussian_kernel_matrix(X)
-        K_diag = np.sqrt(np.diag(K))
-        hoisted = K / np.outer(K_diag, K_diag)
-        for k in range(X.shape[0]):
-            np.testing.assert_allclose(
-                hoisted[:, k], K[:, k] / (K_diag * K_diag[k]), rtol=0, atol=0
-            )
+# KFCCL was part of the optimisation study, but the implementation it
+# optimised was found in the 0.2.0 correctness audit not to cluster at all
+# (every membership 1/K on well-separated data) and has been replaced. There is
+# no longer an optimised build of the same algorithm to compare against the
+# preserved reference, so its equivalence tests were removed. See
+# optimization/README.md, "Status after the 0.2.0 correctness audit".
 
 
 class TestKMART:
@@ -228,7 +205,7 @@ class TestKMART:
         ref_U = ref.fit_predict(docs)
         # This rewrite is exact in integer/float terms, not merely close: the
         # same minima are summed in the same order.
-        assert np.array_equal(opt_U.toarray(), ref_U.toarray())
+        assert np.array_equal(np.asarray(opt_U), ref_U.toarray())
 
     def test_prototypes_and_clusters_match_reference(self):
         docs = _documents()
@@ -256,7 +233,7 @@ class TestKMART:
         opt = sc.KMART(vigilance_param=0.3, learning_rate=0.4)
         ref = scpp_original.KMART(vigilance_param=0.3, learning_rate=0.4)
         assert np.array_equal(
-            opt.fit_predict(docs).toarray(), ref.fit_predict(docs).toarray()
+            np.asarray(opt.fit_predict(docs)), ref.fit_predict(docs).toarray()
         )
 
 

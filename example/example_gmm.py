@@ -1,26 +1,32 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
 
-import sys
-from os import path
+"""GMM: Gaussian mixture fitted by EM; memberships are posterior probabilities.
+
+Run with ``python example/example_gmm.py`` after ``pip install soft-clustering``.
+"""
 
 import numpy as np
 
-if __name__ == "__main__":
-    base_dir = path.dirname(path.realpath(__file__))
-    sys.path.append(base_dir[:-4])
-    from soft_clustering import GMM
+from soft_clustering import GMM
 
-    np.random.seed(42)
-    n = 100
-    X1 = np.random.randn(n, 2) * np.array([0.6, 0.3]) + np.array([0.0, 0.0])
-    X2 = np.random.randn(n, 2) * np.array([0.5, 0.8]) + np.array([3.0, 3.0])
-    X = np.vstack([X1, X2])
+rng = np.random.default_rng(0)
+X = np.vstack(
+    [
+        rng.normal([0.0, 0.0], 0.5, (40, 2)),
+        rng.normal([4.0, 0.0], 0.5, (40, 2)),
+        rng.normal([2.0, 3.5], 0.5, (40, 2)),
+    ]
+)
 
-    K = 2  # number of mixture components
+model = GMM(n_clusters=3, random_state=0).fit(X)
 
-    model = GMM(
-        random_state=42, max_iter=100, covariance_type="full", init_params="kmeans++"
-    )
-    responsibilities = model.fit_predict(X, K)
-    print("Responsibilities matrix:\n", responsibilities)
+print("memberships_ shape:", model.memberships_.shape)
+print("first three rows:\n", np.round(model.memberships_[:3], 3))
+print("labels_:", model.labels_)
+print("clusters produced:", model.n_clusters_)
+print("mixing weights:", np.round(model.weights_, 3))
+print(
+    "log-likelihood never decreased:",
+    bool(np.all(np.diff(model.log_likelihood_trajectory_) >= -1e-9)),
+)

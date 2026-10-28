@@ -1,23 +1,23 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
 
-import sys
-from os import path
+"""FCC: Fuzzy color clustering of CIELAB colors.
+
+Run with ``python example/example_fcc.py`` after ``pip install soft-clustering``.
+"""
 
 import numpy as np
 
-if __name__ == "__main__":
-    base_dir = path.dirname(path.realpath(__file__))
-    sys.path.append(base_dir[:-4])
-    from soft_clustering import FCC
+from soft_clustering import FCC
 
-    np.random.seed(0)
-    cluster1 = np.random.normal(loc=[50, 20, 20], scale=5.0, size=(50, 3))
-    cluster2 = np.random.normal(loc=[70, -10, 30], scale=5.0, size=(50, 3))
-    X = np.vstack([cluster1, cluster2])
+rng = np.random.default_rng(0)
+X = np.vstack(
+    [rng.normal(c, 3.0, (40, 3)) for c in ([30, 10, -20], [60, -30, 40], [85, 5, 5])]
+)  # three color groups in L*a*b*
 
-    model = FCC(c=2, jnd=20.0)
-    labels, memberships = model.fit_predict(X)
+model = FCC(n_clusters=3, jnd=8.0, random_state=0).fit(X)
 
-    print("Labels:", labels)
-    print("Membership matrix shape:", memberships.shape)
+print("memberships_ shape:", model.memberships_.shape)
+print("first three rows:\n", np.round(model.memberships_[:3], 3))
+print("labels_:", model.labels_)
+print("clusters produced:", model.n_clusters_)

@@ -7,9 +7,18 @@ import numpy as np
 from typeguard import typechecked
 
 from ._base import BaseSoftClusterer
+from ._validation import check_array, check_generator, check_n_clusters, data_scale
 
 
 class RoughKMeans(BaseSoftClusterer):
+    """Rough k-means clustering (Lingras and West, 2004).
+
+    Every cluster has a lower approximation (objects that certainly belong to
+    it) and an upper approximation (objects that possibly do); the method,
+    its parameters and its references are described under ``__init__``
+    below. ``lower_approx_`` and ``upper_approx_`` hold the approximations.
+    """
+
     # Under the Lingras-West assignment rule every object enters at least one
     # upper approximation, so the membership row read off the approximations
     # always normalises. This was False while the implementation could leave
@@ -24,10 +33,31 @@ class RoughKMeans(BaseSoftClusterer):
         threshold: float = 1.2,
         max_iter: int = 100,
         tol: float = 1e-4,
-        random_state: int | None = None,
+        random_state: int | np.random.Generator | None = None,
     ):
         """
-        Rough K-Means clustering with interval-set (lower/upper) approximations.
+        Rough k-means clustering with interval-set (lower/upper) approximations.
+
+        Each cluster has a lower approximation (objects that certainly belong
+        to it) and an upper approximation (objects that possibly do). A
+        centroid is ``weight_lower`` times the mean of its lower
+        approximation plus ``1 - weight_lower`` times the mean of its
+        boundary region (Lingras and West, 2004). An object is a boundary
+        object when another centroid is within ``threshold`` times the
+        distance to its nearest centroid; this relative threshold is the
+        refinement of Peters (2006), which makes the rule scale-invariant.
+        ``memberships_`` gives an object in a lower approximation membership
+        one in that cluster and shares a boundary object equally among the
+        clusters whose upper approximations contain it.
+
+        References
+        ----------
+        P. Lingras and C. West. Interval set clustering of web users with
+        rough k-means. *Journal of Intelligent Information Systems*,
+        23(1):5--16, 2004. doi:10.1023/B:JIIS.0000029668.88665.1a
+
+        G. Peters. Some refinements of rough k-means clustering. *Pattern
+        Recognition*, 39(8):1481--1491, 2006.
 
         Parameters:
         -----------
@@ -44,7 +74,8 @@ class RoughKMeans(BaseSoftClusterer):
         max_iter : int
             Maximum number of iterations.
         tol : float
-            Convergence tolerance for centroid changes.
+            Convergence tolerance for centroid changes, relative to the
+            data spread (root mean per-feature standard deviation).
         random_state : int, optional
             Random seed for reproducibility.
         """
@@ -88,21 +119,22 @@ class RoughKMeans(BaseSoftClusterer):
             - 'n_iter' : int
               Number of iterations performed
         """
-        # Validate input dimensions
+        name = type(self).__name__
+        X = check_array(X, estimator=name)
         n_samples, _ = X.shape
-        if n_samples < self.n_clusters:
-            raise ValueError("Not enough samples for the number of clusters.")
+        check_n_clusters(self.n_clusters, n_samples, estimator=name)
 
         # Initialize centroids using random samples
-        rng = np.random.default_rng(self.random_state)
+        rng = check_generator(self.random_state)
         initial_idx = rng.choice(n_samples, size=self.n_clusters, replace=False)
         centroids = X[initial_idx].astype(float)
 
         # Initialize approximation sets
-        L = [set() for _ in range(self.n_clusters)]  # Lower approximations
-        U = [set() for _ in range(self.n_clusters)]  # Upper approximations
+        L: list[set[int]] = [set() for _ in range(self.n_clusters)]  # Lower
+        U: list[set[int]] = [set() for _ in range(self.n_clusters)]  # Upper
 
         iter_count = 0
+        scale = data_scale(X)
         for iteration in range(self.max_iter):
             iter_count = iteration + 1
             old_centroids = centroids.copy()
@@ -140,8 +172,8 @@ class RoughKMeans(BaseSoftClusterer):
             for i in range(n_samples):
                 companions = np.flatnonzero(within[i])
                 if companions.size > 1:
-                    for j in companions:
-                        U[int(j)].add(i)
+                    for j in companions.tolist():
+                        U[j].add(i)
                 else:
                     j = int(nearest[i])
                     L[j].add(i)
@@ -170,7 +202,7 @@ class RoughKMeans(BaseSoftClusterer):
 
             # Check convergence using centroid shifts
             shift = np.linalg.norm(centroids - old_centroids)
-            if shift < self.tol:
+            if shift < self.tol * scale:
                 break
 
         # Convert approximation sets to binary matrices

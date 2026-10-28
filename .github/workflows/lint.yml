@@ -19,6 +19,7 @@ env:
   # commit. Bumped deliberately, and by dependabot's github-actions/pip updates.
   RUFF_VERSION: "0.16.2"
   BLACK_VERSION: "26.5.1"
+  MYPY_VERSION: "2.3.1"
 
 jobs:
   lint:
@@ -38,7 +39,25 @@ jobs:
 
       - name: ruff (lint)
         # GitHub format surfaces findings as inline annotations on the diff.
-        run: ruff check --output-format=github soft_clustering tests example tools
+        run: ruff check --output-format=github soft_clustering tests example tools benchmarks docs
 
       - name: black (format check)
-        run: black --check --diff soft_clustering tests example tools
+        run: black --check --diff soft_clustering tests example tools benchmarks docs
+
+  typecheck:
+    # The whole package (see [tool.mypy] in pyproject.toml). Installed without
+    # the deep extra, so torch is treated as untyped, as it is for most users.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install package and mypy
+        run: pip install . "mypy==${MYPY_VERSION}"
+      - name: mypy
+        run: mypy

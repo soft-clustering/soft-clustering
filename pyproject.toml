@@ -18,6 +18,7 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "Operating System :: OS Independent",
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
   "Typing :: Typed",
@@ -45,14 +46,13 @@ dependencies = [
 [project.optional-dependencies]
 deep = [
   "torch",
-  "torch_geometric",
 ]
 # Sphinx and its Markdown parser. Mirrored in docs/requirements.txt, which is
 # what Read the Docs installs.
 docs = [
   "sphinx",
   "sphinx-rtd-theme",
-  "myst_parser",
+  "myst_parser>=3.0.1,<4",  # <4: evclust (dev, baselines) requires it
 ]
 # Needed to *run* a benchmark, never to fit a model. soft_clustering.benchmarking
 # imports these defensively, so the module is importable without them.
@@ -111,6 +111,7 @@ include = [
   "CONTRIBUTING.md",
   "CODE_OF_CONDUCT.md",
   "CITATION.cff",
+  "THIRD_PARTY_NOTICES.md",
 ]
 exclude = [
   "**/.DS_Store",
@@ -123,6 +124,9 @@ exclude = [
   "**/._*",
   # 4.4 MB promotional image; not part of the software.
   "SCPP_Poster.png",
+  # Generated at documentation build time (docs/source/conf.py).
+  "docs/source/algorithms/",
+  "docs/_build/",
 ]
 
 [tool.pytest.ini_options]
@@ -136,6 +140,69 @@ branch = true
 [tool.coverage.report]
 show_missing = true
 skip_covered = false
+
+[tool.mypy]
+files = ["soft_clustering"]
+# NumPy's current stubs use 3.12 syntax; runtime support (3.10+) is tested by CI.
+python_version = "3.12"
+ignore_missing_imports = true
+follow_imports = "silent"
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+
+# Estimators declare the inputs they actually take (``fit(X)``,
+# ``fit(X, y)``, ``fit(X_view1, X_view2)``, ...), which narrows the base
+# class's ``fit(X, y=None, *args, **kwargs)``. The wrapper installed by
+# ``BaseSoftClusterer.__init_subclass__`` adapts every one of them to the
+# common protocol at runtime, and tests/test_protocol.py checks that it does,
+# so the static override check is disabled for the estimator modules only.
+[[tool.mypy.overrides]]
+module = [
+  "soft_clustering._afcm",
+  "soft_clustering._afcmSimple",
+  "soft_clustering._afcmadaptive",
+  "soft_clustering._bgmm",
+  "soft_clustering._bigclam",
+  "soft_clustering._bnmf",
+  "soft_clustering._cafcm",
+  "soft_clustering._cafhfcm",
+  "soft_clustering._cdcgs",
+  "soft_clustering._dmon",
+  "soft_clustering._ecm",
+  "soft_clustering._entropyfcm",
+  "soft_clustering._evclus",
+  "soft_clustering._fcc",
+  "soft_clustering._fcm",
+  "soft_clustering._femifuzzy",
+  "soft_clustering._gathgeva",
+  "soft_clustering._gk",
+  "soft_clustering._gmm",
+  "soft_clustering._kfccl",
+  "soft_clustering._kfcm",
+  "soft_clustering._kmart",
+  "soft_clustering._lda",
+  "soft_clustering._mbmm",
+  "soft_clustering._mmsb",
+  "soft_clustering._nocd",
+  "soft_clustering._pcm",
+  "soft_clustering._pfcm",
+  "soft_clustering._plsi",
+  "soft_clustering._rdfkc",
+  "soft_clustering._rough_k_means",
+  "soft_clustering._rpfkm",
+  "soft_clustering._scm",
+  "soft_clustering._scspa",
+  "soft_clustering._sfcmep",
+  "soft_clustering._shbgf",
+  "soft_clustering._sisc",
+  "soft_clustering._skfcm",
+  "soft_clustering._smcla",
+  "soft_clustering._softdbscangm",
+  "soft_clustering._softksc",
+  "soft_clustering._wbsc",
+]
+disable_error_code = ["override"]
 
 [tool.black]
 target-version = ["py310"]

@@ -39,30 +39,82 @@ from scipy.special import betaln, xlog1py, xlogy
 from typeguard import typechecked
 
 from ._base import BaseSoftClusterer
+from ._validation import check_array, check_n_clusters, check_random_state
 
 
 @typechecked
 class MBMM(BaseSoftClusterer):
-    def __init__(self, n_components: int = 3, max_iter: int = 100, tol: float = 1e-5):
-        """
-        Parameters:
-        - n_components (int): Number of mixture components
-        - max_iter (int): Maximum number of EM iterations
-        - tol (float): Convergence threshold on log-likelihood
-        """
-        self.n_components = n_components
+    r"""Mixture of Beta distributions for data on the open unit hypercube.
+
+    Each component is a product of independent univariate Beta densities,
+
+    .. math::
+
+        p(x \mid k) = \prod_{d} \mathrm{Beta}(x_d;\, \alpha_{kd}, \beta_{kd}),
+
+    and the soft output is the posterior responsibility of each component.
+
+    **Simplifications relative to the reference.** Hsu and Chen (2024) use a
+    multivariate Beta distribution that can model dependence between
+    features; this implementation assumes conditional independence of the
+    features within a component. The M-step estimates
+    :math:`(\alpha, \beta)` by the method of moments from the
+    responsibility-weighted mean and variance rather than by maximum
+    likelihood, so the likelihood is not guaranteed to increase at every
+    iteration. Convergence is declared when the expected complete-data
+    log-likelihood changes by less than ``tol``.
+
+    Parameters
+    ----------
+    n_clusters : int, default=3
+        Number of mixture components.
+    max_iter : int, default=100
+    tol : float, default=1e-5
+    random_state : int, numpy RandomState or None, default=None
+        Seed for the initial Beta parameters, drawn uniformly from
+        ``[1, 3]``. ``None`` draws from NumPy's global random state, as
+        earlier releases did.
+
+    Attributes
+    ----------
+    memberships_ : ndarray of shape (n_samples, n_clusters)
+        Posterior responsibilities (also ``resp``).
+    weights, alpha, beta : ndarray
+        Mixing weights and per-component, per-feature Beta parameters.
+
+    References
+    ----------
+    Y.-P. Hsu and H.-H. Chen. Multivariate beta mixture model: probabilistic
+    clustering with flexible cluster shapes. In *Advances in Knowledge
+    Discovery and Data Mining (PAKDD 2024)*, pp. 233--245, 2024.
+    doi:10.1007/978-981-97-2242-6_19
+    """
+
+    # Fitted attributes, set by ``fit`` (not before).
+    weights: np.ndarray  # (K,)
+    alpha: np.ndarray  # (K, D)
+    beta: np.ndarray  # (K, D)
+    resp: np.ndarray  # (N, K)
+
+    def __init__(
+        self,
+        n_clusters: int = 3,
+        max_iter: int = 100,
+        tol: float = 1e-5,
+        random_state: int | np.random.RandomState | None = None,
+    ):
+        self.n_clusters = n_clusters
+        self.n_components = n_clusters
+        self.random_state = random_state
         self.max_iter = max_iter
         self.tol = tol
-        self.weights = None
-        self.alpha = None  # (K, D)
-        self.beta = None  # (K, D)
-        self.resp = None  # (N, K)
 
-    def _initialize_params(self, X: np.ndarray):
+    def _initialize_params(self, X: np.ndarray, rng=None):
         N, D = X.shape
+        rng = check_random_state(None) if rng is None else rng
         self.weights = np.full(self.n_components, 1 / self.n_components)
-        self.alpha = np.random.uniform(1.0, 3.0, size=(self.n_components, D))
-        self.beta = np.random.uniform(1.0, 3.0, size=(self.n_components, D))
+        self.alpha = rng.uniform(1.0, 3.0, size=(self.n_components, D))
+        self.beta = rng.uniform(1.0, 3.0, size=(self.n_components, D))
         self.resp = np.full((N, self.n_components), 1 / self.n_components)
 
     def _log_prob(self, X: np.ndarray) -> np.ndarray:
@@ -113,7 +165,19 @@ class MBMM(BaseSoftClusterer):
         Parameters:
         - X (np.ndarray): Input data (N x D), values ∈ (0, 1)
         """
-        self._initialize_params(X)
+        name = type(self).__name__
+        X = check_array(X, estimator=name)
+        if np.any(X <= 0.0) or np.any(X >= 1.0):
+            raise ValueError(
+                f"{name}: every value of X must lie in the open interval (0, 1), "
+                f"where the Beta density is defined; got values in "
+                f"[{X.min():.6g}, {X.max():.6g}]. Rescale, e.g. with a "
+                "min-max transform followed by clipping to [eps, 1 - eps]."
+            )
+        self.n_components = check_n_clusters(
+            self.n_clusters, X.shape[0], estimator=name
+        )
+        self._initialize_params(X, check_random_state(self.random_state))
         prev_ll = -np.inf
 
         for _ in range(self.max_iter):

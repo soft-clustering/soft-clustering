@@ -5,9 +5,12 @@
 
 import numpy as np
 import pytest
-import scipy.sparse as sp
 
-from soft_clustering import NOCD
+pytest.importorskip("torch", reason="needs the `deep` extra")
+
+import scipy.sparse as sp  # noqa: E402
+
+from soft_clustering import NOCD  # noqa: E402
 
 
 @pytest.fixture

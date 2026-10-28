@@ -1,47 +1,31 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
 
-import sys
-from os import path
+"""AFCMAdaptive: Adaptive FCM segmentation of an image with a smooth intensity bias.
 
-import matplotlib.pyplot as plt
+Run with ``python example/example_afcmaptive.py`` after ``pip install soft-clustering``.
+"""
+
 import numpy as np
 
-if __name__ == "__main__":
-    base_dir = path.dirname(path.realpath(__file__))
-    sys.path.append(base_dir[:-4])
-    from soft_clustering import AFCMAdaptive
+from soft_clustering import AFCMAdaptive
 
-    np.random.seed(0)
+rng = np.random.default_rng(0)
+truth = np.zeros((32, 32), dtype=int)
+truth[:, 11:22] = 1
+truth[:, 22:] = 2
+yy, xx = np.mgrid[0:32, 0:32] / 32.0
+bias = 1.0 + 0.4 * (xx - 0.5)  # multiplicative inhomogeneity
+image = np.array([0.2, 0.5, 0.8])[truth] * bias + rng.normal(0, 0.02, (32, 32))
 
-    image = np.zeros((64, 64))
-    image[:32, :] = 0.3
-    image[32:, :] = 0.7
-    image += np.random.normal(0, 0.05, image.shape)  # noise
+model = AFCMAdaptive(n_clusters=3).fit(image)
 
-    model = AFCMAdaptive(n_clusters=2, m=2.0, k1=0.1, k2=0.1, max_iter=50)
-    model.fit(image)
-
-    # predict() returns the flat (H*W,) labelling required by the estimator
-    # protocol; label_map() is the same assignment back on the image grid.
-    labels = model.label_map()
-    membership = model.get_membership()
-
-    plt.figure(figsize=(10, 3))
-    plt.subplot(1, 3, 1)
-    plt.title("Original Image")
-    plt.imshow(image, cmap="gray")
-    plt.axis("off")
-
-    plt.subplot(1, 3, 2)
-    plt.title("Predicted Labels")
-    plt.imshow(labels, cmap="jet")
-    plt.axis("off")
-
-    plt.subplot(1, 3, 3)
-    plt.title("Membership (Class 1)")
-    plt.imshow(membership[:, :, 0], cmap="hot")
-    plt.axis("off")
-
-    plt.tight_layout()
-    plt.show()
+print("memberships_ shape:", model.memberships_.shape)
+print("first three rows:\n", np.round(model.memberships_[:3], 3))
+print("labels_:", model.labels_)
+print("clusters produced:", model.n_clusters_)
+print("segmentation (first row):", model.label_map()[0])
+print(
+    "estimated gain field range:",
+    np.round([model.gain_field_.min(), model.gain_field_.max()], 3),
+)

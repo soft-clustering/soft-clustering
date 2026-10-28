@@ -170,16 +170,24 @@ class TestEdgeCases:
 
 @pytest.mark.parametrize(
     "kwargs",
-    [{"n_clusters": 0}, {"m": 1.0}, {"m": 0.5}, {"max_iter": 0}, {"reg_covar": -1.0}],
+    [
+        {"n_clusters": 0},
+        {"m": 1.0},
+        {"m": 0.5},
+        {"max_iter": 0},
+        {"reg_covar": -1.0},
+        {"init_iter": 0},
+    ],
 )
 def test_invalid_hyperparameters_raise(kwargs):
+    # Validation happens in fit, as scikit-learn requires of constructors.
     with pytest.raises(ValueError):
-        GathGeva(**kwargs)
+        GathGeva(**kwargs).fit(np.random.default_rng(0).normal(size=(20, 2)))
 
 
 def test_invalid_init_raises():
     with pytest.raises(ValueError, match="init must be"):
-        GathGeva(init="nope")
+        GathGeva(init="nope").fit(np.random.default_rng(0).normal(size=(20, 2)))
 
 
 def test_one_dimensional_input_raises():
@@ -189,5 +197,5 @@ def test_one_dimensional_input_raises():
 
 def test_more_clusters_than_samples_raises():
     X, _ = blobs(n_per=1, k=2)
-    with pytest.raises(ValueError, match="smaller than"):
+    with pytest.raises(ValueError, match="exceeds the number of samples"):
         GathGeva(n_clusters=10).fit(X)

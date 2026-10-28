@@ -1,28 +1,28 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
 
-import sys
-from os import path
+"""AFCMSimple: Adaptive fuzzy c-means without graph embedding (learned fuzziness).
+
+Run with ``python example/example_afcmSimple.py`` after ``pip install soft-clustering``.
+"""
 
 import numpy as np
 
-if __name__ == "__main__":
-    base_dir = path.dirname(path.realpath(__file__))
-    sys.path.append(base_dir[:-4])
-    from soft_clustering import AFCMSimple
+from soft_clustering import AFCMSimple
 
-    # Generate synthetic data
-    N = 100
-    D = 2
-    X = np.vstack(
-        [
-            np.random.normal(loc=[0, 0], scale=0.5, size=(N // 2, D)),
-            np.random.normal(loc=[3, 3], scale=0.5, size=(N // 2, D)),
-        ]
-    )
+rng = np.random.default_rng(0)
+X = np.vstack(
+    [
+        rng.normal([0.0, 0.0], 0.5, (40, 2)),
+        rng.normal([4.0, 0.0], 0.5, (40, 2)),
+        rng.normal([2.0, 3.5], 0.5, (40, 2)),
+    ]
+)
 
-    model = AFCMSimple(c=2)
-    labels, U = model.fit_predict(X)
+model = AFCMSimple(n_clusters=3, random_state=0).fit(X)
 
-    print("Cluster labels:", labels)
-    print("Membership matrix U:", U)
+print("memberships_ shape:", model.memberships_.shape)
+print("first three rows:\n", np.round(model.memberships_[:3], 3))
+print("labels_:", model.labels_)
+print("clusters produced:", model.n_clusters_)
+print("learned precision gamma:", round(model.gamma_, 3))

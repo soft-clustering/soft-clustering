@@ -1,65 +1,30 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
 
-import random
-import sys
-from os import path
+"""PFCM: Possibilistic fuzzy c-means: memberships and typicalities.
 
-if __name__ == "__main__":
-    base_dir = path.dirname(path.realpath(__file__))
-    sys.path.append(base_dir[:-4])
-    from soft_clustering import PFCM
+Run with ``python example/example_pfcm.py`` after ``pip install soft-clustering``.
+"""
 
+import numpy as np
 
-# Create simple sample data (3 small groups of 2D points)
-def create_data():
-    data = []
+from soft_clustering import PFCM
 
-    # Group 1: around (1, 1)
-    for _ in range(5):
-        x = 1 + random.uniform(-0.1, 0.1)
-        y = 1 + random.uniform(-0.1, 0.1)
-        data.append([x, y])
+rng = np.random.default_rng(0)
+X = np.vstack(
+    [
+        rng.normal([0.0, 0.0], 0.5, (40, 2)),
+        rng.normal([4.0, 0.0], 0.5, (40, 2)),
+        rng.normal([2.0, 3.5], 0.5, (40, 2)),
+    ]
+)
+X = np.vstack([X, [[20.0, 20.0]]])  # one far outlier
 
-    # Group 2: around (5, 5)
-    for _ in range(5):
-        x = 5 + random.uniform(-0.1, 0.1)
-        y = 5 + random.uniform(-0.1, 0.1)
-        data.append([x, y])
+model = PFCM(n_clusters=3, random_state=0).fit(X)
 
-    # Group 3: around (9, 1)
-    for _ in range(5):
-        x = 9 + random.uniform(-0.1, 0.1)
-        y = 1 + random.uniform(-0.1, 0.1)
-        data.append([x, y])
-
-    return data
-
-
-# Run PFCM on the data and print results
-def run_pfcm():
-    data = create_data()
-    model = PFCM(n_clusters=3, random_state=0)
-    model.fit(data)
-
-    print("Cluster centers:")
-    for i, center in enumerate(model.cluster_centroids):
-        print(f"Cluster {i + 1}: {center}")
-
-    print("\nMemberships for first 5 points:")
-    for i in range(5):
-        memberships = [
-            round(model.membership_matrix[j][i], 3) for j in range(model.n_clusters)
-        ]
-        print(f"Point {i + 1}: {memberships}")
-
-    print("\nTypicalities for first 5 points:")
-    for i in range(5):
-        typicalities = [
-            round(model.typicality_matrix[j][i], 3) for j in range(model.n_clusters)
-        ]
-        print(f"Point {i + 1}: {typicalities}")
-
-
-if __name__ == "__main__":
-    run_pfcm()
+print("memberships_ shape:", model.memberships_.shape)
+print("first three rows:\n", np.round(model.memberships_[:3], 3))
+print("labels_:", model.labels_)
+print("clusters produced:", model.n_clusters_)
+print("outlier membership (sums to one):", np.round(model.memberships_[-1], 3))
+print("outlier typicality (all small):  ", np.round(model.typicalities_[-1], 4))

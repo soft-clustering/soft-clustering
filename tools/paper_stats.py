@@ -42,11 +42,7 @@ def count_estimators() -> tuple[int, int]:
         for p in (ROOT / "soft_clustering").glob("_*.py")
         if p.name not in ("__init__.py", "_base.py")
     ]
-    estimators = [
-        n
-        for n in soft_clustering.__all__
-        if n not in ("BaseSoftClusterer", "DEEP_ESTIMATORS")
-    ]
+    estimators = sorted(soft_clustering._ESTIMATORS)
     return len(estimators), len(modules)
 
 

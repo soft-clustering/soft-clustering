@@ -188,12 +188,7 @@ def _row(
     """Assemble one comparison row.
 
     ``comparable_memberships=False`` marks a pair whose membership matrices
-    encode different things and therefore must not be differenced. ECM is the
-    case: ``evclust`` places its residual mass on the frame Omega ("could be
-    any cluster") while SCPP places it on a noise cluster ("none of them").
-    Both are correct readings of evidential c-means and both give the same
-    partition, but subtracting one from the other is meaningless. Prototype
-    agreement and the hard partition are compared instead.
+    encode different things and therefore must not be differenced.
     """
     from sklearn.metrics import adjusted_rand_score
 
@@ -227,16 +222,29 @@ def _row(
 
 
 def compare_ecm(n, d, k, repeats):
+    """ECM against evclust, started from the same prototypes.
+
+    Both run the full set of focal sets (``type="full"``), so their pignistic
+    probabilities are directly comparable. evclust is normalised by its
+    empty-set mass to give the pignistic distribution SCPP publishes.
+    """
     from evclust.ecm import ecm
 
     from soft_clustering import ECM
 
     X, _ = blobs(n, d, k)
-    kwargs = dict(n_clusters=k, m=2.0, delta=10.0, max_iter=300, tol=1e-8)
-    reference_kwargs = dict(c=k, type="simple", beta=2, delta=10, ntrials=1, disp=False)
+    g0 = X[[i * (n // k) for i in range(k)]] + 0.1
+    kwargs = dict(
+        n_clusters=k, m=2.0, delta=10.0, max_iter=1000, tol=1e-10, init=g0.copy()
+    )
+    reference_kwargs = dict(
+        c=k, g0=g0.copy(), type="full", beta=2, delta=10, epsi=1e-10, disp=False
+    )
 
     ours = ECM(**kwargs).fit(X)
     reference = ecm(X, **reference_kwargs)
+    betp = np.asarray(reference["betp"])
+    betp = betp / betp.sum(axis=1, keepdims=True)
 
     return _row(
         "ECM",
@@ -244,13 +252,12 @@ def compare_ecm(n, d, k, repeats):
         X,
         k,
         ours.memberships_,
-        reference["betp"],
+        betp,
         lambda: ECM(**kwargs).fit(X),
         lambda: ecm(X, **reference_kwargs),
         repeats,
-        ours_V=ours.prototypes,
+        ours_V=ours.centers_,
         theirs_V=reference["g"],
-        comparable_memberships=False,
     )
 
 

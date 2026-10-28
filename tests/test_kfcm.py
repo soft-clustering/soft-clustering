@@ -41,17 +41,17 @@ def test_centers_shape(X):
 
 def test_invalid_n_clusters_raises():
     with pytest.raises(ValueError):
-        KFCM(n_clusters=0)
+        KFCM(n_clusters=0).fit(np.random.default_rng(0).normal(size=(20, 2)))
 
 
 def test_invalid_m_raises():
     with pytest.raises(ValueError):
-        KFCM(m=1.0)
+        KFCM(m=1.0).fit(np.random.default_rng(0).normal(size=(20, 2)))
 
 
 def test_invalid_sigma_raises():
     with pytest.raises(ValueError):
-        KFCM(sigma=-1.0)
+        KFCM(sigma=-1.0).fit(np.random.default_rng(0).normal(size=(20, 2)))
 
 
 def test_empty_input_raises(X):

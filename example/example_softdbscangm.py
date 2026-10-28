@@ -1,27 +1,27 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
 
-import sys
-from os import path
+"""SoftDBSCANGM: Soft DBSCAN with Gaussian-mixture refinement.
 
-if __name__ == "__main__":
-    base_dir = path.dirname(path.realpath(__file__))
-    sys.path.append(base_dir[:-4])
-    from sklearn.datasets import make_moons
+Run with ``python example/example_softdbscangm.py`` after ``pip install soft-clustering``.
+"""
 
-    from soft_clustering import SoftDBSCANGM
+import numpy as np
 
-    # Create data with complex shape (like moons)
-    X, _ = make_moons(n_samples=100, noise=0.1, random_state=42)
+from soft_clustering import SoftDBSCANGM
 
-    model = SoftDBSCANGM(eps=0.3, min_samples=5, m=2.0, max_iter=100)
-    model.fit(X)
+rng = np.random.default_rng(0)
+X = np.vstack(
+    [
+        rng.normal([0.0, 0.0], 0.5, (40, 2)),
+        rng.normal([4.0, 0.0], 0.5, (40, 2)),
+        rng.normal([2.0, 3.5], 0.5, (40, 2)),
+    ]
+)
 
-    labels = model.predict()
-    U = model.get_membership()
+model = SoftDBSCANGM(eps=1.0, min_samples=5).fit(X)
 
-    print("Predicted Labels:")
-    print(labels)
-
-    print("\nFuzzy Membership Matrix:")
-    print(U)
+print("memberships_ shape:", model.memberships_.shape)
+print("first three rows:\n", np.round(model.memberships_[:3], 3))
+print("labels_:", model.labels_)
+print("clusters produced:", model.n_clusters_)

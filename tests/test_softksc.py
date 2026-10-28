@@ -1,81 +1,86 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
 
-"""Unit and integration tests for SoftKSC (Soft Kernel Semi-supervised Clustering)."""
+"""Tests for SoftKSC (soft kernel spectral clustering)."""
 
 import numpy as np
 import pytest
+from sklearn.datasets import make_blobs, make_moons
+from sklearn.metrics import adjusted_rand_score
 
 from soft_clustering import SoftKSC
+from soft_clustering._softksc import _soft_memberships
 
 
 @pytest.fixture
-def data():
-    rng = np.random.default_rng(33)
-    X_lab = rng.normal(size=(10, 2))
-    y_lab = np.array([1, 1, 1, 1, 1, -1, -1, -1, -1, -1])
-    X_unlab = rng.normal(size=(20, 2))
-    return X_lab, y_lab, X_unlab
+def blobs():
+    return make_blobs(150, centers=3, cluster_std=0.7, random_state=0)
 
 
-def test_fit_runs(data):
-    X_lab, y_lab, X_unlab = data
-    model = SoftKSC()
-    model.fit(X_lab, y_lab, X_unlab)
-    assert model.alpha is not None
-    assert model.beta is not None
+def test_recovers_blobs(blobs):
+    X, y = blobs
+    model = SoftKSC(n_clusters=3, gamma=0.5).fit(X)
+    assert adjusted_rand_score(y, model.labels_) > 0.9
 
 
-def test_predict_proba_shape(data):
-    X_lab, y_lab, X_unlab = data
-    model = SoftKSC()
-    model.fit(X_lab, y_lab, X_unlab)
-    probs = model.predict_proba(X_lab)
-    assert probs.shape == (10, 2)
+def test_separates_non_convex_clusters():
+    X, y = make_moons(200, noise=0.05, random_state=0)
+    model = SoftKSC(n_clusters=2, gamma=10.0).fit(X)
+    assert adjusted_rand_score(y, model.labels_) > 0.85
 
 
-def test_predict_labels(data):
-    """predict() returns cluster indices, matching argmax over memberships.
-
-    Earlier releases returned the signed {-1, +1} encoding here, which broke
-    the library-wide rule ``labels_ == argmax(U)``. The signed form moved to
-    signed_labels().
-    """
-    X_lab, y_lab, X_unlab = data
-    model = SoftKSC()
-    model.fit(X_lab, y_lab, X_unlab)
-    labels = model.predict(X_lab)
-    assert labels.shape == (10,)
-    assert set(labels).issubset({0, 1})
+def test_out_of_sample_extension():
+    X, _ = make_moons(200, noise=0.05, random_state=0)
+    Xt, yt = make_moons(100, noise=0.05, random_state=1)
+    model = SoftKSC(n_clusters=2, gamma=10.0).fit(X)
+    assert adjusted_rand_score(yt, model.predict(Xt)) > 0.8
+    np.testing.assert_allclose(model.predict_proba(X), model.memberships_, atol=1e-10)
 
 
-def test_signed_labels(data):
-    X_lab, y_lab, X_unlab = data
-    model = SoftKSC()
-    model.fit(X_lab, y_lab, X_unlab)
-    signed = model.signed_labels(X_lab)
-    assert set(signed).issubset({-1, 1})
-    np.testing.assert_array_equal(signed, model.predict(X_lab) * 2 - 1)
+def test_dual_problem_is_satisfied(blobs):
+    """alpha are eigenvectors of D^-1 M_D Omega (Alzate and Suykens, 2010)."""
+    X, _ = blobs
+    model = SoftKSC(n_clusters=3, gamma=0.5).fit(X)
+    from sklearn.metrics.pairwise import rbf_kernel
+
+    Omega = rbf_kernel(X, gamma=0.5)
+    d_inv = 1.0 / Omega.sum(axis=1)
+    n = X.shape[0]
+    MD = np.eye(n) - np.outer(np.ones(n), d_inv) / d_inv.sum()
+    A = d_inv[:, None] * (MD @ Omega)
+    for a in model.alphas_.T:
+        Aa = A @ a
+        lam = (a @ Aa) / (a @ a)
+        np.testing.assert_allclose(Aa, lam * a, atol=1e-8)
+    # The bias centres the training projections in the D^-1-weighted sense.
+    np.testing.assert_allclose(d_inv @ model.projections_, 0.0, atol=1e-8)
 
 
-def test_predict_without_x_returns_the_fitted_partition(data):
-    X_lab, y_lab, X_unlab = data
-    model = SoftKSC()
-    model.fit(X_lab, y_lab, X_unlab)
-    np.testing.assert_array_equal(model.predict(), model.labels_)
-    assert model.labels_.shape == (len(X_lab) + len(X_unlab),)
+def test_membership_formula():
+    """Eq. (1.8): sm_q = prod_{j != q} d_j / sum_p prod_{j != p} d_j."""
+    E = np.array([[1.0, 0.0]])
+    prototypes = np.array([[1.0, 0.0], [0.0, 1.0], [-1.0, 0.0]])
+    # cosine distances: 0, 1, 2
+    sm = _soft_memberships(E, prototypes)
+    expected = np.array([1 * 2, 0 * 2, 0 * 1], dtype=float)
+    np.testing.assert_allclose(sm[0], expected / expected.sum())
 
 
-def test_predict_proba_on_unlabeled(data):
-    X_lab, y_lab, X_unlab = data
-    model = SoftKSC()
-    model.fit(X_lab, y_lab, X_unlab)
-    probs = model.predict_proba(X_unlab)
-    assert probs.shape == (20, 2)
+def test_memberships_are_a_partition(blobs):
+    X, _ = blobs
+    U = SoftKSC(n_clusters=3, gamma=0.5).fit(X).memberships_
+    assert np.all(U >= 0)
+    np.testing.assert_allclose(U.sum(axis=1), 1.0, atol=1e-12)
 
 
-def test_gamma_parameter(data):
-    X_lab, y_lab, X_unlab = data
-    model = SoftKSC(gamma=0.5)
-    model.fit(X_lab, y_lab, X_unlab)
-    assert model.predict(X_lab).shape == (10,)
+def test_legacy_semi_supervised_signature_is_rejected(blobs):
+    X, _ = blobs
+    with pytest.raises(TypeError):
+        SoftKSC().fit(X[:6], np.ones(6), X[6:])
+
+
+@pytest.mark.parametrize("kwargs", [{"n_clusters": 1}, {"gamma": 0.0}])
+def test_invalid_parameters_raise(blobs, kwargs):
+    X, _ = blobs
+    with pytest.raises(ValueError):
+        SoftKSC(**kwargs).fit(X)

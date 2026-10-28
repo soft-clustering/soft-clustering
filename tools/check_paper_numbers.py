@@ -28,6 +28,7 @@ import re
 import statistics
 import subprocess
 import sys
+import warnings
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -160,9 +161,7 @@ def library_numbers(full: bool) -> dict:
     from soft_clustering.benchmarking.datasets import available_datasets
 
     numbers = {
-        "estimators": len(
-            [n for n in sc.__all__ if n not in ("BaseSoftClusterer", "DEEP_ESTIMATORS")]
-        ),
+        "estimators": len(sc._ESTIMATORS),
         "modules": len(modules),
         "examples": len(list((ROOT / "example").glob("*.py"))),
         "datasets": len(available_datasets()),
@@ -189,10 +188,66 @@ def library_numbers(full: bool) -> dict:
     return numbers
 
 
+JOSS_PAPER = ROOT / "joss" / "paper.md"
+
+
+def check_joss_paper(report: Report) -> None:
+    """Check every number stated in the JOSS paper against the source."""
+    sys.path.insert(0, str(ROOT))
+    sys.path.insert(0, str(ROOT / "tests"))
+    import soft_clustering as sc
+    from soft_clustering._registry import ALGORITHMS
+
+    with warnings.catch_warnings():
+        # Importing the module builds scikit-learn's check list, which warns
+        # that SCPP estimators do not inherit from BaseEstimator.
+        warnings.simplefilter("ignore")
+        from test_sklearn_compat import ESTIMATORS as SKLEARN_CHECKED
+
+    text = " ".join(JOSS_PAPER.read_text(encoding="utf-8").split())
+    status = {s: 0 for s in ("validated", "reference", "adapted", "unverified")}
+    for info in ALGORITHMS.values():
+        status[info.status] += 1
+    inductive = sum(
+        getattr(getattr(sc, name), "_supports_out_of_sample", False)
+        for name in sc._ESTIMATORS
+    )
+
+    print("JOSS paper (joss/paper.md)")
+    report.check("estimators", len(sc._ESTIMATORS), r"implements (\d+) of these", text)
+    report.check(
+        "out-of-sample estimators", inductive, r"only for the (\d+) estimators", text
+    )
+    report.check(
+        "scikit-learn checked", len(SKLEARN_CHECKED), r"it holds: (\d+) inductive", text
+    )
+    for name, count in status.items():
+        report.check(f"status {name}", count, rf"\*{name}\* \((\d+) ", text)
+    words = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six"}
+    n_deep = len(sc.DEEP_ESTIMATORS)
+    report.check(
+        "deep estimators",
+        words.get(n_deep, str(n_deep)),
+        r"the (\w+) deep-learning estimators",
+        text,
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--full", action="store_true", help="also collect the suite")
     args = parser.parse_args()
+
+    if JOSS_PAPER.exists():
+        joss_report = Report()
+        check_joss_paper(joss_report)
+        print(
+            f"\n{joss_report.checks} checks, {len(joss_report.failures)} failure(s)\n"
+        )
+        for failure in joss_report.failures:
+            print(f"  ! {failure}")
+        if joss_report.failures:
+            return 1
 
     if not PAPER.exists():
         # Every check below is a regex against the manuscript, so with no

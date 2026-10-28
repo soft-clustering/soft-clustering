@@ -6,188 +6,118 @@ from scipy.optimize import linear_sum_assignment
 from typeguard import typechecked
 
 from ._base import BaseSoftClusterer
-
-
-class _MIFuzzy:
-    """
-    Multiple Imputation step for FeMIFuzzy.
-    Generates multiple imputed datasets by filling missing values
-    with column means plus small Gaussian noise.
-    """
-
-    def __init__(
-        self,
-        c_clusters: int,
-        n_imputations: int = 5,
-        n_samples: int = 0,
-        fuzzifier: float = 2.0,
-        random_state: int | None = None,
-        max_iter: int = 0,
-        tol: float = 1e-5,
-    ):
-        self.C = c_clusters
-        self.n_imputations = n_imputations
-        self.N = n_samples
-        self.m = fuzzifier
-        self.random_state = random_state
-        self.max_iter = max_iter
-        self.tol = tol
-
-    def multiple_imputer(self):
-        # Precompute column means
-        self.col_means = np.nanmean(self.X, axis=0)
-
-        # Create imputed datasets
-        rng_master = np.random.default_rng(self.random_state)
-        imputed_datasets = []
-
-        for _ in range(self.n_imputations):
-            rng = np.random.default_rng(rng_master.integers(0, 2**31 - 1))
-            X_imp = self.X.copy()
-            mask = np.isnan(X_imp)
-
-            # Fill NaNs with mean + small Gaussian noise
-            noise = rng.normal(scale=0.01, size=mask.sum())
-            X_imp[mask] = np.take(self.col_means, np.where(mask)[1]) + noise
-
-            imputed_datasets.append(X_imp)
-        return imputed_datasets
-
-    def generate_membership(self, V):
-        """Fuzzy c-means memberships of ``self.X`` against prototypes ``V``.
-
-        .. math::
-
-            u_{ij} = \\Big[\\sum_{l} (d_{ij}^2 / d_{il}^2)^{1/(m-1)}\\Big]^{-1}
-
-        Evaluated in log space with the per-sample minimum factored out, so a
-        sample coincident with a prototype yields a one-hot row instead of a
-        division by zero.
-        """
-        d2 = np.sum((self.X[:, None, :] - V[None, :, :]) ** 2, axis=2)
-        log_d2 = np.log(np.maximum(d2, np.finfo(float).tiny))
-        scores = -(log_d2 - log_d2.min(axis=1, keepdims=True)) / (self.m - 1.0)
-        np.exp(scores, out=scores)
-        return scores / scores.sum(axis=1, keepdims=True)
-
-    def update_cluster_centers(self, U):
-        """Membership-weighted prototypes, :math:`v_j = \\sum_i u_{ij}^m x_i /
-        \\sum_i u_{ij}^m`."""
-        U_m = U**self.m
-        weights = U_m.sum(axis=0)
-        V = (U_m.T @ self.X) / np.maximum(weights, np.finfo(float).tiny)[:, None]
-        # A prototype that lost all its mass is left at the origin, matching
-        # the previous behaviour of the zero-denominator branch.
-        V[weights <= 0] = 0.0
-        return V
-
-    def fit(self, X: np.ndarray):
-        self.X = np.asarray(X, dtype=float)
-
-        # Drop fully-missing columns
-        self.full_missing_mask = np.all(np.isnan(self.X), axis=0)
-        if np.any(self.full_missing_mask):
-            self.X = self.X[:, ~self.full_missing_mask]
-
-        # The sample count is a property of the data, not a hyperparameter.
-        # Deriving it here keeps the estimator usable without the caller having
-        # to pass n_samples, which otherwise defaults to 0 and makes the
-        # centroid initialisation below fail.
-        self.N = self.X.shape[0]
-        if self.C > self.N:
-            raise ValueError(
-                f"c_clusters={self.C} exceeds the number of samples ({self.N})."
-            )
-
-        imputed_datasets = self.multiple_imputer()
-
-        rng = np.random.default_rng(self.random_state)
-        self.cluster_centers = []
-        self.membership_matrices = []
-
-        for X in imputed_datasets:
-            # Initialize cluster centers randomly
-            V = X[rng.choice(self.N, self.C, replace=False)]
-            # Initialize membership matrix
-            U = self.generate_membership(V)
-
-            for _ in range(self.max_iter - 1):
-                V = self.update_cluster_centers(U)
-                U_new = self.generate_membership(V)
-                # Stop once the partition settles. The federated sweep fits
-                # this model once per candidate cluster count per imputation,
-                # so running the full iteration budget every time dominates
-                # the runtime for no change in the result.
-                converged = np.abs(U_new - U).max() < self.tol
-                U = U_new
-                if converged:
-                    break
-
-            self.cluster_centers.append(V)
-            self.membership_matrices.append(U)
-
-    def transform(self, X):
-        """Impute new data using learned means (single dataset)."""
-        X = np.asarray(X, dtype=float)
-
-        # Drop same fully-missing columns
-        X = X[:, ~self.full_missing_mask]
-
-        # Fill NaNs with learned means
-        mask = np.isnan(X)
-        X[mask] = np.take(self.col_means, np.where(mask)[1])
-
-        return X
+from ._fcm import _update_U_from_centers, fcm_fit
+from ._validation import check_array, check_generator
 
 
 @typechecked
 class FeMIFuzzy(BaseSoftClusterer):
+    r"""Federated fuzzy clustering with multiple imputation.
+
+    Clusters data held by several clients that cannot pool their samples and
+    may contain missing values, following the structure of Ngo et al. (2024):
+    every client works on its own data and only prototypes and cluster counts
+    are exchanged.
+
+    1. Clients are restricted to the features they all share.
+    2. **Local multiple imputation.** Every client replaces missing values by
+       its own column means plus small Gaussian noise, ``n_imputations``
+       times, and runs fuzzy c-means on every imputed copy; the copies'
+       prototypes are aligned by Hungarian matching of cluster signatures and
+       averaged.
+    3. **Local model selection.** Each client picks the cluster count in
+       ``2 .. max_clusters`` minimising the Xie--Beni index (averaged over
+       imputations).
+    4. **Server.** The global count is the sample-weighted mean of the local
+       choices. Clients refit with it, and the server aligns their prototype
+       sets to the largest client's by Hungarian matching on prototype
+       distances and averages them, weighted by client size.
+    5. Every client's (mean-imputed) samples receive fuzzy c-means
+       memberships with respect to the global prototypes.
+
+    Parameters
+    ----------
+    random_state : int, numpy Generator or None, default=None
+    max_iter : int, default=100
+        Fuzzy c-means iterations per fit.
+    fuzzifier : float, default=2.0
+        Fuzzifier ``m > 1``.
+    n_imputations : int, default=5
+    max_clusters : int, default=10
+        Upper end of each client's model-selection sweep.
+
+    Attributes
+    ----------
+    memberships_ : ndarray of shape (n_total_samples, K)
+        Clients stacked in the order given.
+    centers_ : ndarray of shape (K, n_common_features)
+        Global prototypes (also ``global_centroids_``).
+    client_n_clusters_ : list of int
+        Cluster count selected by each client.
+    client_centroids_ : list of ndarray
+        Each client's prototypes for the global cluster count.
+    client_sizes_ : list of int
+
+    References
+    ----------
+    H. Ngo, H. Fang, J. Rumbut and H. Wang. Federated fuzzy clustering for
+    decentralized incomplete longitudinal behavioral data. *IEEE Internet of
+    Things Journal*, 11(8):14657--14670, 2024. doi:10.1109/JIOT.2023.3343719
+
+    Notes
+    -----
+    This is an implementation of the federated, multiple-imputation scheme
+    described above; it has not been compared with the authors' code.
+    Earlier releases Sammon-projected each client to two dimensions
+    independently and averaged prototypes across those unaligned projections,
+    matched global clusters by index without alignment, and failed on any
+    missing value. The Sammon mapping is still available as
+    :meth:`_sammon_mapping` but is no longer part of the pipeline.
+    """
+
     def __init__(
         self,
-        random_state: int | None = None,
+        random_state: int | np.random.Generator | None = None,
         max_iter: int = 100,
         fuzzifier: float = 2.0,
         n_imputations: int = 5,
+        max_clusters: int = 10,
     ):
-        """
-        Parameters
-        ----------
-        random_state : int or None
-            Seed for the imputation noise and centroid initialisation.
-        max_iter : int
-            Iterations of the per-client fuzzy c-means and of Sammon mapping.
-        fuzzifier : float
-            Fuzzifier ``m > 1`` used by every client's local model and by the
-            final assignment to the global prototypes.
-        n_imputations : int
-            Number of imputed datasets drawn per client.
-        """
         if fuzzifier <= 1.0:
-            raise ValueError(f"fuzzifier must be > 1, got {fuzzifier}")
+            raise ValueError(f"FeMIFuzzy: fuzzifier must be > 1; got {fuzzifier}.")
         if n_imputations < 1:
-            raise ValueError(f"n_imputations must be >= 1, got {n_imputations}")
+            raise ValueError(
+                f"FeMIFuzzy: n_imputations must be >= 1; got {n_imputations}."
+            )
+        if max_clusters < 2:
+            raise ValueError(
+                f"FeMIFuzzy: max_clusters must be >= 2; got {max_clusters}."
+            )
 
         self.random_state = random_state
         self.max_iter = max_iter
+        self.fuzzifier = fuzzifier
         self.m = fuzzifier
         self.n_imputations = n_imputations
-
-        self.rng = np.random.default_rng(random_state)
+        self.max_clusters = max_clusters
 
     def _align_clients_features(self, clients, features):
         # Find intersection of features across all clients
-        common_features = set(features[0])
+        # Ordered as in the first client. Building the list from a set made
+        # the column order depend on string hash randomisation, so two runs
+        # with the same seed could cluster differently.
+        shared = set(features[0])
         for fnames in features[1:]:
-            common_features &= set(fnames)
-        common_features = list(common_features)
+            shared &= set(fnames)
+        common_features = [f for f in features[0] if f in shared]
 
         if not common_features:
-            raise ValueError("No common features across clients!")
+            raise ValueError("FeMIFuzzy: the clients share no common feature.")
 
         aligned_clients = []
         for X, fnames in zip(clients, features):
             # Find indices of common features in this client
-            indices = [fnames.index(f) for f in common_features]
+            indices = [list(fnames).index(f) for f in common_features]
             aligned_clients.append(X[:, indices])
 
         return aligned_clients
@@ -340,122 +270,115 @@ class FeMIFuzzy(BaseSoftClusterer):
         row_ind, col_ind = linear_sum_assignment(dist_matrix)
         return col_ind
 
+    def _impute(self, X, rng):
+        """Multiple imputation: column mean plus small Gaussian noise."""
+        mask = np.isnan(X)
+        if not mask.any():
+            return [X] * self.n_imputations, X
+        col_means = np.nanmean(np.where(mask.all(axis=0), 0.0, X), axis=0)
+        mean_imputed = np.where(mask, col_means[None, :], X)
+        scale = np.nanstd(X, axis=0)
+        scale = np.where(np.isfinite(scale) & (scale > 0), scale, 1.0)
+        imputations = []
+        for _ in range(self.n_imputations):
+            noise = rng.normal(0.0, 0.01, size=X.shape) * scale[None, :]
+            imputations.append(np.where(mask, col_means[None, :] + noise, X))
+        return imputations, mean_imputed
+
+    def _mi_fcm(self, imputations, C, rng):
+        """FCM on every imputed copy, aligned to the first and averaged."""
+        results = [
+            fcm_fit(X, C, self.m, rng, max_iter=self.max_iter, tol=1e-6)[:2]
+            for X in imputations
+        ]
+        U_ref, V_ref = results[0]
+        X_ref = imputations[0]
+        aligned = [V_ref]
+        xb = [self._xie_beni(X_ref, U_ref, V_ref, X_ref.shape[0], m=self.m)]
+        for X, (U, V) in zip(imputations[1:], results[1:]):
+            mapping = self._match_centroids(X_ref, U_ref, X, U)
+            aligned.append(V[mapping])
+            xb.append(self._xie_beni(X, U, V, X.shape[0], m=self.m))
+        return np.mean(aligned, axis=0), float(np.mean(xb))
+
     def fit_predict(self, clients: list[np.ndarray], features) -> np.ndarray:
         """Fit the federated model and return the global membership matrix.
 
+        Parameters
+        ----------
+        clients : list of ndarray
+            One ``(n_samples_k, n_features_k)`` matrix per client. Missing
+            values may be given as NaN; they are imputed locally.
+        features : list of list of str
+            Feature names of every client's columns. Only the features common
+            to all clients are used, in the order of the first client.
+
         Returns
         -------
-        memberships : ndarray of shape (sum of client sample counts, C_global)
-            Fuzzy memberships of every client's samples with respect to the
-            aggregated global centroids, clients stacked in the order given.
-            The global centroids are also stored as ``centers_``.
-
-        Earlier releases returned only the list of global centroids and
-        discarded the memberships, which left the estimator without the soft
-        output the rest of the library is built on.
+        ndarray of shape (sum of client sample counts, K)
+            Memberships of every client's samples in the global clusters,
+            clients stacked in the order given.
         """
+        name = type(self).__name__
+        if len(clients) != len(features):
+            raise ValueError(
+                f"{name}: got {len(clients)} clients but {len(features)} feature lists."
+            )
+        clients = [
+            check_array(c, estimator=name, name=f"clients[{i}]", allow_nan=True)
+            for i, c in enumerate(clients)
+        ]
         clients = self._align_clients_features(clients, features)
-        C_global = 0.0
-        N = []
-        centroids = []
-        projections = []
-
-        for client in clients:
-            X = self._sammon_mapping(client)
-            projections.append(X)
-            n = X.shape[0]
-            # The model-selection sweep cannot request more clusters than the
-            # client holds samples; centroid initialisation draws k distinct
-            # points without replacement.
-            max_k = min(10, n)
-            if max_k < 2:
+        for i, X in enumerate(clients):
+            if X.shape[0] < 2:
                 raise ValueError(
-                    "each client needs at least 2 samples for the Xie-Beni "
-                    f"model-selection sweep; got {n}."
+                    f"{name}: each client needs at least 2 samples for the "
+                    f"Xie-Beni model-selection sweep; client {i} has {X.shape[0]}."
                 )
-            N.append(n)
-            xb_set = []
-            V_set = []
-            U_set = []
-
-            # The sweep starts at 2: Xie--Beni is undefined for a single
-            # prototype and evaluates to zero there, so including C = 1 would
-            # make the selection always collapse to one cluster.
-            for k in range(2, max_k + 1):
-                self.C = k
-                mifuzzy = _MIFuzzy(
-                    c_clusters=self.C,
-                    n_imputations=self.n_imputations,
-                    n_samples=n,
-                    fuzzifier=self.m,
-                    random_state=self.random_state,
-                    max_iter=self.max_iter,
+            empty = np.isnan(X).all(axis=0)
+            if empty.any():
+                raise ValueError(
+                    f"{name}: client {i} has no observed value for "
+                    f"{int(empty.sum())} common feature(s); they cannot be "
+                    "imputed locally."
                 )
-                mifuzzy.fit(X)
-                U_set.append(mifuzzy.membership_matrices)
-                V_set.append(mifuzzy.cluster_centers)
 
-            for V_n_list, U_n_list in zip(V_set, U_set):
-                for V_n, U_n in zip(V_n_list, U_n_list):
-                    xb_set.append(self._xie_beni(X, U_n, V_n, n, m=self.m))
+        rng = check_generator(self.random_state)
+        imputed = [self._impute(X, rng) for X in clients]
+        sizes = [X.shape[0] for X in clients]
 
-            n_imp = len(V_set[0])
-            best_flat = np.argmin(xb_set)
-            best_k_idx = best_flat // n_imp
-            best_imp_idx = best_flat % n_imp
+        # Round 1: every client selects its own cluster count by Xie-Beni.
+        # The sweep starts at 2: the index is undefined for one prototype.
+        chosen = []
+        for imputations, _ in imputed:
+            n = imputations[0].shape[0]
+            candidates = range(2, min(self.max_clusters, n) + 1)
+            scores = [self._mi_fcm(imputations, C, rng)[1] for C in candidates]
+            chosen.append(list(candidates)[int(np.argmin(scores))])
+        C_global = int(round(np.dot(sizes, chosen) / sum(sizes)))
+        C_global = max(2, min(C_global, min(sizes)))
 
-            V_1 = V_set[best_k_idx][best_imp_idx]
-            U_1 = U_set[best_k_idx][best_imp_idx]
+        # Round 2: every client fits the consensus count; the server aligns
+        # the prototype sets (Hungarian matching on prototype distances,
+        # against the largest client) and averages them, weighted by size.
+        local = [self._mi_fcm(imp, C_global, rng)[0] for imp, _ in imputed]
+        ref = int(np.argmax(sizes))
+        V_global = np.zeros_like(local[ref])
+        for V, n in zip(local, sizes):
+            cost = np.linalg.norm(local[ref][:, None, :] - V[None, :, :], axis=2)
+            _, col = linear_sum_assignment(cost)
+            V_global += n * V[col]
+        V_global /= sum(sizes)
 
-            aligned_centers = [V_1]
-            aligned_memberships = [U_1]
-
-            for V_n, U_n in zip(
-                V_set[best_k_idx][:best_imp_idx]
-                + V_set[best_k_idx][best_imp_idx + 1 :],
-                U_set[best_k_idx][:best_imp_idx]
-                + U_set[best_k_idx][best_imp_idx + 1 :],
-            ):
-                mapping = self._match_centroids(X, U_1, X, U_n)
-                aligned_centers.append(V_n[mapping])
-                aligned_memberships.append(U_n[:, mapping])
-
-            V_final = np.mean(aligned_centers, axis=0)
-            centroids.append(V_final)
-
-            # best_k_idx indexes the sweep, which starts at C = 2.
-            C_global += n * (best_k_idx + 2)
-
-        # Sample-weighted consensus on the number of clusters, then on the
-        # prototypes. A client that selected fewer clusters than the consensus
-        # contributes nothing to the surplus prototypes.
-        C_global = max(1, int(round(C_global / sum(N))))
-        n_features = centroids[0].shape[1]
-        V_global = np.zeros((C_global, n_features))
-        for j in range(C_global):
-            weight = 0.0
-            for k in range(len(clients)):
-                if j < centroids[k].shape[0]:
-                    V_global[j] += N[k] * centroids[k][j]
-                    weight += N[k]
-            if weight > 0:
-                V_global[j] /= weight
-
-        # Every client's samples are now scored against the shared prototypes
-        # with the standard fuzzy c-means rule, evaluated in log space so a
-        # sample coincident with a prototype cannot overflow.
-        exponent = 2.0 / (self.m - 1.0) if getattr(self, "m", 2.0) > 1 else 2.0
-        blocks = []
-        for X in projections:
-            d = np.linalg.norm(X[:, None, :] - V_global[None, :, :], axis=2)
-            log_d = np.log(np.maximum(d, np.finfo(float).tiny))
-            scores = -exponent * (log_d - log_d.min(axis=1, keepdims=True))
-            np.exp(scores, out=scores)
-            blocks.append(scores / scores.sum(axis=1, keepdims=True))
-
+        blocks = [
+            _update_U_from_centers(mean_imputed, V_global, self.m)
+            for _, mean_imputed in imputed
+        ]
+        self.client_n_clusters_ = chosen
+        self.client_centroids_ = local
         self.memberships_ = np.vstack(blocks)
         self.centers_ = V_global
         self.global_centroids_ = V_global
-        self.client_sizes_ = N
-        self._n_samples_hint = int(sum(N))
+        self.client_sizes_ = sizes
+        self._n_samples_hint = int(sum(sizes))
         return self.memberships_

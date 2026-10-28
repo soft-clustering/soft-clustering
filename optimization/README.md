@@ -6,6 +6,31 @@ SCPP: audit, profile, optimize, verify, benchmark, report.
 Nothing in this directory is part of the distributed package. It is not on the
 production import path, and `soft_clustering/` never imports from here.
 
+## Status after the 0.2.0 correctness audit
+
+This study measured and verified *speed-ups that preserve behaviour*: every
+optimised implementation was checked to reproduce the preserved reference
+build in `original/scpp_original/`. It did not check that the reference itself
+was correct. A later correctness audit (recorded in `CHANGELOG.md`, 0.2.0)
+found that one of the five studied algorithms was not:
+
+* **KFCCL** --- the studied implementation never separated its clusters (on
+  three well-separated blobs every membership was exactly 1/3, adjusted Rand
+  index 0). It has been replaced by a new implementation in
+  `soft_clustering/_kfccl.py`. The KFCCL speed-up, memory and equivalence
+  figures in this directory describe the superseded code, not the shipped one,
+  and its equivalence tests have been removed.
+* **KFCM, MBMM, SoftDBSCANGM, KMART** --- still covered. The audit changed only
+  their random-state handling (an integer `random_state` now seeds a private
+  generator; `None` still draws from NumPy's global stream, exactly as the
+  references do), so `tests/test_optimization_equivalence.py` continues to
+  pass against the preserved references. KFCM's membership update is now
+  evaluated with the overflow-free ratio rule, which agrees with the reference
+  to floating-point tolerance.
+
+Numbers in `reports/` and `figures/` are kept as the historical record of the
+study and have not been regenerated.
+
 ## Layout
 
 ```text

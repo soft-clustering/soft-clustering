@@ -1,33 +1,26 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
 
-# Overview of NOCD usage
-import sys
-from os import path
+"""NOCD: Neural overlapping community detection (needs the deep extra).
+
+Run with ``python example/example_nocd.py`` after ``pip install "soft-clustering[deep]"``.
+"""
 
 import numpy as np
-from scipy.sparse import csr_matrix
 
-if __name__ == "__main__":
-    base_dir = path.dirname(path.realpath(__file__))
-    sys.path.append(base_dir[:-4])
-    from soft_clustering import NOCD
+from soft_clustering import NOCD
 
-    n = 10
-    p = 0.2
+# A graph with three planted communities of 20 nodes each.
+rng = np.random.default_rng(0)
+communities = np.repeat([0, 1, 2], 20)
+p = np.where(communities[:, None] == communities[None, :], 0.5, 0.03)
+A = np.triu(rng.random((60, 60)) < p, 1).astype(float)
+A = A + A.T
 
-    upper = np.triu((np.random.rand(n, n) < p).astype(int), k=1)
-    A = upper + upper.T
-    adjacency_matrix = csr_matrix(A)
+model = NOCD(n_clusters=3, random_state=0, hidden_sizes=[32], batch_size=2000)
+model.fit(A)
 
-    feat = np.random.rand(n, n) * 0.1
-    feat[:, :] += 1.0
-    feature_matrix = csr_matrix(feat)
-
-    K = 2  # number of communities
-
-    # Initialize and fit the model
-    model = NOCD(random_state=42, max_epochs=10)
-
-    memberships = model.fit_predict(adjacency_matrix, feature_matrix, K)
-    print("Membership matrix:\n", memberships)
+print("memberships_ shape:", model.memberships_.shape)
+print("first three rows:\n", np.round(model.memberships_[:3], 3))
+print("labels_:", model.labels_)
+print("clusters produced:", model.n_clusters_)

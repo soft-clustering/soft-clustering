@@ -1,11 +1,18 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
 
-"""Soft Clustering - A library of soft and fuzzy clustering algorithms."""
+"""SCPP: soft, fuzzy, possibilistic, evidential, probabilistic, graph,
+document and ensemble clustering behind one estimator protocol.
+
+Every estimator is importable from the top level, for example
+``from soft_clustering import FCM``. :func:`list_algorithms` describes all of
+them; see ``BaseSoftClusterer`` for the protocol they share.
+"""
 
 __version__ = "0.2.0"
 
-from ._base import BaseSoftClusterer
+from ._base import BaseSoftClusterer, NotFittedError
+from ._registry import AlgorithmInfo, list_algorithms
 
 # Estimator name -> module that defines it. Imports are deferred (PEP 562) so
 # that `import soft_clustering` costs nothing for the models a user does not
@@ -64,7 +71,7 @@ _ALIASES = {
     "PCM": "PossibilisticCMeans",
 }
 
-#: Estimators requiring the optional ``deep`` extra (torch, torch_geometric).
+#: Estimators requiring the optional ``deep`` extra (PyTorch).
 #:
 #: MMSB is deliberately absent: its variational EM is pure NumPy/SciPy, so the
 #: model is a Bayesian graph model rather than a deep one and is available in
@@ -72,8 +79,15 @@ _ALIASES = {
 DEEP_ESTIMATORS = frozenset({"CDCGS", "DMoN", "NOCD", "RDFKC"})
 
 
+#: The class names of the estimators whose public name is an abbreviation, so
+#: that ``soft_clustering.FuzzyCMeans`` (the name ``repr`` shows) also works.
+_LONG_NAMES = {long: short for short, long in _ALIASES.items()}
+
+
 def __getattr__(name):
     """Import an estimator on first access (PEP 562)."""
+    if name in _LONG_NAMES:
+        return __getattr__(_LONG_NAMES[name])
     module_path = _ESTIMATORS.get(name)
     if module_path is None:
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
@@ -96,7 +110,13 @@ def __getattr__(name):
 
 
 def __dir__():
-    return sorted(list(globals()) + list(_ESTIMATORS))
+    return sorted(set(globals()) | set(_ESTIMATORS) | set(_LONG_NAMES))
 
 
-__all__ = sorted(_ESTIMATORS) + ["BaseSoftClusterer", "DEEP_ESTIMATORS"]
+__all__ = sorted(_ESTIMATORS) + [
+    "AlgorithmInfo",
+    "BaseSoftClusterer",
+    "DEEP_ESTIMATORS",
+    "list_algorithms",
+    "NotFittedError",
+]

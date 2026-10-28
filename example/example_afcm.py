@@ -1,28 +1,27 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
 
-import sys
-from os import path
+"""AFCM: Adaptive fuzzy c-means with graph embedding on non-convex clusters.
+
+Run with ``python example/example_afcm.py`` after ``pip install soft-clustering``.
+"""
 
 import numpy as np
+from sklearn.datasets import make_moons
 
-if __name__ == "__main__":
-    base_dir = path.dirname(path.realpath(__file__))
-    sys.path.append(base_dir[:-4])
-    from soft_clustering import AFCM
+from soft_clustering import AFCM
 
-    # Generate synthetic data with 2 clusters
-    N = 100
-    D = 2
-    X = np.vstack(
-        [
-            np.random.normal(loc=[0, 0], scale=0.5, size=(N // 2, D)),
-            np.random.normal(loc=[4, 4], scale=0.5, size=(N // 2, D)),
-        ]
-    )
+X, y = make_moons(200, noise=0.05, random_state=0)
 
-    model = AFCM(c=2, lambda_=1.0)
-    labels, U = model.fit_predict(X)
+model = AFCM(n_clusters=2, random_state=0).fit(X)
 
-    print("Consensus Cluster Labels:", labels)
-    print("Membership Matrix U:", U)
+print("memberships_ shape:", model.memberships_.shape)
+print("first three rows:\n", np.round(model.memberships_[:3], 3))
+print("labels_:", model.labels_)
+print("clusters produced:", model.n_clusters_)
+from sklearn.metrics import adjusted_rand_score
+
+print(
+    "adjusted Rand index against the two moons:",
+    round(adjusted_rand_score(y, model.labels_), 3),
+)

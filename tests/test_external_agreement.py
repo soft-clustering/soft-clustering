@@ -192,43 +192,74 @@ class TestGMMAgainstSklearn:
 
 
 class TestECMAgainstEvclust:
-    """SCPP's evidential c-means against ``evclust``.
+    """SCPP's evidential c-means against ``evclust.ecm``.
 
     ``evclust`` is maintained by the author of the method, which makes it the
-    strongest reference available for any estimator in this library: a
-    disagreement is far more likely to be our error than theirs.
+    strongest reference available for any estimator in this library. Both
+    implementations are started from the same prototypes and run to a tight
+    tolerance, so they must reach the same credal partition, not merely a
+    similar hard partition.
     """
 
     @staticmethod
-    def _reference(X, k=3):
+    def _pair(X, g0, focal_sets, alpha=1.0, beta=2.0, delta=3.0):
         evclust_ecm = pytest.importorskip(
             "evclust.ecm", reason="needs the `baselines` extra"
         )
-        return evclust_ecm.ecm(
-            X, c=k, type="simple", beta=2, delta=10, ntrials=5, disp=False
+        ours = sc.ECM(
+            n_clusters=g0.shape[0],
+            focal_sets=focal_sets,
+            init=g0.copy(),
+            m=beta,
+            alpha=alpha,
+            delta=delta,
+            max_iter=1000,
+            tol=1e-12,
+        ).fit(X)
+        reference = evclust_ecm.ecm(
+            X,
+            c=g0.shape[0],
+            g0=g0.copy(),
+            type=focal_sets,
+            alpha=alpha,
+            beta=beta,
+            delta=delta,
+            epsi=1e-12,
+            disp=False,
         )
+        F = np.asarray(reference["F"]).astype(bool)
+        ours_rows = [tuple(r) for r in ours.focal_sets_]
+        order = [0] + [1 + ours_rows.index(tuple(f)) for f in F[1:]]
+        return ours, reference, order
 
-    def test_prototypes_agree(self):
-        X, _ = blobs(seed=0)
-        ours = sc.ECM(n_clusters=3, m=2.0, delta=10.0, max_iter=300, tol=1e-8).fit(X)
-        reference = self._reference(X)
-        gap = np.linalg.norm(
-            ours.prototypes[:, None, :] - reference["g"][None, :, :], axis=2
-        )
-        # Two of the three prototypes match to 0.004; the third differs by
-        # 0.052 in 3-D, which is under 2% of the within-cluster spread on
-        # clusters whose centres are 3 apart. ECM's objective is non-convex
-        # and the two implementations resolve the noise cluster slightly
-        # differently, so exact agreement is not expected; the hard partitions
-        # are identical, which is checked below.
-        assert gap.min(axis=1).max() < 0.1
+    @pytest.mark.parametrize("focal_sets", ["full", "simple"])
+    @pytest.mark.parametrize("alpha,delta", [(1.0, 3.0), (2.0, 10.0)])
+    def test_credal_partition_agrees(self, focal_sets, alpha, delta):
+        X, _ = blobs(n_per=40, d=2, seed=0)
+        g0 = X[[0, 45, 90]] + 0.1
+        ours, reference, order = self._pair(X, g0, focal_sets, alpha=alpha, delta=delta)
+        assert np.abs(ours.centers_ - reference["g"]).max() < 1e-4
+        assert np.abs(ours.masses_[:, order] - reference["mass"]).max() < 1e-4
+
+    def test_pignistic_probabilities_agree(self):
+        X, _ = blobs(n_per=40, d=2, seed=1)
+        g0 = X[[0, 45, 90]] + 0.1
+        ours, reference, _ = self._pair(X, g0, "full")
+        betp = np.asarray(reference["betp"])
+        betp = betp / betp.sum(axis=1, keepdims=True)
+        assert np.abs(ours.memberships_ - betp).max() < 1e-4
 
     def test_hard_partitions_agree(self):
         from sklearn.metrics import adjusted_rand_score
 
         X, _ = blobs(seed=0)
-        ours = sc.ECM(n_clusters=3, m=2.0, delta=10.0, max_iter=300, tol=1e-8).fit(X)
-        assert adjusted_rand_score(ours.labels_, self._reference(X)["y_pl"]) == 1.0
+        g0 = X[[0, 60, 120]] + 0.1
+        ours, reference, _ = self._pair(X, g0, "full")
+        # Same decision rule on both sides: arg-max of the pignistic
+        # probabilities. (evclust's y_pl is the maximum-plausibility rule,
+        # which can differ on ambiguous samples.)
+        reference_labels = np.argmax(np.asarray(reference["betp"]), axis=1)
+        assert adjusted_rand_score(ours.labels_, reference_labels) == 1.0
 
 
 class TestLDAAgainstSklearn:
@@ -283,7 +314,7 @@ class TestModularityAgainstNetworkx:
         return nx.algorithms.community.modularity(graph, communities)
 
     def test_cdcgs_objective(self):
-        import torch
+        torch = pytest.importorskip("torch", reason="needs the `deep` extra")
 
         from soft_clustering._cdcgs import _soft_modularity
 
@@ -293,7 +324,7 @@ class TestModularityAgainstNetworkx:
         assert ours == pytest.approx(self._networkx_modularity(A, z), abs=1e-6)
 
     def test_dmon_objective(self):
-        import torch
+        torch = pytest.importorskip("torch", reason="needs the `deep` extra")
 
         A, z = planted_graph()
         onehot = torch.as_tensor(np.eye(3, dtype=np.float32)[z])
@@ -330,7 +361,7 @@ class TestSoftDBSCANGMAgainstDBSCAN:
         n_noise = int((reference.labels_ == -1).sum())
 
         ours = sc.SoftDBSCANGM(eps=eps, min_samples=5, max_iter=1).fit(X)
-        assert ours.n_clusters == n_clusters + n_noise
+        assert ours.n_clusters_ == n_clusters + n_noise
 
 
 # ===========================================================================
@@ -492,9 +523,7 @@ def test_validation_coverage_is_stated_accurately():
     added, which is how the previous revision came to describe a conformance
     suite covering thirty of forty estimators as covering all of them.
     """
-    exported = {
-        n for n in sc.__all__ if n not in ("BaseSoftClusterer", "DEEP_ESTIMATORS")
-    }
+    exported = set(sc._ESTIMATORS)
     assert VALIDATED.keys() <= exported, "VALIDATED names an estimator that is gone"
     assert len(VALIDATED) == 9, (
         f"{len(VALIDATED)} estimators have Tier 1/2 external validation; "

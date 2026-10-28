@@ -35,7 +35,7 @@ def test_fit_predict_returns_the_global_memberships(clients_features):
 
     n_total = sum(len(c) for c in clients)
     assert isinstance(result, np.ndarray)
-    assert result.shape == (n_total, model.n_clusters)
+    assert result.shape == (n_total, model.n_clusters_)
     assert np.all(result >= 0)
     np.testing.assert_allclose(result.sum(axis=1), 1.0, atol=1e-9)
     np.testing.assert_allclose(result, model.memberships_)
@@ -45,10 +45,10 @@ def test_global_centroids_shape(clients_features):
     clients, features = clients_features
     model = FeMIFuzzy(random_state=0, max_iter=20)
     model.fit_predict(clients, features)
-    # Sammon maps every client into 2-D, so the shared prototypes live there.
+    # Prototypes live in the space of the features the clients share.
     assert model.centers_.ndim == 2
-    assert model.centers_.shape[1] == 2
-    assert model.centers_.shape[0] == model.n_clusters
+    assert model.centers_.shape[1] == 4
+    assert model.centers_.shape[0] == model.n_clusters_
 
 
 def test_client_sizes_are_recorded(clients_features):

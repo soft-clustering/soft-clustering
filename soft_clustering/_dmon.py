@@ -39,10 +39,51 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch_geometric.nn import GCNConv
 from typeguard import typechecked
 
 from ._base import BaseSoftClusterer
+from ._torch_utils import isolated_torch_rng
+
+
+class _GCNLayer(nn.Module):
+    r"""Graph convolution of Kipf and Welling (2017), in plain PyTorch.
+
+    Computes :math:`\hat D^{-1/2} \hat A \hat D^{-1/2} H W + b`, where
+    :math:`\hat A` is the adjacency matrix with a self-loop added to every node
+    that lacks one and :math:`\hat D` its degree matrix; messages flow along
+    ``edge_index`` from ``edge_index[0]`` (source) to ``edge_index[1]``
+    (target). This is exactly what ``torch_geometric.nn.GCNConv`` computes
+    with its defaults (``tests/test_dmon.py`` checks the two against each
+    other when torch_geometric is installed), without the dependency.
+    """
+
+    def __init__(self, in_channels: int, out_channels: int):
+        super().__init__()
+        self.weight = nn.Parameter(torch.empty(in_channels, out_channels))
+        self.bias = nn.Parameter(torch.empty(out_channels))
+        self.reset_parameters()
+
+    def reset_parameters(self) -> None:
+        nn.init.xavier_uniform_(self.weight)
+        nn.init.zeros_(self.bias)
+
+    @staticmethod
+    def propagation_matrix(edge_index: torch.Tensor, n_nodes: int) -> torch.Tensor:
+        """Dense :math:`\\hat D^{-1/2} \\hat A \\hat D^{-1/2}` with ``A[target, source]``."""
+        M = torch.zeros((n_nodes, n_nodes), dtype=torch.float32)
+        M.index_put_(
+            (edge_index[1], edge_index[0]),
+            torch.ones(edge_index.shape[1], dtype=torch.float32),
+            accumulate=True,
+        )
+        diag = torch.arange(n_nodes)
+        M[diag, diag] = torch.where(M[diag, diag] > 0, M[diag, diag], 1.0)
+        deg = M.sum(dim=1)
+        inv_sqrt = torch.where(deg > 0, deg.pow(-0.5), torch.zeros_like(deg))
+        return inv_sqrt[:, None] * M * inv_sqrt[None, :]
+
+    def forward(self, x: torch.Tensor, propagation: torch.Tensor) -> torch.Tensor:
+        return propagation @ (x @ self.weight) + self.bias
 
 
 @typechecked
@@ -57,8 +98,8 @@ class DMoN(nn.Module, BaseSoftClusterer):
     def __init__(
         self,
         in_channels: int,
-        hidden_channels: int,
-        n_clusters: int,
+        hidden_channels: int = 16,
+        n_clusters: int = 3,
         collapse_weight: float = 1.0,
         max_epochs: int = 300,
         lr: float = 1e-2,
@@ -92,11 +133,11 @@ class DMoN(nn.Module, BaseSoftClusterer):
         if max_epochs < 1:
             raise ValueError(f"max_epochs must be >= 1, got {max_epochs}")
 
-        if random_state is not None:
-            torch.manual_seed(random_state)
-
-        self.conv1 = GCNConv(in_channels, hidden_channels)
-        self.conv2 = GCNConv(hidden_channels, n_clusters)
+        self.in_channels = in_channels
+        self.hidden_channels = hidden_channels
+        with isolated_torch_rng(random_state):
+            self.conv1 = _GCNLayer(in_channels, hidden_channels)
+            self.conv2 = _GCNLayer(hidden_channels, n_clusters)
         self.n_clusters = n_clusters
         self.collapse_weight = collapse_weight
         self.max_epochs = max_epochs
@@ -104,7 +145,6 @@ class DMoN(nn.Module, BaseSoftClusterer):
         self.tol = tol
         self.random_state = random_state
 
-        self.memberships_: np.ndarray | None = None
         self.loss_curve_: list[float] = []
 
     # ------------------------------------------------------------------
@@ -118,8 +158,9 @@ class DMoN(nn.Module, BaseSoftClusterer):
         adj: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """Return the soft cluster assignment, shape ``(n_nodes, n_clusters)``."""
-        h = F.relu(self.conv1(x, edge_index))
-        return F.softmax(self.conv2(h, edge_index), dim=1)
+        propagation = _GCNLayer.propagation_matrix(edge_index, int(x.shape[0]))
+        h = F.relu(self.conv1(x, propagation))
+        return F.softmax(self.conv2(h, propagation), dim=1)
 
     def loss(self, soft_assign: torch.Tensor, adj: torch.Tensor) -> torch.Tensor:
         """Negative soft modularity plus the collapse regulariser."""
@@ -180,23 +221,29 @@ class DMoN(nn.Module, BaseSoftClusterer):
                 f"n_nodes={adj.shape[0]} is smaller than n_clusters={self.n_clusters}"
             )
 
-        optimiser = torch.optim.Adam(self.parameters(), lr=self.lr)
         self.loss_curve_ = []
         previous = float("inf")
 
-        self.train()
-        for _ in range(self.max_epochs):
-            optimiser.zero_grad()
-            soft_assign = self(x, edge_index, adj)
-            loss = self.loss(soft_assign, adj)
-            loss.backward()
-            optimiser.step()
+        # Every fit starts from freshly initialised weights drawn from a
+        # private, seeded stream, so refitting an instance reproduces the
+        # first fit instead of continuing from its trained weights.
+        with isolated_torch_rng(self.random_state):
+            self.conv1.reset_parameters()
+            self.conv2.reset_parameters()
+            optimiser = torch.optim.Adam(self.parameters(), lr=self.lr)
+            self.train()
+            for _ in range(self.max_epochs):
+                optimiser.zero_grad()
+                soft_assign = self(x, edge_index, adj)
+                loss = self.loss(soft_assign, adj)
+                loss.backward()
+                optimiser.step()
 
-            value = float(loss.detach())
-            self.loss_curve_.append(value)
-            if abs(previous - value) < self.tol:
-                break
-            previous = value
+                value = float(loss.detach())
+                self.loss_curve_.append(value)
+                if abs(previous - value) < self.tol:
+                    break
+                previous = value
 
         self.eval()
         with torch.no_grad():

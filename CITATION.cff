@@ -7,24 +7,33 @@ type: software
 authors:
   - given-names: Kiyan
     family-names: Rezaee
+    affiliation: "Department of Computer Science, University of Guilan, Rasht, Iran"
     email: kiyanrezaee17@gmail.com
   - given-names: Morteza
     family-names: Ziabakhsh
+    affiliation: "Department of Computer Science, University of Guilan, Rasht, Iran"
     email: morteza24mail@protonmail.com
   - given-names: Artin
     family-names: Bahrampour
+    affiliation: "Department of Computer Science, University of Guilan, Rasht, Iran"
   - given-names: Seyed Mohammad
     family-names: Ghoreishi
+    affiliation: "Department of Computer Science, University of Guilan, Rasht, Iran"
   - given-names: Asal
     family-names: Khajeh
+    affiliation: "Department of Computer Science, University of Guilan, Rasht, Iran"
   - given-names: Ali
     family-names: Sajedifar
+    affiliation: "Department of Computer Science, University of Guilan, Rasht, Iran"
   - given-names: Manny
     family-names: Chalak
+    affiliation: "Department of Computer Science, University of Guilan, Rasht, Iran"
   - given-names: Ava
     family-names: Zerafatangiz
+    affiliation: "Department of Computer Science, University of Guilan, Rasht, Iran"
   - given-names: Sadegh
     family-names: Eskandari
+    affiliation: "Department of Computer Science, University of Guilan, Rasht, Iran"
 repository-code: "https://github.com/soft-clustering/soft-clustering"
 url: "https://soft-clustering.readthedocs.io/en/latest/index.html"
 abstract: >-
@@ -66,7 +75,7 @@ preferred-citation:
   year: 2026
   journal: arXiv preprint
   identifiers:
-    - type: other
-      value: "arXiv:2607.19620"
+    - type: doi
+      value: "10.48550/arXiv.2607.19620"
       description: The arXiv preprint of the paper
   url: "https://arxiv.org/abs/2607.19620"

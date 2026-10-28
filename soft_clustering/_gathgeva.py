@@ -18,9 +18,12 @@ component with its own covariance and prior:
     d^2_{ik} \\;=\\; \\frac{\\sqrt{\\det F_i}}{P_i}
         \\exp\\!\\Big(\\tfrac12 (x_k - v_i)^\\top F_i^{-1} (x_k - v_i)\\Big),
 
-with fuzzy covariance :math:`F_i` and prior :math:`P_i = \\frac1n \\sum_k
-u_{ik}^m`. Memberships follow the usual fuzzy c-means rule applied to these
-distances.
+with fuzzy covariance :math:`F_i = \\sum_k u_{ik}^m (x_k - v_i)(x_k -
+v_i)^\\top / \\sum_k u_{ik}^m` and a-priori probability :math:`P_i =
+\\frac1n \\sum_k u_{ik}`. Memberships follow the usual fuzzy c-means rule
+applied to these distances. The prior uses the memberships themselves, not
+their powers, so that the :math:`P_i` sum to one; earlier releases used
+:math:`u_{ik}^m`, which does not define a probability distribution.
 
 Implementation note
 -------------------
@@ -45,6 +48,13 @@ import numpy as np
 from typeguard import typechecked
 
 from ._base import BaseSoftClusterer
+from ._validation import (
+    check_array,
+    check_generator,
+    check_n_clusters,
+    check_n_features,
+    check_scalar,
+)
 
 
 @typechecked
@@ -53,6 +63,7 @@ class GathGeva(BaseSoftClusterer):
 
     _membership_attrs = ("memberships_",)
     _centers_attrs = ("centers_",)
+    _supports_out_of_sample = True
 
     def __init__(
         self,
@@ -91,17 +102,6 @@ class GathGeva(BaseSoftClusterer):
         random_state : int or None
             Seed for the membership initialisation.
         """
-        if n_clusters < 1:
-            raise ValueError(f"n_clusters must be >= 1, got {n_clusters}")
-        if m <= 1.0:
-            raise ValueError(f"m must be > 1, got {m}")
-        if max_iter < 1:
-            raise ValueError(f"max_iter must be >= 1, got {max_iter}")
-        if reg_covar < 0:
-            raise ValueError(f"reg_covar must be >= 0, got {reg_covar}")
-        if init not in ("fcm", "random"):
-            raise ValueError(f"init must be 'fcm' or 'random', got {init!r}")
-
         self.n_clusters = n_clusters
         self.m = m
         self.max_iter = max_iter
@@ -111,19 +111,14 @@ class GathGeva(BaseSoftClusterer):
         self.init_iter = init_iter
         self.random_state = random_state
 
-        self.memberships_: np.ndarray | None = None
-        self.centers_: np.ndarray | None = None
-        self.covariances_: np.ndarray | None = None
-        self.priors_: np.ndarray | None = None
-        self.n_iter_: int | None = None
-
     # ------------------------------------------------------------------
     # Internals
     # ------------------------------------------------------------------
 
-    def _log_sq_distances(self, X: np.ndarray, U_m: np.ndarray) -> np.ndarray:
+    def _log_sq_distances(self, X: np.ndarray, U: np.ndarray) -> np.ndarray:
         """Return ``log d^2`` of shape ``(n_samples, n_clusters)``."""
         n_samples, n_features = X.shape
+        U_m = U**self.m
         # A cluster can lose all its mass; flooring the weight keeps the
         # prototype finite instead of propagating NaN through the sweep.
         weights = np.maximum(U_m.sum(axis=0), np.finfo(float).tiny)
@@ -155,7 +150,7 @@ class GathGeva(BaseSoftClusterer):
         maha = np.einsum("nkdi,nkdi->nk", z, z, optimize=True)
         log_det = 2.0 * np.log(np.diagonal(chol, axis1=1, axis2=2)).sum(axis=1)
 
-        priors = weights / n_samples
+        priors = U.sum(axis=0) / n_samples
         priors = np.maximum(priors, np.finfo(float).tiny)
 
         self.centers_ = centers
@@ -168,19 +163,19 @@ class GathGeva(BaseSoftClusterer):
         """Fuzzy c-means memberships, used to seed the exponential distance."""
         n_samples = X.shape[0]
         # k-means++ style seeding keeps the initial prototypes apart.
-        centers = [X[rng.integers(n_samples)]]
+        seeds = [X[rng.integers(n_samples)]]
         for _ in range(1, self.n_clusters):
             d2 = np.min(
-                ((X[:, None, :] - np.asarray(centers)[None, :, :]) ** 2).sum(axis=2),
+                ((X[:, None, :] - np.asarray(seeds)[None, :, :]) ** 2).sum(axis=2),
                 axis=1,
             )
             total = d2.sum()
             probabilities = d2 / total if total > 0 else None
-            centers.append(X[rng.choice(n_samples, p=probabilities)])
-        centers = np.asarray(centers)
+            seeds.append(X[rng.choice(n_samples, p=probabilities)])
+        centers = np.asarray(seeds)
 
         exponent = 2.0 / (self.m - 1.0)
-        U = None
+        U = np.empty((n_samples, self.n_clusters))  # init_iter >= 1 (fit)
         for _ in range(self.init_iter):
             d = np.linalg.norm(X[:, None, :] - centers[None, :, :], axis=2)
             # Evaluate the ratio rule in log space and subtract the per-sample
@@ -203,16 +198,22 @@ class GathGeva(BaseSoftClusterer):
 
     def fit(self, X: np.ndarray) -> GathGeva:
         """Fit the model on a feature matrix ``X`` of shape ``(n_samples, n_features)``."""
-        X = np.asarray(X, dtype=np.float64)
-        if X.ndim != 2:
-            raise ValueError(f"X must be 2-D, got shape {X.shape}")
+        X = check_array(X, estimator=type(self).__name__)
         n_samples = X.shape[0]
-        if n_samples < self.n_clusters:
+        name = type(self).__name__
+        check_n_clusters(self.n_clusters, n_samples, estimator=name)
+        check_scalar(self.m, "m", estimator=name, lower=1.0, lower_inclusive=False)
+        check_scalar(self.reg_covar, "reg_covar", estimator=name, lower=0.0)
+        if self.max_iter < 1:
+            raise ValueError(f"{name}: max_iter must be >= 1; got {self.max_iter}.")
+        if self.init_iter < 1:
+            raise ValueError(f"{name}: init_iter must be >= 1; got {self.init_iter}.")
+        if self.init not in ("fcm", "random"):
             raise ValueError(
-                f"n_samples={n_samples} is smaller than n_clusters={self.n_clusters}"
+                f"{name}: init must be 'fcm' or 'random'; got {self.init!r}."
             )
 
-        rng = np.random.default_rng(self.random_state)
+        rng = check_generator(self.random_state)
         if self.init == "fcm":
             U = self._fcm_init(X, rng)
         else:
@@ -224,7 +225,7 @@ class GathGeva(BaseSoftClusterer):
 
         for iteration in range(self.max_iter):
             U_prev = U
-            log_d2 = self._log_sq_distances(X, U_prev**self.m)
+            log_d2 = self._log_sq_distances(X, U_prev)
 
             # u_ik = softmax_i(-log d^2_ik / (m - 1)), evaluated stably.
             scores = -log_d2 * exponent
@@ -236,7 +237,26 @@ class GathGeva(BaseSoftClusterer):
                 self.n_iter_ = iteration + 1
                 break
 
-        # Refresh the prototypes so that they correspond to the returned U.
-        self._log_sq_distances(X, U**self.m)
-        self.memberships_ = U
+        # Publish parameters and memberships that correspond to each other:
+        # one last parameter refresh from U, then the memberships they imply.
+        self._log_sq_distances(X, U)
+        self.memberships_ = self._memberships_from_params(X)
         return self
+
+    def _memberships_from_params(self, X: np.ndarray) -> np.ndarray:
+        """Membership rule for the stored centres, covariances and priors."""
+        chol = np.linalg.cholesky(self.covariances_)
+        diff = X[:, None, :] - self.centers_[None, :, :]
+        z = np.linalg.solve(chol[None, :, :, :], diff[:, :, :, None])
+        maha = np.einsum("nkdi,nkdi->nk", z, z, optimize=True)
+        log_det = 2.0 * np.log(np.diagonal(chol, axis1=1, axis2=2)).sum(axis=1)
+        log_d2 = 0.5 * log_det[None, :] - np.log(self.priors_)[None, :] + 0.5 * maha
+        scores = -log_d2 / (self.m - 1.0)
+        scores -= scores.max(axis=1, keepdims=True)
+        np.exp(scores, out=scores)
+        return scores / scores.sum(axis=1, keepdims=True)
+
+    def _predict_memberships(self, X) -> np.ndarray:
+        X = check_array(X, estimator=type(self).__name__)
+        check_n_features(X, self.centers_.shape[1], estimator=type(self).__name__)
+        return self._memberships_from_params(X)

@@ -1,0 +1,37 @@
+name: joss paper
+
+# Compiles joss/paper.md with the Open Journals toolchain, exactly as the JOSS
+# editorial bot will, so formatting and citation problems surface here rather
+# than in review. The PDF is attached to the run as an artifact.
+on:
+  push:
+    branches: [main]
+    paths: ["joss/**", ".github/workflows/joss-paper.yml"]
+  pull_request:
+    paths: ["joss/**", ".github/workflows/joss-paper.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  paper:
+    name: build draft PDF
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Build draft PDF
+        uses: openjournals/openjournals-draft-action@master
+        with:
+          journal: joss
+          paper-path: joss/paper.md
+
+      - name: Upload PDF
+        uses: actions/upload-artifact@v4
+        with:
+          name: joss-paper
+          path: joss/paper.pdf

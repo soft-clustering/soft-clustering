@@ -5,7 +5,7 @@
 <h1 align="center">SCPP · Soft Clustering Python Package</h1>
 
 <p align="center">
-  <b>42 soft, fuzzy, possibilistic, evidential, graph, document and deep clustering algorithms — behind one estimator protocol.</b>
+  <b>42 soft clustering algorithms — fuzzy, possibilistic, evidential, probabilistic, graph, document, ensemble and deep — behind one estimator protocol.</b>
 </p>
 
 <p align="center">
@@ -19,271 +19,331 @@
 
 ---
 
-Hard clustering forces every point into exactly one group. Real data rarely
-cooperates: a document belongs to several topics, a node joins several
-communities, a cell sits between two types. **Soft clustering** assigns degrees
-of membership instead — and the methods that do it are scattered across decades
-of papers, each with its own interface, notation and output convention.
+Hard clustering puts every sample in exactly one group. Many data sets do not
+cooperate: a document covers several topics, a node belongs to several
+communities, a pixel lies on the boundary between two tissues, a measurement
+is an outlier that belongs nowhere. **Soft clustering** assigns degrees of
+membership instead. The methods that do so are spread across decades of
+literature, each with its own interface, notation and meaning of "membership".
 
-SCPP collects 42 of them into one library, behind one protocol, with a
-benchmarking suite that lets you compare them on equal terms.
+SCPP implements 42 of them behind one interface, documents what each one's
+output means, and states how far each implementation has been verified.
 
-## ✨ Highlights
+## Why SCPP?
 
-| | |
-| --- | --- |
-| 🧩 **One protocol, 42 algorithms** | Every estimator exposes `memberships_`, `labels_`, `centers_` and `n_clusters` after `fit`, whatever the method consumes — a feature matrix, a graph, raw documents, or an ensemble of partitions. |
-| 🔬 **Checked, not asserted** | A conformance suite fits **all 42** estimators on every commit and verifies the contract: membership shape, the partition constraint where the formulation imposes one, out-of-sample behaviour, `sklearn.clone` round-tripping, and reproducibility under a fixed `random_state`. Exclusions are a hard CI failure. |
-| 📊 **Benchmarking included** | Runtime, memory, scalability and clustering quality, over 20 datasets and 12 validity metrics — shipped *inside* the package, and actually run: see [`benchmarks/`](benchmarks/) for the cross-family comparison and the agreement checks against `scikit-fuzzy` and `scikit-learn`. |
-| 🪶 **Light by default** | A base install is `numpy`, `scipy`, `scikit-learn` and `typeguard` — enough to fit 38 of the 42 estimators. PyTorch and pandas live behind extras you opt into. |
-| 🏷️ **Typed** | Ships `py.typed`; hints are checked at runtime by `typeguard` and visible to your type checker. |
+- **One protocol.** Every estimator, whatever it consumes, publishes
+  `memberships_`, `labels_`, `centers_` and `n_clusters_` after `fit`, and
+  `fit_predict` returns the membership matrix. Swapping methods is a one-word
+  change, and evaluation code is written once.
+- **Honest semantics.** "Membership" means different things: a fuzzy degree,
+  a posterior probability, a possibilistic typicality, a pignistic
+  probability, an unnormalised affiliation. The [algorithm table](#algorithms)
+  says which, and whether rows sum to one.
+- **Honest verification status.** Every estimator is labelled *validated*,
+  *reference*, *adapted* or *unverified* — see [the table](#algorithms) and
+  [Testing](#testing) for what each level means and how it is checked.
+- **Reproducible.** Every stochastic estimator takes `random_state`; a seeded
+  fit is reproducible and never touches NumPy's or PyTorch's global random
+  state. Both properties are tested for every estimator.
+- **Light.** The base install needs NumPy, SciPy, scikit-learn and typeguard.
+  PyTorch is only needed for the four deep estimators.
 
-## 📦 Installation
+SCPP is meant for researchers and practitioners who want to compare soft
+clustering methods, or to use a specific one, without re-implementing it.
+
+## Installation
 
 ```bash
 pip install soft-clustering
 ```
 
-Optional extras, separated by what they are needed **for**:
-
-| Extra | Install | Provides | Needed for |
+| Extra | Command | Adds | Needed for |
 | --- | --- | --- | --- |
-| *(base)* | `pip install soft-clustering` | numpy, scipy, scikit-learn, typeguard | Fitting any of the 38 non-deep estimators |
-| `deep` | `pip install "soft-clustering[deep]"` | torch, torch_geometric | CDCGS, DMoN, NOCD, RDFKC |
-| `bench` | `pip install "soft-clustering[bench]"` | pandas, psutil, tabulate | Running `soft_clustering.benchmarking` |
-| `baselines` | `pip install "soft-clustering[baselines]"` | scikit-fuzzy | Agreement checks against third-party implementations |
-| `docs` | `pip install "soft-clustering[docs]"` | sphinx, myst-parser | Building the documentation |
-| `dev` | `pip install -e ".[dev,deep]"` | pytest, pytest-cov, matplotlib | Developing and testing |
+| *(none)* | `pip install soft-clustering` | numpy, scipy, scikit-learn, typeguard | every estimator except the four deep ones |
+| `deep` | `pip install "soft-clustering[deep]"` | torch | CDCGS, DMoN, NOCD, RDFKC |
+| `bench` | `pip install "soft-clustering[bench]"` | pandas, psutil, tabulate | `soft_clustering.benchmarking` |
+| `baselines` | `pip install "soft-clustering[baselines]"` | scikit-fuzzy, evclust, networkx | agreement tests against third-party code |
+| `docs` | `pip install "soft-clustering[docs]"` | Sphinx and extensions | building the documentation |
+| `dev` | `pip install -e ".[dev]"` | test, lint and benchmark tooling | development |
 
-Requires Python 3.10 or newer.
+SCPP supports Python 3.10–3.14.
 
-## 🚀 Quick start
+## Quick start
 
 ```python
 import numpy as np
 from soft_clustering import FCM
 
 rng = np.random.default_rng(0)
-X = np.vstack([rng.normal([0, 0], 0.4, (100, 2)),
-               rng.normal([4, 4], 0.4, (100, 2))])
+X = np.vstack([rng.normal([0, 0], 0.6, (100, 2)),
+               rng.normal([3, 3], 0.6, (100, 2))])
 
 model = FCM(n_clusters=2, random_state=0).fit(X)
 
-model.memberships_    # (200, 2) degrees of membership, rows sum to 1
-model.labels_         # (200,)   arg-max hard assignment
-model.centers_        # (2, 2)   cluster prototypes
-model.n_clusters      # 2        the partition actually produced
+model.memberships_     # (200, 2) fuzzy memberships; each row sums to 1
+model.labels_          # (200,)   arg-max hard assignment
+model.centers_         # (2, 2)   cluster prototypes
+model.n_clusters_      # 2
+
+# Prototype-based estimators can assign new samples.
+model.predict_proba([[1.5, 1.5]])   # about [[0.5, 0.5]]: on the boundary
 ```
 
-```text
->>> np.round(model.memberships_[:3], 3)
-[[0.    1.   ]
- [0.003 0.997]
- [0.001 0.999]]
-```
-
-Every estimator follows the same shape, so swapping the method is a one-word
-change:
+Swapping the method changes one word, and each method's output keeps its own
+meaning:
 
 ```python
-from soft_clustering import ECM, GK, PCM, RoughKMeans
+from soft_clustering import ECM, GK, GMM, PCM
 
-for cls in (GK, PCM, ECM, RoughKMeans):
-    model = cls(n_clusters=2).fit(X)
-    print(f"{cls.__name__:20s} {model.memberships_.shape}")
+for cls in (GK, PCM, ECM, GMM):
+    U = cls(n_clusters=2, random_state=0).fit_predict(X)
+    print(f"{cls.__name__:20s} first row {U[0].round(3)}, sums to {U[0].sum():.3f}")
+# PCM typicalities are not normalised: an outlier is atypical of every cluster.
 ```
 
-`n_clusters` is accepted by every estimator regardless of the spelling used in
-the original paper (`c`, `k`, `n_topics`, `n_communities`, …), and estimators
-that discover the cluster count themselves report it in `n_clusters` after
-fitting.
+Not every method takes a feature matrix. Graph methods take an adjacency
+matrix, document methods take a list of strings, consensus methods take a list
+of membership matrices:
 
-## 🧩 Algorithm catalogue
+```python
+from soft_clustering import LDA, SMCLA, BayesianNMF
 
-Grouped by what the algorithm consumes. ⚡ marks estimators requiring the
-`deep` extra.
+docs = ["fuzzy clustering membership", "graph community nodes",
+        "fuzzy membership degree", "community detection graph"]
+LDA(n_clusters=2, random_state=0).fit(docs).memberships_      # document-topic proportions
 
-<details open>
-<summary><b>Feature matrix</b> — 26 estimators</summary>
+A = np.array([[0, 1, 1, 0], [1, 0, 1, 0], [1, 1, 0, 1], [0, 0, 1, 0]], float)
+BayesianNMF(n_clusters=2, random_state=0).fit(A).memberships_  # node memberships
 
-| | | |
-| --- | --- | --- |
-| `FCM` | Fuzzy C-Means | The canonical membership-based method |
-| `PCM` | Possibilistic C-Means | Typicalities; rows need not sum to 1 |
-| `PFCM` | Possibilistic Fuzzy C-Means | Combines memberships and typicalities |
-| `GK` | Gustafson–Kessel | Adaptive per-cluster covariance |
-| `ECM` | Evidential C-Means | Belief masses over sets of clusters |
-| `KFCM` | Kernelized Fuzzy C-Means | Kernel-space distances |
-| `SKFCM` | Spatially-Constrained Kernelized FCM | Adds an image neighbourhood term |
-| `KFCCL` | Kernel-based Fuzzy Competitive Learning | Competitive-learning update |
-| `CAFCM` | Collaborative Annealing FCM | Deterministic annealing |
-| `CAFHFCM` | Centroid Auto-Fused Hierarchical FCM | Fuses centroids hierarchically |
-| `ENTROPYFCM` | Entropy c-Means | Entropy regularisation in place of the fuzzifier |
-| `AFCM` | AFCM with full graph embedding | Graph-regularised memberships |
-| `AFCMSimple` | AFCM without graph embedding | The unregularised variant |
-| `AFCMAdaptive` | Adaptive FCM for image segmentation | Operates on a single image |
-| `FCC` | Fuzzy Color Clustering | Fuzzy colour spheres in CIELAB space |
-| `RPFKM` | Robust Projected Fuzzy K-Means | Joint dimensionality reduction for noisy, high-dimensional data |
-| `SFCMEP` | Semi-supervised Fuzzy Clustering with Membership Prior | Consumes a partially labelled target vector |
-| `FeMIFuzzy` | Federated Multiple Imputation Fuzzy Clustering | Consumes per-client matrices |
-| `RoughKMeans` | Rough K-Means | Lower and upper approximations |
-| `SCM` | Subtractive Clustering Method | Determines the cluster count itself |
-| `SoftDBSCANGM` | Soft DBSCAN with Gaussian mixtures | Density-based, discovers *k* |
-| `SoftKSC` | Soft Kernel Spectral Clustering | Semi-supervised; two non-parallel hyperplanes |
-| `GMM` | Gaussian Mixture (EM) | Responsibilities as memberships |
-| `BGMM` | Beta-Gaussian Mixture Model | Two aligned views |
-| `MBMM` | Multivariate Beta Mixture Model | For data on the unit interval |
-| `RDFKC` ⚡ | Robust Deep Fuzzy K-Means | Image tensors |
-
-</details>
-
-<details>
-<summary><b>Graphs and networks</b> — 6 estimators</summary>
-
-| | | |
-| --- | --- | --- |
-| `BIGCLAM` | Cluster Affiliation Model for Big Networks | Overlapping communities at scale |
-| `BayesianNMF` | Bayesian NMF for overlapping communities | Automatic relevance determination |
-| `MMSB` ⚡ | Mixed Membership Stochastic Blockmodel | Generative blockmodel |
-| `NOCD` ⚡ | Neural Overlapping Community Detection | GNN + Bernoulli–Poisson |
-| `DMoN` ⚡ | Deep Modularity Networks | Modularity-optimising pooling |
-| `CDCGS` ⚡ | Community Detection via Gumbel Softmax | Differentiable assignment |
-
-</details>
-
-<details>
-<summary><b>Documents and text</b> — 5 estimators</summary>
-
-| | | |
-| --- | --- | --- |
-| `LDA` | Latent Dirichlet Allocation | Topic–word and document–topic factors |
-| `PLSI` | Probabilistic Latent Semantic Indexing | Likelihood-based topic model |
-| `SISC` | Similarity-Based Soft Clustering | Discovers the cluster count |
-| `KMART` | Modified Fuzzy ART for documents | Adaptive resonance |
-| `WBSC` | Word-Based Soft Clustering | Word-driven soft assignment |
-
-</details>
-
-<details>
-<summary><b>Ensembles and consensus</b> — 3 estimators</summary>
-
-| | | |
-| --- | --- | --- |
-| `SCSPA` | Soft CSPA | Similarity-based consensus over soft partitions |
-| `SHBGF` | Soft HBGF | Bipartite graph consensus over concatenated memberships |
-| `SMCLA` | Soft MCLA | Groups clusters into meta-clusters |
-
-</details>
-
-Each algorithm has its own documentation page with parameters, usage and the
-primary reference: **[full API reference →](https://soft-clustering.readthedocs.io/en/latest/index.html)**
-
-## 📊 Benchmarking
-
-The benchmarking suite ships inside the package, so it is available straight
-after installation — no cloning required.
-
-```bash
-pip install "soft-clustering[bench]"
+U1 = FCM(n_clusters=2, random_state=0).fit_predict(X)
+U2 = FCM(n_clusters=2, random_state=1, m=1.5).fit_predict(X)
+SMCLA(n_clusters=2, random_state=0).fit_predict([U1, U2])       # soft consensus
 ```
+
+`list_algorithms()` returns the same metadata as the table below:
+
+```python
+from soft_clustering import list_algorithms
+
+for a in list_algorithms(family="evidential"):
+    print(a.name, "-", a.method, "-", a.status)
+```
+
+## The estimator protocol
+
+| After `fit` | Meaning |
+| --- | --- |
+| `memberships_` | `(n_samples, n_clusters_)` non-negative soft output; see the *Output* column below for what it means |
+| `labels_` | arg-max of `memberships_`; `-1` for a sample with no membership at all (possible only when rows need not sum to one) |
+| `centers_` | `(n_clusters_, n_features)` prototypes for prototype-based methods, otherwise `None` |
+| `n_clusters_` | number of clusters actually produced (discovered by some methods) |
+
+- `fit(...)` returns `self`; `fit_predict(...)` returns `memberships_`.
+- `predict()` and `predict_proba()` with no argument return the fitted
+  partition. With new data they apply the estimator's membership rule
+  **only** for inductive estimators (FCM, GK, PCM, PFCM, GMM, Gath–Geva, ECM,
+  ENTROPYFCM, KFCM, KFCCL, FCC, AFCMSimple, SCM, SoftKSC); the others are
+  transductive and raise `NotImplementedError` instead of returning labels of
+  the wrong data.
+- `n_clusters` is the constructor argument everywhere; older spellings (`c`,
+  `k`, `K`, `n_topics`, `n_components`, `n_communities`, `n_blocks`) are still
+  accepted.
+- scikit-learn: the inductive feature-matrix estimators (FCM, GK, GMM, PCM,
+  PFCM, Gath–Geva, ECM, ENTROPYFCM, AFCMSimple, KFCM, FCC) pass
+  scikit-learn's `check_estimator` suite except two sparse-input checks that
+  assume `predict_proba` belongs to a classifier
+  (`tests/test_sklearn_compat.py`), so they work in pipelines and with
+  `clone`. Other estimators support `get_params`/`set_params`/`clone`, but
+  their `fit` takes the input their method needs (a graph, documents, two
+  views…). In every case `fit_predict` returns memberships, not labels; use
+  `fit(X).labels_` for labels.
+
+<a id="algorithms"></a>
+## Algorithms
+
+Generated from `soft_clustering/_registry.py`
+(`python tools/algorithm_table.py --write`); a test fails if it is stale.
+
+<!-- algorithms:start -->
+| Estimator | Method | Input | Output | K | Status | Reference |
+| --- | --- | --- | :---: | :---: | :---: | --- |
+| **Fuzzy and kernel** | | | | | | |
+| `AFCM` | Adaptive fuzzy c-means with graph embedding | feature matrix | F | given | reference | [Chen et al. (2024)](https://arxiv.org/abs/2405.13427) |
+| `AFCMAdaptive` | Adaptive fuzzy c-means for images with a bias field | grayscale image | F | given | reference | [Pham and Prince (1999)](https://doi.org/10.1016/S0167-8655(98)00121-4) |
+| `AFCMSimple` | Adaptive fuzzy c-means without graph embedding | feature matrix | F | given | reference | [Chen et al. (2024)](https://arxiv.org/abs/2405.13427) |
+| `CAFCM` | Collaborative annealing fuzzy c-means | feature matrix | F | given | adapted | [Li and Wang (2024)](https://doi.org/10.1109/TFUZZ.2023.3319663) |
+| `CAFHFCM` | Centroid auto-fused hierarchical fuzzy c-means | feature matrix | F | discovered | adapted | [Lin and Chen (2021)](https://doi.org/10.1109/TFUZZ.2020.2991306) |
+| `ENTROPYFCM` | Entropy-regularised fuzzy c-means | feature matrix | F | given | reference | Li and Mukaidono (1995) |
+| `FCC` | Fuzzy color clustering | feature matrix (colors) | F | given | adapted | [Kim and Lee (2024)](https://arxiv.org/abs/2407.06782) |
+| `FCM` | Fuzzy c-means | feature matrix | F | given | validated | [Bezdek (1981)](https://doi.org/10.1007/978-1-4757-0450-1) |
+| `FeMIFuzzy` | Federated fuzzy clustering with multiple imputation | per-client feature matrices | F | selected | adapted | [Ngo et al. (2024)](https://doi.org/10.1109/JIOT.2023.3343719) |
+| `GathGeva` | Gath-Geva fuzzy maximum-likelihood clustering | feature matrix | F | given | reference | [Gath and Geva (1989)](https://doi.org/10.1016/0167-8655(89)90040-8) |
+| `GK` | Gustafson-Kessel fuzzy clustering | feature matrix | F | given | validated | [Gustafson and Kessel (1979)](https://doi.org/10.1109/CDC.1978.268028) |
+| `KFCCL` | Kernel-based fuzzy competitive learning | feature matrix | F | given | unverified | [Mizutani and Miyamoto (2005)](https://doi.org/10.1109/FUZZY.2005.1452468) |
+| `KFCM` | Kernelised fuzzy c-means | feature matrix | F | given | reference | [Zhang and Chen (2004)](https://doi.org/10.1016/j.artmed.2004.01.012) |
+| `RDFKC` ⚡ | Robust deep fuzzy k-means | feature matrix or image tensor | F | given | unverified | [Wu et al. (2024)](https://doi.org/10.1016/j.patcog.2024.110504) |
+| `RPFKM` | Robust projected fuzzy k-means | feature matrix | F | given | unverified | [Zhao et al. (2022)](https://doi.org/10.1016/j.neucom.2022.03.043) |
+| `SFCMEP` | Semi-supervised fuzzy clustering with a prior membership matrix | feature matrix + partial labels | F | given | unverified | [Xu et al. (2024)](https://doi.org/10.1016/j.eswa.2023.121812) |
+| `SKFCM` | Spatially constrained kernelised fuzzy c-means | pixel features + image shape | F | given | reference | [Zhang and Chen (2004)](https://doi.org/10.1016/j.artmed.2004.01.012) |
+| `SoftKSC` | Soft kernel spectral clustering | feature matrix | S | given | reference | [Langone et al. (2013)](https://doi.org/10.1109/IJCNN.2013.6706850) |
+| **Possibilistic and evidential** | | | | | | |
+| `ECM` | Evidential c-means | feature matrix | E | given | validated | [Masson and Denoeux (2008)](https://doi.org/10.1016/j.patcog.2007.08.014) |
+| `EVCLUS` | Evidential clustering of proximity data | feature matrix or dissimilarities | E | given | adapted | [Denoeux and Masson (2004)](https://doi.org/10.1109/TSMCB.2002.806496) |
+| `PCM` | Possibilistic c-means | feature matrix | T | given | reference | [Krishnapuram and Keller (1993)](https://doi.org/10.1109/91.227387) |
+| `PFCM` | Possibilistic fuzzy c-means | feature matrix | F | given | validated | [Pal et al. (2005)](https://doi.org/10.1109/TFUZZ.2004.840099) |
+| **Probabilistic, density and rough-set** | | | | | | |
+| `BGMM` | Beta-Gaussian mixture over two views | a Gaussian and a Beta view | P | given | adapted | Dai et al. (2008) |
+| `GMM` | Gaussian mixture model (EM) | feature matrix | P | given | validated | [Dempster et al. (1977)](https://doi.org/10.1111/j.2517-6161.1977.tb01600.x) |
+| `MBMM` | Mixture of Beta distributions | feature matrix in (0, 1) | P | given | adapted | [Hsu and Chen (2024)](https://doi.org/10.1007/978-981-97-2242-6_19) |
+| `RoughKMeans` | Rough k-means | feature matrix | R | given | reference | [Lingras and West (2004)](https://doi.org/10.1023/B:JIIS.0000029668.88665.1a) |
+| `SCM` | Subtractive clustering | feature matrix | F | discovered | reference | [Chiu (1994)](https://doi.org/10.3233/IFS-1994-2306) |
+| `SoftDBSCANGM` | Soft DBSCAN with Gaussian-mixture refinement | feature matrix | F | discovered | unverified | [Smiti and Elouedi (2016)](https://doi.org/10.1109/IS.2016.7737459) |
+| **Graphs** | | | | | | |
+| `BayesianNMF` | Bayesian NMF for overlapping communities | adjacency matrix | M | given | reference | [Psorakis et al. (2011)](https://doi.org/10.1103/PhysRevE.83.066114) |
+| `BIGCLAM` | Cluster affiliation model for big networks | adjacency matrix | A | given | adapted | [Yang and Leskovec (2013)](https://doi.org/10.1145/2433396.2433471) |
+| `CDCGS` ⚡ | Community detection via Gumbel-softmax | adjacency matrix | S | given | adapted | [Acharya and Zhang (2020)](https://doi.org/10.1007/s42979-020-00264-2) |
+| `DMoN` ⚡ | Deep modularity networks | node features + graph | S | given | adapted | [Tsitsulin et al. (2023)](https://jmlr.org/papers/v24/20-998.html) |
+| `MMSB` | Mixed-membership stochastic blockmodel | adjacency matrix | M | given | reference | [Airoldi et al. (2008)](https://jmlr.org/papers/v9/airoldi08a.html) |
+| `NOCD` ⚡ | Neural overlapping community detection | adjacency matrix (+ node features) | A | given | adapted | [Shchur and Gunnemann (2019)](https://arxiv.org/abs/1909.12201) |
+| **Documents** | | | | | | |
+| `KMART` | Modified fuzzy ART for documents | documents | D | discovered | unverified | [Kondadadi and Kozma (2002)](https://doi.org/10.1109/IJCNN.2002.1007544) |
+| `LDA` | Latent Dirichlet allocation | documents or term counts | M | given | validated | [Blei et al. (2003)](https://jmlr.org/papers/v3/blei03a.html) |
+| `PLSI` | Probabilistic latent semantic indexing | documents or term counts | M | given | reference | Hofmann (1999) |
+| `SISC` | Similarity-based soft clustering of documents | documents | D | discovered | unverified | [Lin and Kondadadi (2001a)](https://doi.org/10.1109/DASFAA.2001.916362) |
+| `WBSC` | Word-based soft clustering of documents | documents | D | discovered | unverified | Lin and Kondadadi (2001b) |
+| **Ensembles** | | | | | | |
+| `SCSPA` | Soft CSPA consensus | list of membership matrices | H | given | adapted | [Punera and Ghosh (2008)](https://doi.org/10.1080/08839510802170546) |
+| `SHBGF` | Soft HBGF consensus | list of membership matrices | H | given | adapted | [Punera and Ghosh (2008)](https://doi.org/10.1080/08839510802170546) |
+| `SMCLA` | Soft MCLA consensus | list of membership matrices | F | given | adapted | [Punera and Ghosh (2008)](https://doi.org/10.1080/08839510802170546) |
+
+**Output** (what `memberships_` holds): **F** fuzzy membership (rows sum to one); **T** possibilistic typicality (rows need not sum to one); **P** posterior probability (rows sum to one); **E** pignistic probability of a credal partition (rows sum to one); **R** rough-set membership read off lower/upper approximations; **A** non-negative affiliation strength (unnormalised); **M** mixed-membership or topic proportion (rows sum to one); **S** soft assignment from a relaxation (rows sum to one); **D** binary degree of match; a sample may match several clusters or none; **H** crisp consensus partition, one-hot.
+
+**Status**: **validated** — agrees with an independent implementation, or reduces exactly to one in a limit, in tests/test_external_agreement.py; **reference** — implements the update equations of the cited publication, checked against it in the 0.2.0 audit; invariants and planted-structure recovery are tested, but no independent implementation was compared; **adapted** — implements the cited method with documented deviations; see the Notes or 'Deviation' paragraphs of the estimator's docstring; **unverified** — follows the cited method as implemented by contributors; the equations have not been checked against the publication. Recovery of planted structure is tested, nothing more. ⚡ requires the `deep` extra.
+<!-- algorithms:end -->
+
+Each estimator's docstring gives its objective and update equations,
+parameters, attributes, references and any deviation from the cited method.
+The [documentation](https://soft-clustering.readthedocs.io/en/latest/) renders
+them as one page per algorithm.
+
+### Choosing an algorithm
+
+- **Data you would give to k-means:** FCM is the baseline. GK and Gath–Geva
+  allow ellipsoidal clusters; GMM gives calibrated probabilities; PCM and PFCM
+  are robust to outliers; ECM additionally flags ambiguous samples (mass on
+  sets of clusters) and outliers (mass on the empty set).
+- **Non-convex clusters:** AFCM (graph embedding) or SoftKSC (kernel spectral).
+- **Unknown number of clusters:** SCM, SoftDBSCANGM, CAFHFCM, and for
+  documents WBSC, SISC and KMART.
+- **Graphs:** BayesianNMF and MMSB for mixed memberships, BIGCLAM and NOCD for
+  overlapping communities, CDCGS and DMoN for modularity-based soft partitions.
+- **Text:** LDA or PLSI for topic proportions.
+- **Several clusterings to reconcile:** SMCLA (soft consensus), SCSPA, SHBGF.
+- **Images:** AFCMAdaptive (intensity inhomogeneity), SKFCM (spatial
+  smoothness), RDFKC (learned features).
+
+## Reproducibility
+
+- Pass an integer `random_state` to get identical results across runs and
+  refits of the same instance. Seeded estimators never read or reseed NumPy's
+  global generator, and the deep estimators run in a forked PyTorch random
+  stream. `tests/test_protocol.py` checks all three properties for every
+  estimator.
+- `random_state=None` is not reproducible. For the few estimators written
+  against NumPy's legacy global generator (KFCM, MBMM, BayesianNMF), `None`
+  draws from that global generator, as scikit-learn does.
+- Results can still differ across platforms in the last floating-point bits
+  (BLAS reduction order), which can change the outcome of a tie.
+
+## Benchmarks
+
+The `soft_clustering.benchmarking` subpackage (install the `bench` extra)
+measures runtime, memory, scalability and clustering quality, and includes 20
+datasets and 12 validity indices:
 
 ```python
 from soft_clustering import FCM, GK, PCM
 from soft_clustering.benchmarking import (
-    ClusteringBenchmark,
-    ClusteringQualityBenchmark,
-    RuntimeBenchmark,
-    get_dataset,
+    ClusteringBenchmark, ClusteringQualityBenchmark, RuntimeBenchmark, get_dataset,
 )
 
 X, y = get_dataset("iris")
-
 results = ClusteringBenchmark(
-    models=[
-        FCM(n_clusters=3, random_state=0),
-        GK(n_clusters=3, random_state=0),
-        PCM(n_clusters=3, random_state=0),
-    ],
+    models=[FCM(n_clusters=3, random_state=0),
+            GK(n_clusters=3, random_state=0),
+            PCM(n_clusters=3, random_state=0)],
     benchmarks=[RuntimeBenchmark(n_repeats=3), ClusteringQualityBenchmark()],
 ).run(X, y)
 ```
 
-```text
-              model  fit_time_sec   ari   nmi  partition_coefficient
-        FuzzyCMeans         0.001 0.729 0.750                  0.783
-    GustafsonKessel         0.009 0.743 0.758                  0.727
-PossibilisticCMeans         0.003 0.531 0.696                  0.256
-```
+The cross-family comparison and the agreement study against scikit-fuzzy and
+scikit-learn are regenerated by the scripts in [`benchmarks/`](benchmarks/);
+see [`benchmarks/README.md`](benchmarks/README.md). The committed results
+were generated with the corrected 0.2.0 code; each comes with a provenance
+file recording the platform, library versions, seeds and SCPP commit.
 
-| Backend | Measures |
-| --- | --- |
-| ⏱️ `RuntimeBenchmark` | Fit and predict time, with repeats and standard deviation |
-| 💾 `MemoryBenchmark` | Resident set size sampled *during* the fit, so transient allocations are caught |
-| 📈 `ScalabilityBenchmark` | Runtime and memory as the sample count grows |
-| 🎯 `ClusteringQualityBenchmark` | Silhouette, Calinski–Harabasz, Davies–Bouldin; ARI and NMI when labels are given; partition coefficient and entropy |
-
-Also included: **20 datasets** (bundled, synthetic and OpenML) via
-`get_dataset`, and **12 validity metrics** usable on their own — partition
-coefficient, modified partition coefficient, partition entropy, Xie–Beni,
-fuzzy compactness and separation, plus the standard hard-clustering indices.
-
-**[Benchmarking guide →](https://soft-clustering.readthedocs.io/en/latest/benchmarking.html)**
-
-## 📚 Documentation
-
-- **[Documentation site](https://soft-clustering.readthedocs.io/en/latest/index.html)** — API reference, one page per algorithm, benchmarking guide
-- **[`example/`](https://github.com/soft-clustering/soft-clustering/tree/main/example)** — a runnable script for every estimator
-- **[`tests/`](https://github.com/soft-clustering/soft-clustering/tree/main/tests)** — including the shared protocol conformance suite
-
-## 🧪 Development
+<a id="testing"></a>
+## Testing
 
 ```bash
 git clone https://github.com/soft-clustering/soft-clustering.git
 cd soft-clustering
 pip install -e ".[dev,deep]"
-
-pytest                                                    # tests
-pytest --cov=soft_clustering --cov-report=term-missing    # with coverage
-ruff check soft_clustering tests example tools            # lint
-black --check soft_clustering tests example tools         # formatting
-sphinx-build -b html -W docs/source docs/_build/html      # docs, warnings are errors
+pytest
 ```
 
-See **[CONTRIBUTING.md](CONTRIBUTING.md)** for the estimator protocol and what
-adding an algorithm involves.
+The suite is layered by what a passing test establishes:
 
-## 📖 Citation
+| Layer | File | Establishes |
+| --- | --- | --- |
+| Conformance | `tests/test_protocol.py` | every estimator honours the protocol, is reproducible, leaves global random state alone, refits identically, and does not modify its input |
+| Recovery | `tests/test_recovery.py` | every estimator recovers planted structure in an easy instance of its input modality |
+| External agreement | `tests/test_external_agreement.py` | agreement with scikit-fuzzy, scikit-learn and evclust (the *validated* status) |
+| Per estimator | `tests/test_<name>.py` | the method's equations, invariants (e.g. monotone objectives) and regression tests |
+| Edge cases | `tests/test_edge_cases.py` | duplicates, singular covariances, extreme fuzzifiers, non-finite input: a valid result or a clear error |
+| Registry | `tests/test_registry.py` | the algorithm table matches the code |
 
-This package accompanies a paper submitted to the JMLR MLOSS track.
+Without the `deep` extra the PyTorch tests are skipped, not errored.
 
-- **Paper:** [arXiv:2607.19620](https://arxiv.org/abs/2607.19620)
+## Getting help
+
+- **Questions about usage:** open an issue with the
+  [question template](https://github.com/soft-clustering/soft-clustering/issues/new/choose).
+- **Bugs:** open an issue with the bug-report template; include the SCPP
+  version (`soft_clustering.__version__`), a minimal example and the full
+  traceback.
+- **A method you would like added:** use the algorithm-request template.
+
+## Contributing
+
+Contributions, bug reports and algorithm proposals are welcome. See
+[CONTRIBUTING.md](CONTRIBUTING.md) for the estimator protocol and the checklist
+for adding an algorithm, and the [code of conduct](CODE_OF_CONDUCT.md). Please
+report security issues privately as described in
+[SECURITY.md](.github/SECURITY.md).
+
+## Citation
+
+If you use SCPP, please cite the software (GitHub's *Cite this repository*
+button reads [`CITATION.cff`](CITATION.cff)) and the accompanying preprint:
 
 ```bibtex
-@misc{rezaee2026scppunifiedpythonlibrary,
-   title={SCPP: A Unified Python Library for Soft Clustering},
-   author={Kiyan Rezaee and Morteza Ziabakhsh and Artin Bahrampour and
-           Seyed Mohammad Ghoreishi and Asal Khaje and Ali Sajedifar and
-           Manny Chalak and Ava Zerafatangiz and Sadegh Eskandari},
-   year={2026},
-   eprint={2607.19620},
-   archivePrefix={arXiv},
-   primaryClass={cs.LG},
-   url={https://arxiv.org/abs/2607.19620},
+@misc{rezaee2026scpp,
+  title         = {{SCPP}: A Unified Python Library for Soft Clustering},
+  author        = {Kiyan Rezaee and Morteza Ziabakhsh and Artin Bahrampour and
+                   Seyed Mohammad Ghoreishi and Asal Khajeh and Ali Sajedifar and
+                   Manny Chalak and Ava Zerafatangiz and Sadegh Eskandari},
+  year          = {2026},
+  eprint        = {2607.19620},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.LG},
+  url           = {https://arxiv.org/abs/2607.19620},
 }
 ```
 
-GitHub's **Cite this repository** button reads
-[`CITATION.cff`](CITATION.cff) and will produce this for you.
+Please also cite the original publication of each algorithm you use; the
+table above and every estimator's docstring give it.
 
-## 🤝 Contributing
+## License
 
-Contributions, bug reports and algorithm proposals are all welcome.
-
-- [Contributing guidelines](CONTRIBUTING.md)
-- [Code of conduct](CODE_OF_CONDUCT.md)
-- [Security policy](.github/SECURITY.md) — please report vulnerabilities privately
-- [Open an issue](https://github.com/soft-clustering/soft-clustering/issues/new/choose)
-
-## ⚖️ License
-
-Distributed under the terms of the [MIT license](LICENSE).
+[MIT](LICENSE).

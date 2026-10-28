@@ -1,0 +1,64 @@
+{
+  "title": "SCPP: A Unified Python Library for Soft Clustering",
+  "upload_type": "software",
+  "description": "A Python library of soft and fuzzy clustering algorithms, providing membership-based, possibilistic, evidential, graph, document and deep clustering models behind one estimator protocol, together with a benchmarking suite for evaluating them on equal terms.",
+  "creators": [
+    {
+      "name": "Rezaee, Kiyan",
+      "affiliation": "Department of Computer Science, University of Guilan, Rasht, Iran"
+    },
+    {
+      "name": "Ziabakhsh, Morteza",
+      "affiliation": "Department of Computer Science, University of Guilan, Rasht, Iran"
+    },
+    {
+      "name": "Bahrampour, Artin",
+      "affiliation": "Department of Computer Science, University of Guilan, Rasht, Iran"
+    },
+    {
+      "name": "Ghoreishi, Seyed Mohammad",
+      "affiliation": "Department of Computer Science, University of Guilan, Rasht, Iran"
+    },
+    {
+      "name": "Khajeh, Asal",
+      "affiliation": "Department of Computer Science, University of Guilan, Rasht, Iran"
+    },
+    {
+      "name": "Sajedifar, Ali",
+      "affiliation": "Department of Computer Science, University of Guilan, Rasht, Iran"
+    },
+    {
+      "name": "Chalak, Manny",
+      "affiliation": "Department of Computer Science, University of Guilan, Rasht, Iran"
+    },
+    {
+      "name": "Zerafatangiz, Ava",
+      "affiliation": "Department of Computer Science, University of Guilan, Rasht, Iran"
+    },
+    {
+      "name": "Eskandari, Sadegh",
+      "affiliation": "Department of Computer Science, University of Guilan, Rasht, Iran"
+    }
+  ],
+  "license": "MIT",
+  "keywords": [
+    "soft clustering",
+    "fuzzy clustering",
+    "possibilistic clustering",
+    "machine learning",
+    "unsupervised learning",
+    "python"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "10.48550/arXiv.2607.19620",
+      "relation": "isDescribedBy",
+      "scheme": "doi"
+    },
+    {
+      "identifier": "https://github.com/soft-clustering/soft-clustering",
+      "relation": "isSupplementTo",
+      "scheme": "url"
+    }
+  ]
+}

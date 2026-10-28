@@ -1,48 +1,27 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
 
-import sys
-from os import path
+"""KFCCL: Kernel-based fuzzy competitive learning.
 
-import matplotlib.pyplot as plt
-from sklearn.datasets import make_moons
-from sklearn.metrics import adjusted_rand_score
+Run with ``python example/example_kfccl.py`` after ``pip install soft-clustering``.
+"""
 
-if __name__ == "__main__":
-    base_dir = path.dirname(path.realpath(__file__))
-    sys.path.append(base_dir[:-4])
-    from soft_clustering import KFCCL
+import numpy as np
 
-    # Generate non-linear synthetic dataset
-    X, y_true = make_moons(n_samples=300, noise=0.1, random_state=42)
+from soft_clustering import KFCCL
 
-    # Initialize KFCCL
-    model = KFCCL(n_clusters=2, lambda_=10.0, gamma=5.0, epsilon=1e-4, max_iter=100)
+rng = np.random.default_rng(0)
+X = np.vstack(
+    [
+        rng.normal([0.0, 0.0], 0.5, (40, 2)),
+        rng.normal([4.0, 0.0], 0.5, (40, 2)),
+        rng.normal([2.0, 3.5], 0.5, (40, 2)),
+    ]
+)
 
-    # Fit the model and get labels
-    predicted_labels = model.fit(X).labels_
+model = KFCCL(n_clusters=3, gamma=0.05, lambda_=3.0, random_state=0).fit(X)
 
-    # Check output dimensions
-    assert (
-        predicted_labels.shape[0] == X.shape[0]
-    ), "Mismatch in number of predicted labels."
-
-    print("Model output shapes:")
-    print(f" - U shape: {model.U.shape}")
-    print(f" - p_ik shape: {model.p_ik.shape}")
-    print(f" - Kernel matrix shape: {model.K.shape}")
-
-    # Calculate ARI (Adjusted Rand Index) for evaluation
-    ari = adjusted_rand_score(y_true, predicted_labels)
-    print(f"Adjusted Rand Index (ARI): {ari:.4f}")
-
-    # Visualize clustering result
-    plt.figure(figsize=(8, 6))
-    plt.scatter(X[:, 0], X[:, 1], c=predicted_labels, cmap="coolwarm", s=50, alpha=0.8)
-    plt.title(f"KFCCL on Moons Dataset (ARI: {ari:.4f})")
-    plt.xlabel("Feature 1")
-    plt.ylabel("Feature 2")
-    plt.grid(True)
-    plt.show()
-
-    print("KFCCL test on non-linear dataset completed.")
+print("memberships_ shape:", model.memberships_.shape)
+print("first three rows:\n", np.round(model.memberships_[:3], 3))
+print("labels_:", model.labels_)
+print("clusters produced:", model.n_clusters_)

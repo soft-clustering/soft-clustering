@@ -1,13 +1,20 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
 
-import random
+from __future__ import annotations
 
 import numpy as np
-import scipy.sparse as sp
 from typeguard import typechecked
 
 from ._base import BaseSoftClusterer, ratio_memberships
+from ._validation import (
+    check_array,
+    check_generator,
+    check_n_clusters,
+    check_n_features,
+    check_scalar,
+    objective_converged,
+)
 
 
 def _kmeanspp_init(X, K, rng):
@@ -66,7 +73,7 @@ def _estimate_gk_dist2(X, centers, covariances):
         y = np.linalg.solve(L, diff.T)
         sq = np.sum(y * y, axis=0)  # Mahalanobis^2
         log_det = 2.0 * np.sum(np.log(np.diag(L)))  # log|C_k|
-        scale = np.exp(log_det / d)  # det(C_k)^{+1/d}  ✅ fixed sign
+        scale = np.exp(log_det / d)  # det(C_k)^{1/d}
         D2[:, k] = scale * sq
     np.maximum(D2, 1e-18, out=D2)
     return D2
@@ -97,52 +104,111 @@ def _objective(U, d2, m):
 
 @typechecked
 class GustafsonKessel(BaseSoftClusterer):
+    r"""Gustafson--Kessel fuzzy clustering (GK).
+
+    Fuzzy c-means with an adaptive, cluster-specific Mahalanobis norm. Each
+    cluster carries a fuzzy covariance
+
+    .. math::
+
+        F_k = \frac{\sum_i u_{ik}^m (x_i - v_k)(x_i - v_k)^\top}{\sum_i u_{ik}^m},
+
+    and distances are measured in the volume-normalised norm
+    :math:`A_k = \det(F_k)^{1/d} F_k^{-1}` (cluster volume
+    :math:`\rho_k = 1`), so clusters may take different ellipsoidal shapes
+    but not different sizes. Memberships and prototypes are then updated as
+    in fuzzy c-means.
+
+    A small ridge ``reg_covar`` is added to every covariance, so a cluster
+    collapsing onto fewer points than dimensions stays invertible; this is
+    the usual practical safeguard (Babuska et al., 2002) and biases the
+    norm negligibly for well-conditioned clusters.
+
+    Parameters
+    ----------
+    n_clusters : int, default=3
+        Number of clusters.
+    m : float, default=2.0
+        Fuzzifier, ``m > 1``.
+    max_iter : int, default=300
+        Maximum number of sweeps.
+    tol : float, default=1e-5
+        Stop when the objective changes by at most ``tol`` relative to its
+        magnitude.
+    init : {"kmeans++", "random"}, default="kmeans++"
+        Prototype initialisation.
+    reg_covar : float, default=1e-6
+        Ridge added to the diagonal of every fuzzy covariance.
+    random_state : int, numpy Generator or None, default=None
+        Seed for the initialisation.
+
+    Attributes
+    ----------
+    memberships_ : ndarray of shape (n_samples, n_clusters)
+    centers_ : ndarray of shape (n_clusters, n_features)
+    covariances_ : ndarray of shape (n_clusters, n_features, n_features)
+        Fuzzy covariance matrices :math:`F_k`.
+    metrics_A_ : ndarray of shape (n_clusters, n_features, n_features)
+        Norm-inducing matrices :math:`A_k`, each with unit determinant.
+    objective_trajectory_ : ndarray
+    n_iter_ : int
+
+    References
+    ----------
+    D. E. Gustafson and W. C. Kessel. Fuzzy clustering with a fuzzy
+    covariance matrix. In *Proc. IEEE Conference on Decision and Control*,
+    pp. 761--766, 1979. doi:10.1109/CDC.1978.268028
+
+    R. Babuska, P. J. van der Veen and U. Kaymak. Improved covariance
+    estimation for Gustafson--Kessel clustering. In *Proc. IEEE International
+    Conference on Fuzzy Systems*, pp. 1081--1085, 2002.
+    """
+
+    _membership_attrs = ("memberships_",)
+    _centers_attrs = ("centers_",)
+    _supports_out_of_sample = True
+
     def __init__(
         self,
-        random_state: int | None = None,
+        n_clusters: int = 3,
         m: float = 2.0,
         max_iter: int = 300,
         tol: float = 1e-5,
         init: str = "kmeans++",
         reg_covar: float = 1e-6,
+        random_state: int | np.random.Generator | None = None,
     ):
-        self.random_state = random_state
-        if random_state is not None:
-            np.random.seed(random_state)
-            random.seed(random_state)
-
+        self.n_clusters = n_clusters
         self.m = m
         self.max_iter = max_iter
         self.tol = tol
         self.init = init
         self.reg_covar = reg_covar
+        self.random_state = random_state
 
-        self.centers_ = None
-        self.memberships_ = None
-        self.covariances_ = None
-        self.metrics_A_ = None
-        self.objective_trajectory_ = None
+    def fit_predict(self, X, y=None, K: int | None = None):
+        """Fit the model and return fuzzy memberships.
 
-    def fit_predict(self, X, K):
-        """Fit the GK model and compute fuzzy memberships.
+        Parameters
+        ----------
+        X : array-like or sparse matrix of shape (n_samples, n_features)
+        y : ignored
+            Accepted for scikit-learn compatibility.
+        K : int, optional
+            Deprecated fit-time cluster count; prefer ``n_clusters``.
 
-        Args:
-            X: Data matrix (numpy.ndarray or scipy.sparse), shape (n_samples, n_features).
-            K: Number of clusters (int).
-
-        Returns:
-            memberships: Membership matrix (numpy.ndarray, shape (n_samples, K)).
+        Returns
+        -------
+        ndarray of shape (n_samples, n_clusters)
         """
-        if sp.issparse(X):
-            X = X.toarray()
-        X = np.asarray(X, dtype=np.float64)
+        name = type(self).__name__
+        X = check_array(X, estimator=name)
         n, d = X.shape
-        if K <= 0 or K > n:
-            raise ValueError(f"Invalid K: {K}. Must be in [1, n_samples].")
-        if self.m <= 1.0:
-            raise ValueError(f"m must be > 1. Got m={self.m}.")
+        K = check_n_clusters(self.n_clusters if K is None else K, n, estimator=name)
+        m = check_scalar(self.m, "m", estimator=name, lower=1.0, lower_inclusive=False)
+        check_scalar(self.reg_covar, "reg_covar", estimator=name, lower=0.0)
 
-        rng = np.random.default_rng(self.random_state)
+        rng = check_generator(self.random_state)
 
         if self.init == "kmeans++":
             centers = _kmeanspp_init(X, K, rng)
@@ -150,46 +216,60 @@ class GustafsonKessel(BaseSoftClusterer):
         elif self.init == "random":
             U = rng.random((n, K))
             U = U / (np.sum(U, axis=1, keepdims=True) + 1e-12)
-            Um = U**self.m
+            Um = U**m
             denom = np.sum(Um, axis=0, keepdims=True).T
             centers = (Um.T @ X) / (denom + 1e-12)
         else:
-            raise ValueError(f"Unknown init='{self.init}'.")
+            raise ValueError(
+                f"{name}: init must be 'kmeans++' or 'random'; got {self.init!r}."
+            )
 
         obj_prev = np.inf
         traj = []
         for _ in range(self.max_iter):
-            C = _compute_covariances(X, U, centers, self.m, reg_covar=self.reg_covar)
+            C = _compute_covariances(X, U, centers, m, reg_covar=self.reg_covar)
             d2 = _estimate_gk_dist2(X, centers, C)
-            U = _update_U_from_d2(d2, self.m)
-            Um = U**self.m
+            U = _update_U_from_d2(d2, m)
+            Um = U**m
             denom = np.sum(Um, axis=0, keepdims=True).T
             centers = (Um.T @ X) / (denom + 1e-12)
-            obj = _objective(U, d2, self.m)
+            obj = _objective(U, d2, m)
             traj.append(obj)
-            if abs(obj_prev - obj) <= self.tol:
+            if objective_converged(obj_prev, obj, self.tol):
                 break
             obj_prev = obj
 
+        # Finish with a covariance and membership update against the final
+        # prototypes, so that the returned (U, V, F) are mutually consistent
+        # and predict_proba on the training data reproduces memberships_.
+        C = _compute_covariances(X, U, centers, m, reg_covar=self.reg_covar)
+        U = _update_U_from_d2(_estimate_gk_dist2(X, centers, C), m)
         self.centers_ = centers
         self.memberships_ = U
         self.covariances_ = C
-
-        # A_k = det(C_k)^{1/d} * C_k^{-1}  (so det(A_k) = 1)  ✅ fixed sign
-        Kc, d = C.shape[0], C.shape[1]
-        A = np.empty_like(C)
-        for k in range(Kc):
-            S = C[k]
-            try:
-                L = np.linalg.cholesky(S)
-            except np.linalg.LinAlgError:
-                S = S + 10.0 * np.finfo(np.float64).eps * np.eye(d, dtype=np.float64)
-                L = np.linalg.cholesky(S)
-            invS = np.linalg.inv(S)
-            log_det = 2.0 * np.sum(np.log(np.diag(L)))
-            scale = np.exp(log_det / d)  # det(C_k)^{+1/d}
-            A[k] = scale * invS
-
-        self.metrics_A_ = A
+        self.metrics_A_ = _norm_matrices(C)
         self.objective_trajectory_ = np.array(traj, dtype=np.float64)
+        self.n_iter_ = len(traj)
         return self.memberships_
+
+    def _predict_memberships(self, X):
+        X = check_array(X, estimator=type(self).__name__)
+        check_n_features(X, self.centers_.shape[1], estimator=type(self).__name__)
+        d2 = _estimate_gk_dist2(X, self.centers_, self.covariances_)
+        return _update_U_from_d2(d2, self.m)
+
+
+def _norm_matrices(C):
+    """``A_k = det(C_k)^{1/d} C_k^{-1}``, so that ``det(A_k) = 1``."""
+    K, d = C.shape[0], C.shape[1]
+    A = np.empty_like(C)
+    for k in range(K):
+        S = C[k]
+        try:
+            L = np.linalg.cholesky(S)
+        except np.linalg.LinAlgError:
+            S = S + 10.0 * np.finfo(np.float64).eps * np.eye(d, dtype=np.float64)
+            L = np.linalg.cholesky(S)
+        log_det = 2.0 * np.sum(np.log(np.diag(L)))
+        A[k] = np.exp(log_det / d) * np.linalg.inv(S)
+    return A

@@ -3,8 +3,8 @@
 
 """Unit and integration tests for WBSC (Word-Based Soft Clustering)."""
 
+import numpy as np
 import pytest
-import scipy.sparse as sp
 
 from soft_clustering import WBSC
 
@@ -23,10 +23,17 @@ def docs():
     ]
 
 
-def test_fit_predict_returns_sparse(docs):
-    model = WBSC(n_clusters=3)
+def test_fit_predict_returns_dense_incidence(docs):
+    """fit_predict returns memberships_, a dense binary incidence matrix.
+
+    Earlier releases returned a scipy sparse matrix from fit_predict, unlike
+    every other estimator.
+    """
+    model = WBSC()
     result = model.fit_predict(docs)
-    assert sp.issparse(result)
+    assert isinstance(result, np.ndarray)
+    np.testing.assert_array_equal(result, model.memberships_)
+    assert set(np.unique(result)).issubset({0.0, 1.0})
 
 
 def test_membership_rows(docs):
@@ -40,7 +47,7 @@ def test_membership_columns(docs):
     model = WBSC()
     result = model.fit_predict(docs)
     assert result.shape[1] >= 1
-    assert model.n_clusters == result.shape[1]
+    assert model.n_clusters_ == result.shape[1]
 
 
 def test_k2(docs):

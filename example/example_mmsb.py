@@ -1,34 +1,26 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
 
-import sys
-from os import path
+"""MMSB: Mixed-membership stochastic blockmodel.
 
-if __name__ == "__main__":
-    base_dir = path.dirname(path.realpath(__file__))
-    sys.path.append(base_dir[:-4])
-    from soft_clustering import MMSB
+Run with ``python example/example_mmsb.py`` after ``pip install soft-clustering``.
+"""
 
-    n_nodes = 30
-    n_blocks = 3
+import numpy as np
 
-    # sample_graph() is the generative side of the model and needs no fit; it
-    # is used here only to produce a graph to run inference on.
-    Y = MMSB(
-        n_blocks=n_blocks, alpha=0.5, n_nodes=n_nodes, random_state=0
-    ).sample_graph()
+from soft_clustering import MMSB
 
-    # get_memberships() and get_block_matrix() report the variational
-    # posterior, so they require a fit against an observed adjacency matrix.
-    model = MMSB(n_blocks=n_blocks, alpha=0.5, random_state=0).fit(Y)
-    pi = model.get_memberships()
-    B = model.get_block_matrix()
+# A graph with three planted communities of 20 nodes each.
+rng = np.random.default_rng(0)
+communities = np.repeat([0, 1, 2], 20)
+p = np.where(communities[:, None] == communities[None, :], 0.5, 0.03)
+A = np.triu(rng.random((60, 60)) < p, 1).astype(float)
+A = A + A.T
 
-    print("Adjacency Matrix (Y):")
-    print(Y)
+model = MMSB(n_clusters=3, random_state=0).fit(A)
 
-    print("\nMembership Matrix (π):")
-    print(pi)
-
-    print("\nBlock Probability Matrix (B):")
-    print(B)
+print("memberships_ shape:", model.memberships_.shape)
+print("first three rows:\n", np.round(model.memberships_[:3], 3))
+print("labels_:", model.labels_)
+print("clusters produced:", model.n_clusters_)
+print("estimated block matrix:\n", np.round(model.get_block_matrix(), 2))

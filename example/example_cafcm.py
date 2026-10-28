@@ -1,23 +1,28 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
 
-import sys
-from os import path
+"""CAFCM: Collaborative annealing fuzzy c-means: from soft to nearly crisp.
+
+Run with ``python example/example_cafcm.py`` after ``pip install soft-clustering``.
+"""
 
 import numpy as np
 
-if __name__ == "__main__":
-    base_dir = path.dirname(path.realpath(__file__))
-    sys.path.append(base_dir[:-4])
-    from soft_clustering import CAFCM
+from soft_clustering import CAFCM
 
-    np.random.seed(0)
-    cluster1 = np.random.normal(loc=[0, 0], scale=0.5, size=(50, 2))
-    cluster2 = np.random.normal(loc=[4, 4], scale=0.5, size=(50, 2))
-    X = np.vstack([cluster1, cluster2])
+rng = np.random.default_rng(0)
+X = np.vstack(
+    [
+        rng.normal([0.0, 0.0], 0.5, (40, 2)),
+        rng.normal([4.0, 0.0], 0.5, (40, 2)),
+        rng.normal([2.0, 3.5], 0.5, (40, 2)),
+    ]
+)
 
-    model = CAFCM(c=2, m_start=2.0, m_end=1.01, cooling_rate=0.95)
-    labels, U = model.fit_predict(X)
+model = CAFCM(n_clusters=3, random_state=0).fit(X)
 
-    print("Labels:", labels)
-    print("Memberships shape:", U.shape)
+print("memberships_ shape:", model.memberships_.shape)
+print("first three rows:\n", np.round(model.memberships_[:3], 3))
+print("labels_:", model.labels_)
+print("clusters produced:", model.n_clusters_)
+print("fuzzifier schedule:", np.round(model.fuzzifier_schedule_, 3))

@@ -4,7 +4,9 @@
 #
 # These are also declared as the project's "docs" extra in pyproject.toml.
 # myst-parser is required: the algorithm pages are Markdown, and it is not a
-# runtime dependency of the package.
+# runtime dependency of the package. It is held at 3.x because evclust (in the
+# dev and baselines extras) requires myst-parser<4, so that one environment
+# can hold the docs and the test dependencies together.
 sphinx==7.4.7
 sphinx-rtd-theme==3.0.2
-myst-parser==4.0.1
+myst-parser==3.0.1

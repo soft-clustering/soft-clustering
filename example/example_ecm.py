@@ -1,24 +1,34 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
 
-import sys
-from os import path
+"""ECM: Evidential c-means: a credal partition with ambiguity and outliers.
+
+Run with ``python example/example_ecm.py`` after ``pip install soft-clustering``.
+"""
 
 import numpy as np
 
-if __name__ == "__main__":
-    base_dir = path.dirname(path.realpath(__file__))
-    sys.path.append(base_dir[:-4])
-    from soft_clustering import ECM
+from soft_clustering import ECM
 
-    # Sample 2D data (6 samples)
-    X = np.array(
-        [[1.0, 2.0], [1.5, 1.8], [5.0, 8.0], [8.0, 8.0], [1.0, 0.6], [9.0, 11.0]]
-    )
+rng = np.random.default_rng(0)
+X = np.vstack(
+    [
+        rng.normal([0.0, 0.0], 0.5, (40, 2)),
+        rng.normal([4.0, 0.0], 0.5, (40, 2)),
+        rng.normal([2.0, 3.5], 0.5, (40, 2)),
+    ]
+)
+X = np.vstack([X, [[2.0, 0.0], [30.0, 30.0]]])  # ambiguous point, outlier
 
-    model = ECM(n_clusters=2, m=2.0, delta=5.0, max_iter=100)
-    model.fit(X)
-    mass = model.get_membership()
+model = ECM(n_clusters=3, delta=5.0, random_state=0).fit(X)
 
-    print("Mass Matrix (including noise cluster):")
-    print(mass)
+print("memberships_ shape:", model.memberships_.shape)
+print("first three rows:\n", np.round(model.memberships_[:3], 3))
+print("labels_:", model.labels_)
+print("clusters produced:", model.n_clusters_)
+sets = [
+    "{" + ",".join(str(k) for k in np.flatnonzero(f)) + "}" for f in model.focal_sets_
+]
+for name, row in (("ambiguous point", -2), ("outlier", -1)):
+    masses = dict(zip(["{}"] + sets, np.round(model.masses_[row], 3).tolist()))
+    print(name, "masses:", masses)

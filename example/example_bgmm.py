@@ -1,30 +1,25 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
 
-import sys
-from os import path
+"""BGMM: Beta-Gaussian mixture over two aligned views.
+
+Run with ``python example/example_bgmm.py`` after ``pip install soft-clustering``.
+"""
 
 import numpy as np
 
-if __name__ == "__main__":
-    base_dir = path.dirname(path.realpath(__file__))
-    sys.path.append(base_dir[:-4])
-    from soft_clustering import BGMM
+from soft_clustering import BGMM
 
-    np.random.seed(0)
+rng = np.random.default_rng(0)
+gaussian_view = np.concatenate([rng.normal(-2, 0.5, 60), rng.normal(2, 0.5, 60)])
+beta_view = np.clip(
+    np.concatenate([rng.beta(2, 6, 60), rng.beta(6, 2, 60)]), 1e-3, 1 - 1e-3
+)
 
-    Xg = np.concatenate([np.random.normal(0, 1, 50), np.random.normal(5, 1, 50)])
+model = BGMM(n_clusters=2, random_state=0).fit(gaussian_view, beta_view)
 
-    Xb = np.concatenate([np.random.beta(2, 5, 50), np.random.beta(5, 2, 50)])
-
-    model = BGMM(n_components=2, max_iter=100)
-    model.fit(Xg, Xb)
-
-    probs = model.predict_proba()
-    labels = model.predict()
-
-    print("Predicted Labels:")
-    print(labels)
-
-    print("\nMembership Probabilities:")
-    print(probs)
+print("memberships_ shape:", model.memberships_.shape)
+print("first three rows:\n", np.round(model.memberships_[:3], 3))
+print("labels_:", model.labels_)
+print("clusters produced:", model.n_clusters_)
+print("Gaussian (mean, sd) per component:", np.round(model.gaussian_params, 2).tolist())

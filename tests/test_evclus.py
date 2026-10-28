@@ -203,5 +203,5 @@ def test_non_square_precomputed_raises():
 
 def test_more_clusters_than_samples_raises():
     X, _ = blobs(n_per=1, k=2)
-    with pytest.raises(ValueError, match="smaller than"):
+    with pytest.raises(ValueError, match="exceeds the number of samples"):
         EVCLUS(n_clusters=10).fit(X)

@@ -42,6 +42,15 @@ gradient
 which makes the fit deterministic given the initial parameters and avoids the
 finite-difference cost of a gradient-free optimiser.
 
+Cost
+----
+The stress compares every pair of objects, so memory is :math:`O(n^2)` for
+the dissimilarity matrix and every gradient evaluation takes :math:`O(n^2 K)`
+time. This is inherent to EVCLUS, which takes the dissimilarity matrix as
+its input. The later sparse variant k-EVCLUS (Denoeux, Sriboonchitta and
+Kanjanatarakul, 2016), which uses only a random subset of the pairs, is not
+implemented.
+
 Outputs
 -------
 ``masses_``
@@ -60,6 +69,7 @@ from scipy.optimize import minimize
 from typeguard import typechecked
 
 from ._base import BaseSoftClusterer
+from ._validation import check_array, check_generator, check_n_clusters
 
 
 def _softmax(alpha: np.ndarray) -> np.ndarray:
@@ -85,7 +95,7 @@ class EVCLUS(BaseSoftClusterer):
         n_init: int = 3,
         tol: float = 1e-6,
         metric: str = "euclidean",
-        random_state: int | None = None,
+        random_state: int | np.random.Generator | None = None,
     ):
         """
         Parameters
@@ -129,10 +139,6 @@ class EVCLUS(BaseSoftClusterer):
         self.tol = tol
         self.metric = metric
         self.random_state = random_state
-
-        self.masses_: np.ndarray | None = None
-        self.memberships_: np.ndarray | None = None
-        self.stress_: float | None = None
 
     # ------------------------------------------------------------------
     # Internals
@@ -189,13 +195,10 @@ class EVCLUS(BaseSoftClusterer):
     def fit(self, X: np.ndarray) -> EVCLUS:
         """Fit on a feature matrix, or on a dissimilarity matrix when
         ``metric='precomputed'``."""
-        X = np.asarray(X, dtype=np.float64)
+        X = check_array(X, estimator=type(self).__name__)
         delta = self._dissimilarities(X)
         n_samples = delta.shape[0]
-        if n_samples < self.n_clusters:
-            raise ValueError(
-                f"n_samples={n_samples} is smaller than n_clusters={self.n_clusters}"
-            )
+        check_n_clusters(self.n_clusters, n_samples, estimator=type(self).__name__)
 
         norm = 0.5 * float(np.sum(delta**2))
         if norm <= 0:
@@ -210,7 +213,7 @@ class EVCLUS(BaseSoftClusterer):
             self.stress_ = 0.0
             return self
 
-        rng = np.random.default_rng(self.random_state)
+        rng = check_generator(self.random_state)
         best_stress = np.inf
         best_alpha = None
 
@@ -228,6 +231,11 @@ class EVCLUS(BaseSoftClusterer):
                 best_stress = float(result.fun)
                 best_alpha = result.x
 
+        if best_alpha is None:
+            raise RuntimeError(
+                f"{type(self).__name__}: the stress was not finite in any of the "
+                f"{self.n_init} restarts; check the dissimilarities for NaN or inf."
+            )
         masses = _softmax(best_alpha.reshape(n_samples, self.n_clusters + 1))
         self.masses_ = masses
         # Pignistic transform: ignorance is shared equally among the singletons.

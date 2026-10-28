@@ -11,10 +11,39 @@ from ._base import BaseSoftClusterer
 
 
 class LDA(BaseSoftClusterer):
+    r"""Latent Dirichlet allocation fitted by variational EM.
+
+    Each document is a mixture of topics and each topic a distribution over
+    words (Blei, Ng and Jordan, 2003). The mean-field updates are
+
+    .. math::
+
+        \phi_{dnk} \propto \exp\big(\psi(\gamma_{dk}) + \psi(\lambda_{kw})
+            - \psi(\textstyle\sum_v \lambda_{kv})\big),\qquad
+        \gamma_{dk} = \alpha + \sum_n \phi_{dnk},\qquad
+        \lambda_{kw} = \beta + \sum_{d,n} \phi_{dnk}\,[w_{dn} = w],
+
+    with symmetric Dirichlet priors :math:`\alpha` (documents) and
+    :math:`\beta` (topics), held fixed. ``memberships_`` holds the normalised
+    document-topic proportions :math:`\gamma_d / \sum_k \gamma_{dk}`. The run
+    with the highest corpus log-likelihood over ``n_init`` restarts is kept.
+    Agreement with scikit-learn's ``LatentDirichletAllocation`` is tested in
+    ``tests/test_external_agreement.py``.
+
+    ``fit`` accepts raw documents (tokenised with scikit-learn's
+    ``CountVectorizer``) or a document-term count matrix. Parameters are
+    documented under ``__init__`` below.
+
+    References
+    ----------
+    D. M. Blei, A. Y. Ng and M. I. Jordan. Latent Dirichlet allocation.
+    *Journal of Machine Learning Research*, 3:993--1022, 2003.
+    """
+
     @typechecked
     def __init__(
         self,
-        n_topics: int = 10,
+        n_clusters: int = 10,
         alpha: float | None = None,
         beta: float = 0.01,
         max_iter: int = 100,
@@ -28,8 +57,9 @@ class LDA(BaseSoftClusterer):
 
         Parameters
         ----------
-        n_topics : int
-            Number of latent topics to infer.
+        n_clusters : int
+            Number of latent topics to infer (``n_topics`` is accepted as an
+            alias).
         alpha : float or None
             Dirichlet prior for document-topic distribution.
         beta : float
@@ -51,8 +81,9 @@ class LDA(BaseSoftClusterer):
             initialisation drew from NumPy's global generator, so a fit could
             not be reproduced without seeding that generator externally.
         """
-        self.n_topics = n_topics
-        self.alpha = alpha if alpha is not None else 50.0 / n_topics
+        self.n_clusters = n_clusters
+        self.n_topics = n_clusters
+        self.alpha = alpha
         self.beta = beta
         self.max_iter = max_iter
         self.var_max_iter = var_max_iter
@@ -74,7 +105,9 @@ class LDA(BaseSoftClusterer):
         self.lambda_ = rng.gamma(100.0, 1.0 / 100.0, (self.n_topics, V)) + self.beta
 
         # Alpha vector: symmetric prior over topics
-        self.alpha_vec = np.full(self.n_topics, self.alpha)
+        alpha = self.alpha if self.alpha is not None else 50.0 / self.n_topics
+        self.alpha_ = alpha
+        self.alpha_vec = np.full(self.n_topics, alpha)
 
     def fit(self, X, vocabulary=None):
         """
@@ -92,6 +125,7 @@ class LDA(BaseSoftClusterer):
         self : LDA
             Trained model instance.
         """
+        self.n_topics = self.n_clusters
         # Convert text corpus to bag-of-words matrix if needed
         if not isinstance(X, (csr_matrix, np.ndarray)):
             vectorizer = CountVectorizer(vocabulary=vocabulary)

@@ -1,156 +1,252 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
 
+"""Possibilistic fuzzy c-means (Pal, Pal, Keller and Bezdek, 2005)."""
+
+from __future__ import annotations
+
 import numpy as np
 from typeguard import typechecked
 
 from ._base import BaseSoftClusterer
+from ._fcm import _euclidean_dist2, _update_U_from_centers, fcm_fit
+from ._pcm import _estimate_etas, _update_T_from_centers
+from ._validation import (
+    check_array,
+    check_generator,
+    check_n_clusters,
+    check_n_features,
+    check_scalar,
+    data_scale,
+)
 
 
 @typechecked
 class PFCM(BaseSoftClusterer):
-    # PFCM maintains two matrices (Pal et al., 2005): memberships U, which
-    # satisfy the partition constraint, and typicalities T, which do not.
-    # ``memberships_`` exposes U, so the constraint holds; the unnormalised
-    # typicalities remain available as ``typicality_matrix``.
+    r"""Possibilistic fuzzy c-means (PFCM).
+
+    Maintains a fuzzy membership matrix :math:`U` (rows sum to one) and a
+    possibilistic typicality matrix :math:`T` (rows unconstrained), and
+    minimises
+
+    .. math::
+
+        J = \sum_{i,k} \big(a\, u_{ik}^{m} + b\, t_{ik}^{\eta}\big)
+            \lVert x_i - v_k\rVert^2
+          + \sum_k \gamma_k \sum_i (1 - t_{ik})^{\eta} .
+
+    The updates are the fuzzy c-means membership rule for :math:`U`,
+
+    .. math::
+
+        t_{ik} = \Big[1 + \big(b \lVert x_i - v_k\rVert^2/\gamma_k\big)^{1/(\eta-1)}\Big]^{-1},
+        \qquad
+        v_k = \frac{\sum_i (a u_{ik}^m + b t_{ik}^\eta)\, x_i}
+                   {\sum_i (a u_{ik}^m + b t_{ik}^\eta)} .
+
+    As Pal et al. prescribe, the run is initialised from fuzzy c-means and
+    :math:`\gamma_k = \sum_i u_{ik}^m d_{ik}^2 / \sum_i u_{ik}^m` is computed
+    once from the terminal FCM partition and held fixed, so each block update
+    decreases :math:`J`. With ``typicality_weight = 0`` the method reduces to
+    fuzzy c-means.
+
+    ``memberships_`` exposes :math:`U`; the typicalities are in
+    ``typicalities_``.
+
+    Parameters
+    ----------
+    n_clusters : int, default=3
+        Number of clusters.
+    membership_fuzzifier : float, default=2.0
+        Exponent :math:`m > 1` on the memberships.
+    typicality_fuzzifier : float, default=2.0
+        Exponent :math:`\eta > 1` on the typicalities.
+    membership_weight : float, default=1.0
+        Relative weight :math:`a \ge 0` of the membership term.
+    typicality_weight : float, default=1.0
+        Relative weight :math:`b \ge 0` of the typicality term. ``a + b``
+        must be positive.
+    max_iter : int, default=150
+        Maximum number of sweeps.
+    tol : float, default=1e-5
+        Stop when the prototypes move by less than ``tol`` times the data
+        spread (root mean per-feature standard deviation), so the test does
+        not depend on the units of ``X``.
+    random_state : int, numpy Generator or None, default=None
+        Seed for the fuzzy c-means initialisation.
+
+    Attributes
+    ----------
+    memberships_ : ndarray of shape (n_samples, n_clusters)
+        Fuzzy memberships :math:`U` (rows sum to one).
+    typicalities_ : ndarray of shape (n_samples, n_clusters)
+        Typicalities :math:`T` in ``(0, 1]``.
+    centers_ : ndarray of shape (n_clusters, n_features)
+    gamma_ : ndarray of shape (n_clusters,)
+        The fixed scale parameters :math:`\gamma_k` (also ``gamma``).
+    objective_trajectory_ : ndarray
+    n_iter_ : int
+    membership_matrix, typicality_matrix : ndarray of shape (n_clusters, n_samples)
+        Cluster-major views of :math:`U` and :math:`T`, kept for backward
+        compatibility.
+
+    References
+    ----------
+    N. R. Pal, K. Pal, J. M. Keller and J. C. Bezdek. A possibilistic fuzzy
+    c-means clustering algorithm. *IEEE Transactions on Fuzzy Systems*,
+    13(4):517--530, 2005. doi:10.1109/TFUZZ.2004.840099
+    """
+
     _partition_constrained = True
+    _membership_attrs = ("memberships_",)
+    _centers_attrs = ("centers_",)
+    _supports_out_of_sample = True
 
     def __init__(
         self,
-        n_clusters: int,  # Number of clusters
-        membership_fuzzifier: float = 2.0,  # Fuzzifier for memberships (typically m > 1)
-        typicality_fuzzifier: float = 2.0,  # Fuzzifier for typicalities
-        membership_weight: float = 1.0,  # Weight for membership term
-        typicality_weight: float = 1.0,  # Weight for typicality term
-        max_iter: int = 150,  # Maximum number of iterations
-        tol: float = 1e-5,  # Tolerance for convergence
-        random_state: int | None = None,  # Random seed for reproducibility
+        n_clusters: int = 3,
+        membership_fuzzifier: float = 2.0,
+        typicality_fuzzifier: float = 2.0,
+        membership_weight: float = 1.0,
+        typicality_weight: float = 1.0,
+        max_iter: int = 150,
+        tol: float = 1e-5,
+        random_state: int | np.random.Generator | None = None,
     ):
-        # Store parameters
         self.n_clusters = n_clusters
-        self.m = membership_fuzzifier
-        self.eta = typicality_fuzzifier
-        self.a = membership_weight
-        self.b = typicality_weight
+        self.membership_fuzzifier = membership_fuzzifier
+        self.typicality_fuzzifier = typicality_fuzzifier
+        self.membership_weight = membership_weight
+        self.typicality_weight = typicality_weight
         self.max_iter = max_iter
         self.tol = tol
         self.random_state = random_state
 
-        # Will be set during training
-        self.membership_matrix: np.ndarray | None = None  # Membership matrix (c x n)
-        self.typicality_matrix: np.ndarray | None = None  # Typicality matrix (c x n)
-        self.cluster_centroids: np.ndarray | None = None  # Cluster centroids (c x d)
-        self.gamma: np.ndarray | None = None  # Cluster-wise scaling for typicalities
+    # Short names used in the equations above, kept as read-only aliases.
+    @property
+    def gamma(self) -> np.ndarray | None:
+        """Alias of ``gamma_``, kept for backward compatibility."""
+        return getattr(self, "gamma_", None)
 
-    def _initialize_centroids(self, X: np.ndarray) -> None:
-        """
-        Initialize cluster centers by selecting c random points from X.
-        """
-        np.random.seed(self.random_state)
-        indices = np.random.choice(X.shape[0], self.n_clusters, replace=False)
-        self.cluster_centroids = X[indices]
+    @property
+    def m(self) -> float:
+        return self.membership_fuzzifier
 
-    def _compute_distances(self, X: np.ndarray) -> np.ndarray:
-        """
-        Compute squared Euclidean distances between each point and cluster center.
-        Returns a (c x n) distance matrix.
-        """
-        distances = np.zeros((self.n_clusters, X.shape[0]))
-        for i, v in enumerate(self.cluster_centroids):
-            distances[i] = (
-                np.linalg.norm(X - v, axis=1) ** 2 + 1e-10
-            )  # Add small constant to avoid division by zero
-        return distances
+    @property
+    def eta(self) -> float:
+        return self.typicality_fuzzifier
 
-    def _update_memberships(self, distances: np.ndarray) -> None:
-        """
-        Update fuzzy membership matrix using the standard FCM formula.
-        Each column in membership_matrix sums to 1.
-        """
-        power = 1.0 / (self.m - 1)
-        denom = np.sum((distances[:, None, :] / distances[None, :, :]) ** power, axis=1)
-        self.membership_matrix = 1.0 / denom
+    @property
+    def a(self) -> float:
+        return self.membership_weight
 
-    def _update_gamma(self, distances: np.ndarray) -> None:
-        """
-        Compute gamma_i for each cluster, used to scale the typicality update.
-        This is based on the average intra-cluster distance.
-        """
-        self.gamma = np.zeros(self.n_clusters)
-        for i in range(self.n_clusters):
-            num = np.sum((self.membership_matrix[i] ** self.m) * distances[i])
-            den = np.sum(self.membership_matrix[i] ** self.m)
-            self.gamma[i] = num / den
+    @property
+    def b(self) -> float:
+        return self.typicality_weight
 
-    def _update_typicalities(self, distances: np.ndarray) -> None:
-        """
-        Update typicality matrix based on distance and gamma.
-        Lower distances => higher typicality.
-        """
-        self.typicality_matrix = np.zeros_like(self.membership_matrix)
-        for i in range(self.n_clusters):
-            ratio = distances[i] / self.gamma[i]
-            self.typicality_matrix[i] = 1.0 / (1.0 + ratio ** (1.0 / (self.eta - 1)))
+    @property
+    def cluster_centroids(self) -> np.ndarray | None:
+        return self.centers_
 
-    def _update_centroids(self, X: np.ndarray) -> np.ndarray:
-        """
-        Update cluster centers using both memberships and typicalities.
-        Each point contributes weighted by a * u^m + b * t^eta.
-        """
-        new_cluster_centroids = np.zeros_like(self.cluster_centroids)
-        for i in range(self.n_clusters):
-            u_term = self.a * (self.membership_matrix[i] ** self.m)
-            t_term = self.b * (self.typicality_matrix[i] ** self.eta)
-            weights = u_term + t_term
-            weighted_sum = np.dot(weights, X)  # Weighted average of points
-            new_cluster_centroids[i] = weighted_sum / np.sum(weights)  # New centroid
-        return new_cluster_centroids
+    @property
+    def membership_matrix(self) -> np.ndarray | None:
+        return None if self.memberships_ is None else self.memberships_.T
 
-    def fit(self, X: np.ndarray | list[list[float]]) -> "PFCM":
-        """
-        Fit the PFCM model to data X.
-        Returns self with updated membership_matrix, typicality_matrix, cluster_centroids.
-        """
-        X = np.array(X, dtype=np.float64)
-        self._initialize_centroids(X)
+    @property
+    def typicality_matrix(self) -> np.ndarray | None:
+        T = getattr(self, "typicalities_", None)
+        return None if T is None else T.T
 
-        for _ in range(self.max_iter):
-            distances = self._compute_distances(X)
-            self._update_memberships(distances)
-            self._update_gamma(distances)
-            self._update_typicalities(distances)
-            new_cluster_centroids = self._update_centroids(X)
-
-            # Convergence: check max L2 change in centroids
-            max_change = np.max(
-                np.linalg.norm(self.cluster_centroids - new_cluster_centroids, axis=1)
+    def _validate(self, n_samples):
+        name = type(self).__name__
+        K = check_n_clusters(self.n_clusters, n_samples, estimator=name)
+        m = check_scalar(
+            self.membership_fuzzifier,
+            "membership_fuzzifier",
+            estimator=name,
+            lower=1.0,
+            lower_inclusive=False,
+        )
+        eta = check_scalar(
+            self.typicality_fuzzifier,
+            "typicality_fuzzifier",
+            estimator=name,
+            lower=1.0,
+            lower_inclusive=False,
+        )
+        a = check_scalar(
+            self.membership_weight, "membership_weight", estimator=name, lower=0.0
+        )
+        b = check_scalar(
+            self.typicality_weight, "typicality_weight", estimator=name, lower=0.0
+        )
+        if a + b <= 0:
+            raise ValueError(
+                f"{name}: membership_weight + typicality_weight must be positive."
             )
-            self.cluster_centroids = new_cluster_centroids
-            if max_change < self.tol:
+        return K, m, eta, a, b
+
+    def _typicalities(self, X, centers, eta, b):
+        # t = 1 / (1 + (b d^2 / gamma)^(1/(eta-1))): the PCM rule with scale
+        # gamma / b. b = 0 makes every typicality 1, which then carries zero
+        # weight in the prototype update.
+        if b == 0:
+            return np.ones((X.shape[0], centers.shape[0]))
+        return _update_T_from_centers(X, centers, self.gamma_ / b, eta)
+
+    def fit(self, X) -> PFCM:
+        """Fit the model on a feature matrix of shape ``(n_samples, n_features)``."""
+        X = check_array(X, estimator=type(self).__name__)
+        K, m, eta, a, b = self._validate(X.shape[0])
+        rng = check_generator(self.random_state)
+
+        U, centers, _ = fcm_fit(X, K, m, rng, max_iter=self.max_iter, tol=self.tol)
+        gamma = _estimate_etas(X, U, centers, m)
+        if not np.all(gamma > 1e-12):
+            fallback = float(np.mean(_euclidean_dist2(X, centers)))
+            gamma = np.where(gamma > 1e-12, gamma, max(fallback, 1e-12))
+        self.gamma_ = gamma
+
+        scale = data_scale(X)
+        trajectory = []
+        for _ in range(self.max_iter):
+            U = _update_U_from_centers(X, centers, m)
+            T = self._typicalities(X, centers, eta, b)
+            weights = a * U**m + b * T**eta
+            new_centers = (weights.T @ X) / np.maximum(weights.sum(axis=0), 1e-300)[
+                :, None
+            ]
+
+            d2 = _euclidean_dist2(X, new_centers)
+            J = float(np.sum(weights * d2) + np.sum(gamma[None, :] * (1.0 - T) ** eta))
+            trajectory.append(J)
+
+            shift = np.linalg.norm(new_centers - centers, axis=1).max()
+            centers = new_centers
+            if shift < self.tol * scale:
                 break
 
+        self.centers_ = centers
+        self.memberships_ = _update_U_from_centers(X, centers, m)
+        self.typicalities_ = self._typicalities(X, centers, eta, b)
+        self.objective_trajectory_ = np.array(trajectory, dtype=np.float64)
+        self.n_iter_ = len(trajectory)
         return self
 
-    def predict_memberships(self, X: np.ndarray | list[list[float]]) -> np.ndarray:
-        """
-        Predict fuzzy memberships for new data points.
-        Returns a (c x n_new) membership matrix.
-        """
-        X = np.array(X, dtype=np.float64)
-        distances = self._compute_distances(X)
-        power = 1.0 / (self.m - 1)
-        denom = np.sum((distances[:, None, :] / distances[None, :, :]) ** power, axis=1)
-        return 1.0 / denom
+    def _check_X(self, X):
+        X = check_array(X, estimator=type(self).__name__)
+        check_n_features(X, self.centers_.shape[1], estimator=type(self).__name__)
+        return X
 
-    def predict_typicalities(self, X: np.ndarray | list[list[float]]) -> np.ndarray:
-        """
-        Predict typicality values for new data points.
-        Returns a (c x n_new) typicality matrix.
-        """
-        X = np.array(X, dtype=np.float64)
-        distances = self._compute_distances(X)
-        T = np.zeros((self.n_clusters, X.shape[0]))
-        for i in range(self.n_clusters):
-            ratio = distances[i] / self.gamma[i]
-            T[i] = 1.0 / (1.0 + ratio ** (1.0 / (self.eta - 1)))
-        return T
+    def _predict_memberships(self, X):
+        return _update_U_from_centers(self._check_X(X), self.centers_, self.m)
+
+    def predict_memberships(self, X) -> np.ndarray:
+        """Fuzzy memberships of new data, cluster-major ``(n_clusters, n_new)``."""
+        self._check_fitted()
+        return self._predict_memberships(X).T
+
+    def predict_typicalities(self, X) -> np.ndarray:
+        """Typicalities of new data, cluster-major ``(n_clusters, n_new)``."""
+        self._check_fitted()
+        return self._typicalities(self._check_X(X), self.centers_, self.eta, self.b).T

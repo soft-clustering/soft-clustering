@@ -16,18 +16,24 @@ checks then apply to it without further work.
 
 from __future__ import annotations
 
+import copy
+import importlib.util
+
 import numpy as np
 import pytest
 import scipy.sparse as sp
 
 import soft_clustering as sc
 
-ESTIMATORS = [
-    n for n in sc.__all__ if n not in ("BaseSoftClusterer", "DEEP_ESTIMATORS")
-]
+ESTIMATORS = sorted(sc._ESTIMATORS)
 
 K = 3
 N = 24
+
+#: The optional ``deep`` extra. Without it the four PyTorch estimators cannot
+#: be fitted; their cases are still registered (so the registry checks below
+#: still see them) but every check that fits them is skipped, not removed.
+HAVE_DEEP = importlib.util.find_spec("torch") is not None
 
 
 # --------------------------------------------------------------------------
@@ -122,15 +128,6 @@ def _clients(seed=17):
     return [first, second], [names, names]
 
 
-def _semi_supervised(n=12, seed=19):
-    """Labelled and unlabelled parts for the semi-supervised kernel method."""
-    rng = np.random.default_rng(seed)
-    labelled = np.vstack([rng.normal(-2, 0.3, (3, 3)), rng.normal(2, 0.3, (3, 3))])
-    y = np.array([1, 1, 1, -1, -1, -1])
-    unlabelled = rng.normal(0, 2.0, (n, 3))
-    return labelled, y, unlabelled
-
-
 def _autoencoder(n_features=8, latent=3):
     """Minimal encoder/decoder pair for the deep fuzzy k-means estimator."""
     import torch.nn as nn
@@ -152,26 +149,35 @@ CASES: dict[str, tuple] = {
     "GK": ({"n_clusters": K, "random_state": 0}, lambda: (_features(),)),
     "GMM": ({"n_clusters": K, "random_state": 0}, lambda: (_features(),)),
     "PFCM": ({"n_clusters": K, "random_state": 0}, lambda: (_features(),)),
-    "CAFCM": ({"n_clusters": K}, lambda: (_features(),)),
-    "CAFHFCM": ({"n_clusters": K}, lambda: (_features(),)),
-    "ENTROPYFCM": ({"n_clusters": K}, lambda: (_features(),)),
-    "AFCM": ({"n_clusters": K}, lambda: (_features(),)),
-    "AFCMSimple": ({"n_clusters": K}, lambda: (_features(),)),
-    "FCC": ({"n_clusters": K}, lambda: (_features(),)),
-    "KFCM": ({"n_clusters": K}, lambda: (_features(),)),
-    "KFCCL": ({"n_clusters": K}, lambda: (_features(),)),
-    "ECM": ({"n_clusters": K}, lambda: (_features(),)),
-    "RoughKMeans": ({"n_clusters": K}, lambda: (_features(),)),
-    "MBMM": ({"n_clusters": K}, lambda: (np.abs(_features()) % 1.0,)),
+    "CAFCM": ({"n_clusters": K, "random_state": 0}, lambda: (_features(),)),
+    "CAFHFCM": ({"n_clusters": K, "random_state": 0}, lambda: (_features(),)),
+    "ENTROPYFCM": ({"n_clusters": K, "random_state": 0}, lambda: (_features(),)),
+    "AFCM": ({"n_clusters": K, "random_state": 0}, lambda: (_features(),)),
+    "AFCMSimple": ({"n_clusters": K, "random_state": 0}, lambda: (_features(),)),
+    "FCC": ({"n_clusters": K, "random_state": 0}, lambda: (_features(),)),
+    "KFCM": ({"n_clusters": K, "random_state": 0}, lambda: (_features(),)),
+    "KFCCL": ({"n_clusters": K, "random_state": 0}, lambda: (_features(),)),
+    "ECM": ({"n_clusters": K, "random_state": 0}, lambda: (_features(),)),
+    "RoughKMeans": ({"n_clusters": K, "random_state": 0}, lambda: (_features(),)),
+    "MBMM": (
+        {"n_clusters": K, "random_state": 0},
+        lambda: (np.abs(_features()) % 1.0,),
+    ),
     "SCM": ({}, lambda: (_features(),)),
     "SoftDBSCANGM": ({}, lambda: (_features(),)),
     "RPFKM": ({"n_clusters": K, "d": 2, "random_state": 0}, lambda: (_features(),)),
     "GathGeva": ({"n_clusters": K, "random_state": 0}, lambda: (_features(),)),
     "EVCLUS": ({"n_clusters": K, "random_state": 0}, lambda: (_features(),)),
-    "SFCMEP": ({"n_clusters": K}, lambda: (_features(), _partial_labels())),
+    "SFCMEP": (
+        {"n_clusters": K, "random_state": 0},
+        lambda: (_features(), _partial_labels()),
+    ),
     # --- graph methods -----------------------------------------------------
-    "BIGCLAM": ({"n_nodes": N, "n_clusters": K}, lambda: (_graph(),)),
-    "BayesianNMF": ({"n_clusters": K}, lambda: (_graph(),)),
+    "BIGCLAM": (
+        {"n_nodes": N, "n_clusters": K, "random_state": 0},
+        lambda: (_graph(),),
+    ),
+    "BayesianNMF": ({"n_clusters": K, "random_state": 0}, lambda: (_graph(),)),
     "MMSB": ({"n_blocks": K, "random_state": 0, "max_iter": 5}, lambda: (_graph(),)),
     "CDCGS": (
         {"n_clusters": K, "random_state": 0, "max_epochs": 20, "n_init": 1},
@@ -193,45 +199,40 @@ CASES: dict[str, tuple] = {
     ),
     # --- document methods --------------------------------------------------
     "WBSC": ({}, lambda: (_docs(),)),
-    "SISC": ({"n_clusters": 2}, lambda: (_docs(),)),
+    "SISC": ({"n_clusters": 2, "random_state": 0}, lambda: (_docs(),)),
     "KMART": ({}, lambda: (_docs(),)),
     "PLSI": ({"n_clusters": 2, "max_iter": 5, "random_state": 0}, lambda: (_docs(),)),
-    "LDA": ({"n_topics": 2, "max_iter": 5}, lambda: (_docs(),)),
+    "LDA": ({"n_topics": 2, "max_iter": 5, "random_state": 0}, lambda: (_docs(),)),
     # --- image / segmentation methods --------------------------------------
     "AFCMAdaptive": ({"n_clusters": K, "max_iter": 5}, lambda: (_image(),)),
-    "SKFCM": ({"n_clusters": K, "max_iter": 5}, lambda: _pixels()),
+    "SKFCM": ({"n_clusters": K, "max_iter": 5, "random_state": 0}, lambda: _pixels()),
     # --- multi-view, federated, semi-supervised ----------------------------
-    "BGMM": ({"n_clusters": 2}, lambda: _two_views()),
+    "BGMM": ({"n_clusters": 2, "random_state": 0}, lambda: _two_views()),
     "FeMIFuzzy": ({"random_state": 0}, lambda: _clients()),
-    "SoftKSC": ({}, lambda: _semi_supervised()),
+    "SoftKSC": ({"n_clusters": K, "gamma": 0.1}, lambda: (_features(),)),
     # --- ensemble methods --------------------------------------------------
-    "SCSPA": ({"n_clusters": K}, lambda: (_ensemble(),)),
-    "SHBGF": ({"n_clusters": K}, lambda: (_ensemble(),)),
-    "SMCLA": ({"n_clusters": K}, lambda: (_ensemble(),)),
+    "SCSPA": ({"n_clusters": K, "random_state": 0}, lambda: (_ensemble(),)),
+    "SHBGF": ({"n_clusters": K, "random_state": 0}, lambda: (_ensemble(),)),
+    "SMCLA": ({"n_clusters": K, "random_state": 0}, lambda: (_ensemble(),)),
 }
 
 
-def _register_rdfkc() -> None:
-    """RDFKC needs an autoencoder, so its case is built lazily.
-
-    Constructing torch modules at import time would make this module --- which
-    every conformance test imports --- depend on the optional deep extra.
-    """
+def _rdfkc_kwargs() -> dict:
+    """RDFKC needs an autoencoder, so its constructor arguments are built
+    lazily: constructing torch modules at import time would make this module
+    --- which every conformance test imports --- depend on the deep extra."""
     encoder, decoder = _autoencoder()
-    CASES["RDFKC"] = (
-        {
-            "K": K,
-            "encoder": encoder,
-            "decoder": decoder,
-            "random_state": 0,
-            "max_iter": 2,
-            "batch_size": 8,
-        },
-        lambda: (_features(d=8).astype("float32"),),
-    )
+    return {
+        "n_clusters": K,
+        "encoder": encoder,
+        "decoder": decoder,
+        "random_state": 0,
+        "max_iter": 2,
+        "batch_size": 8,
+    }
 
 
-_register_rdfkc()
+CASES["RDFKC"] = (_rdfkc_kwargs, lambda: (_features(d=8).astype("float32"),))
 
 
 COVERED = sorted(name for name, case in CASES.items() if case is not None)
@@ -250,17 +251,27 @@ CONDITIONALLY_NORMALISED = frozenset(
     }
 )
 
-#: Unseen data for the estimators that declare an out-of-sample rule, matching
-#: the feature space each was fitted on in ``CASES``.
-OUT_OF_SAMPLE = {
-    "SoftKSC": lambda: np.random.default_rng(99).normal(0, 2.0, (7, 3)),
-}
+
+#: Unseen data for the estimators that declare an out-of-sample rule. Every
+#: inductive estimator is fitted on ``_features()`` in ``CASES``, so unseen
+#: data of the same feature space is enough.
+def _unseen():
+    return _features(n=7, seed=99)
+
+
+def _kwargs(name):
+    kwargs = CASES[name][0]
+    return kwargs() if callable(kwargs) else dict(kwargs)
+
+
+def _make(name):
+    if name in sc.DEEP_ESTIMATORS and not HAVE_DEEP:
+        pytest.skip(f"{name} needs the optional `deep` extra (torch)")
+    return getattr(sc, name)(**_kwargs(name))
 
 
 def _fit(name):
-    kwargs, make_args = CASES[name]
-    model = getattr(sc, name)(**kwargs)
-    return model.fit(*make_args())
+    return _make(name).fit(*CASES[name][1]())
 
 
 # --------------------------------------------------------------------------
@@ -300,9 +311,8 @@ def test_no_estimator_is_excluded():
 
 @pytest.mark.parametrize("name", COVERED)
 def test_fit_returns_self(name):
-    kwargs, make_args = CASES[name]
-    model = getattr(sc, name)(**kwargs)
-    assert model.fit(*make_args()) is model
+    model = _make(name)
+    assert model.fit(*CASES[name][1]()) is model
 
 
 @pytest.mark.parametrize("name", COVERED)
@@ -312,7 +322,7 @@ def test_memberships_shape_and_dtype(name):
     assert U is not None, f"{name} did not populate memberships_"
     assert U.ndim == 2, f"{name}.memberships_ is not 2-D"
     assert np.issubdtype(U.dtype, np.floating)
-    assert U.shape[1] == model.n_clusters
+    assert U.shape[1] == model.n_clusters_
 
 
 @pytest.mark.parametrize("name", COVERED)
@@ -338,7 +348,9 @@ def test_labels_agree_with_argmax(name):
     U = model.memberships_
     if U.shape[1] == 0:
         pytest.skip(f"{name} discovered an empty partition on this input")
-    np.testing.assert_array_equal(model.labels_, np.argmax(U, axis=1))
+    expected = np.argmax(U, axis=1)
+    expected[U.max(axis=1) <= 0] = -1  # unassigned samples
+    np.testing.assert_array_equal(model.labels_, expected)
     assert model.labels_.shape == (U.shape[0],)
 
 
@@ -382,7 +394,7 @@ def test_out_of_sample_predict_is_explicit(name):
     """
     model = _fit(name)
     if model._supports_out_of_sample:
-        unseen = OUT_OF_SAMPLE[name]()
+        unseen = _unseen()
         assert model.predict(unseen).shape == (unseen.shape[0],)
         assert model.predict_proba(unseen).shape[0] == unseen.shape[0]
     else:
@@ -396,8 +408,7 @@ def test_out_of_sample_predict_is_explicit(name):
 def test_get_params_round_trips_through_clone(name):
     """Parameter introspection must reconstruct an equivalent estimator."""
     sklearn_base = pytest.importorskip("sklearn.base")
-    kwargs, _ = CASES[name]
-    model = getattr(sc, name)(**kwargs)
+    model = _make(name)
     twin = sklearn_base.clone(model)
 
     assert type(twin) is type(model)
@@ -422,13 +433,15 @@ def test_centers_shape_when_present(name):
 
 @pytest.mark.parametrize("name", COVERED)
 def test_predict_before_fit_raises(name):
-    kwargs, _ = CASES[name]
-    model = getattr(sc, name)(**kwargs)
+    model = _make(name)
     with pytest.raises(RuntimeError):
         model.predict()
 
 
-@pytest.mark.parametrize("name", [n for n in COVERED if "random_state" in CASES[n][0]])
+SEEDED = [n for n in COVERED if n == "RDFKC" or "random_state" in CASES[n][0]]
+
+
+@pytest.mark.parametrize("name", SEEDED)
 def test_reproducible_under_fixed_seed(name):
     first = _fit(name).memberships_
     second = _fit(name).memberships_
@@ -438,4 +451,145 @@ def test_reproducible_under_fixed_seed(name):
 @pytest.mark.parametrize("name", COVERED)
 def test_n_clusters_reports_the_fitted_partition(name):
     model = _fit(name)
-    assert model.n_clusters == model.memberships_.shape[1]
+    assert model.n_clusters_ == model.memberships_.shape[1]
+
+
+# --------------------------------------------------------------------------
+# Library-wide guarantees added with the 0.2.0 correctness audit.
+# --------------------------------------------------------------------------
+
+
+def test_every_stochastic_estimator_accepts_random_state():
+    """An estimator that draws random numbers must let the caller seed them."""
+    deterministic = {
+        "AFCMAdaptive",  # quantile initialisation, no randomness
+        "KMART",  # deterministic presentation order
+        "SCM",  # deterministic potential maximisation
+        "SoftDBSCANGM",  # DBSCAN initialisation is deterministic
+        "SoftKSC",  # eigen-decomposition
+        "WBSC",  # deterministic word clusters
+    }
+    import inspect
+
+    missing = []
+    for name in ESTIMATORS:
+        if name in deterministic:
+            continue
+        if name in sc.DEEP_ESTIMATORS and not HAVE_DEEP:
+            continue
+        params = inspect.signature(getattr(sc, name).__init__).parameters
+        if "random_state" not in params:
+            missing.append(name)
+    assert not missing, f"stochastic estimators without random_state: {missing}"
+
+
+@pytest.mark.parametrize("name", SEEDED)
+def test_refit_is_idempotent(name):
+    """Fitting the same instance twice gives the same result.
+
+    Several estimators used to keep state between fits: a random generator
+    created in the constructor, clusters appended to the previous fit's, or
+    network weights carried over from the previous training run.
+    """
+    model = _make(name)
+    args = CASES[name][1]
+    first = model.fit(*args()).memberships_.copy()
+    second = model.fit(*args()).memberships_
+    np.testing.assert_allclose(first, second, atol=1e-10)
+
+
+@pytest.mark.parametrize("name", SEEDED)
+def test_seeded_fit_leaves_global_random_state_untouched(name):
+    """A seeded estimator must neither read nor reseed NumPy's global RNG."""
+    model = _make(name)
+    args = CASES[name][1]()
+    np.random.seed(2024)
+    expected = np.random.random_sample()
+    np.random.seed(2024)
+    model.fit(*args)
+    assert (
+        np.random.random_sample() == expected
+    ), f"{name} consumed or reseeded NumPy's global random state"
+
+
+@pytest.mark.parametrize("name", [n for n in COVERED if n in sc.DEEP_ESTIMATORS])
+def test_seeded_deep_fit_leaves_torch_random_state_untouched(name):
+    if not HAVE_DEEP:
+        pytest.skip("needs the optional `deep` extra")
+    import torch
+
+    # Construct first: building the test's own torch modules draws from the
+    # global stream, and only fit() is under test.
+    model = _make(name)
+    args = CASES[name][1]()
+    torch.manual_seed(2024)
+    expected = torch.rand(1)
+    torch.manual_seed(2024)
+    model.fit(*args)
+    assert torch.rand(1) == expected
+
+
+@pytest.mark.parametrize("name", COVERED)
+def test_predict_proba_on_training_data_reproduces_memberships(name):
+    """For an inductive estimator, the out-of-sample rule applied to the
+    training data must give the fitted memberships: the published parameters
+    and memberships describe the same model."""
+    model = _fit(name)
+    if not model._supports_out_of_sample:
+        pytest.skip(f"{name} is transductive")
+    np.testing.assert_allclose(
+        model.predict_proba(CASES[name][1]()[0]), model.memberships_, atol=1e-8
+    )
+
+
+@pytest.mark.parametrize("name", COVERED)
+def test_fit_does_not_modify_its_input(name):
+    if name in sc.DEEP_ESTIMATORS and not HAVE_DEEP:
+        pytest.skip("needs the optional `deep` extra")
+    args = CASES[name][1]()
+    snapshot = copy.deepcopy(args)
+    _make(name).fit(*args)
+    for got, expected in zip(args, snapshot):
+        if sp.issparse(got):
+            got, expected = got.toarray(), expected.toarray()
+        if isinstance(got, np.ndarray):
+            np.testing.assert_array_equal(got, expected)
+        elif isinstance(got, list) and got and isinstance(got[0], np.ndarray):
+            for a, b in zip(got, expected):
+                np.testing.assert_array_equal(a, b)
+        else:
+            assert got == expected or got is None
+
+
+@pytest.mark.parametrize("name", COVERED)
+def test_fit_predict_returns_memberships(name):
+    """fit_predict returns memberships_ for every estimator.
+
+    It used to return a tuple, a dict, a sparse matrix or hard labels,
+    depending on the estimator.
+    """
+    model = _make(name)
+    result = model.fit_predict(*CASES[name][1]())
+    assert isinstance(result, np.ndarray)
+    np.testing.assert_array_equal(result, model.memberships_)
+
+
+@pytest.mark.parametrize("name", COVERED)
+def test_fit_does_not_modify_parameters(name):
+    """``get_params`` is the same before and after ``fit`` (scikit-learn's rule).
+
+    Earlier releases overwrote ``n_clusters`` with the fitted count.
+    """
+    model = _make(name)
+    before = {
+        k: v for k, v in model.get_params().items() if not hasattr(v, "parameters")
+    }
+    model.fit(*CASES[name][1]())
+    after = {
+        k: v for k, v in model.get_params().items() if not hasattr(v, "parameters")
+    }
+    assert before.keys() == after.keys()
+    for key in before:
+        assert repr(before[key]) == repr(after[key]), f"{name}.{key} changed during fit"
+    if "n_clusters" in before:
+        assert model.n_clusters == before["n_clusters"]

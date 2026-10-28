@@ -1,24 +1,31 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
 
-import sys
-from os import path
+"""CAFHFCM: Centroid auto-fused hierarchical FCM: the number of clusters is discovered.
+
+Run with ``python example/example_cafhfcm.py`` after ``pip install soft-clustering``.
+"""
 
 import numpy as np
 
-if __name__ == "__main__":
-    base_dir = path.dirname(path.realpath(__file__))
-    sys.path.append(base_dir[:-4])
-    from soft_clustering import CAFHFCM
+from soft_clustering import CAFHFCM
 
-    # Two simulated clusters in 2D space
-    np.random.seed(42)
-    cluster1 = np.random.normal(loc=[1, 1], scale=0.5, size=(50, 2))
-    cluster2 = np.random.normal(loc=[5, 5], scale=0.5, size=(50, 2))
-    X = np.vstack([cluster1, cluster2])
+rng = np.random.default_rng(0)
+X = np.vstack(
+    [
+        rng.normal([0.0, 0.0], 0.5, (40, 2)),
+        rng.normal([4.0, 0.0], 0.5, (40, 2)),
+        rng.normal([2.0, 3.5], 0.5, (40, 2)),
+    ]
+)
 
-    model = CAFHFCM(c=2, m=2.0, alpha=0.1)
-    labels, memberships = model.fit_predict(X)
+model = CAFHFCM(alpha=0.01, random_state=0).fit(X)
 
-    print("Cluster Labels:", labels)
-    print("Membership Matrix Shape:", memberships.shape)
+print("memberships_ shape:", model.memberships_.shape)
+print("first three rows:\n", np.round(model.memberships_[:3], 3))
+print("labels_:", model.labels_)
+print("clusters produced:", model.n_clusters_)
+print(
+    "(initial centroids, after fusion):",
+    model.merge_history_[-1] if model.merge_history_ else None,
+)

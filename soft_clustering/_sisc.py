@@ -11,37 +11,65 @@ from ._base import BaseSoftClusterer
 
 
 class SISC(BaseSoftClusterer):
-    # similarity-based assignment permits overlapping degrees that need not sum to one
-    _partition_constrained = False
-    # Discovers the cluster count; see BaseSoftClusterer._determines_k.
-    _determines_k = True
-    """
+    r"""
     Implements the Similarity-based Soft Clustering (SISC) algorithm.
 
     This algorithm performs soft clustering on documents, meaning a document
     can belong to multiple clusters. It is based on a given similarity
     measure and uses randomization to improve computational efficiency.
 
-    Attributes:
-        k (int): The user-expected number of final clusters.
-        k_initial (int): The number of initial centroids to select (2*k).
-        similarity_threshold (float): The dynamic threshold (lambda) used for merging clusters.
-        centroids_ (List[Set[int]]): The documents representing each final cluster.
-        clusters_ (List[Set[int]]): The final soft clusters, containing all member document indices.
-        cluster_words_ (List[Set[str]]): The keywords representing each final cluster.
+    Attributes
+    ----------
+    memberships_ : ndarray of shape (n_documents, n_clusters)
+        Binary document-cluster incidence; a document may be in several
+        clusters or, if it is below the threshold for all, in none.
+    similarity_threshold : float
+        The data-dependent threshold :math:`\\lambda`.
+    clusters\_ : list of set of int
+        Document indices of every final cluster.
+    cluster_words\_ : list of set of str
+        Words of the documents in every final cluster.
     """
 
-    def __init__(self, k: int):
+    # similarity-based assignment permits overlapping degrees that need not sum to one
+    _partition_constrained = False
+    # Discovers the cluster count; see BaseSoftClusterer._determines_k.
+    _determines_k = True
+
+    def __init__(
+        self,
+        n_clusters: int = 3,
+        max_iter: int = 100,
+        random_state: int | None = None,
+    ):
         """
         Initializes the SISC algorithm with the expected number of clusters.
 
         Args:
-            k (int): The expected number of final clusters.
+            n_clusters (int): The expected number of clusters ``k`` (``k`` is
+                accepted as an alias). The algorithm starts from ``2k``
+                candidate centroids and merges overlapping clusters, so the
+                number it returns is discovered and may differ.
+            max_iter (int): Maximum number of refine-and-merge passes. Earlier
+                releases looped until no centroid changed, with no bound.
+            random_state (int or None): Seed for the choice of the first
+                centroid. Earlier releases used Python's global ``random``
+                module and could not be reproduced.
+
+        Reference: K.-I. Lin and R. Kondadadi. A similarity-based soft
+        clustering algorithm for documents. In *Proc. 7th International
+        Conference on Database Systems for Advanced Applications (DASFAA
+        2001)*, pp. 40--47, 2001. doi:10.1109/DASFAA.2001.916362
+
+        ``memberships_`` is the binary document-cluster incidence matrix.
         """
-        self.k = k
-        self.k_initial = (
-            2 * k
-        )  # Start with twice the expected clusters to be more robust
+        if n_clusters < 1:
+            raise ValueError(f"SISC: n_clusters must be >= 1; got {n_clusters}.")
+        self.n_clusters = n_clusters
+        self.k = n_clusters
+        self.max_iter = max_iter
+        self.random_state = random_state
+        self.k_initial = 2 * n_clusters
         self.similarity_threshold = 0.0
         self.centroids_: list[set[int]] = []
         self.clusters_: list[set[int]] = []
@@ -91,10 +119,10 @@ class SISC(BaseSoftClusterer):
             ]
         )
 
-        processed_docs = []
+        processed_docs: list[dict[str, int]] = []
         for doc in docs:
             words = doc.lower().split()
-            word_counts = defaultdict(int)
+            word_counts: defaultdict[str, int] = defaultdict(int)
             for word in words:
                 if word not in stop_words:
                     word_counts[word] += 1
@@ -151,51 +179,48 @@ class SISC(BaseSoftClusterer):
 
         # Step 1: Pick k_initial centroids that are far from each other
         centroids_indices = set()
-        first_centroid_idx = random.choice(doc_indices)
+        first_centroid_idx = self._rng.choice(doc_indices)
         centroids_indices.add(first_centroid_idx)
 
         remaining_docs = list(set(doc_indices) - centroids_indices)
+        # Farthest-first: the next centroid is the document least similar to
+        # its most similar existing centroid. Earlier releases picked the
+        # document whose *least* similar centroid was most similar, i.e. the
+        # document closest to all centroids, the opposite of the intent.
         while len(centroids_indices) < self.k_initial and remaining_docs:
-            max_min_similarity = -1
-            best_doc_idx = -1
-
+            best_doc_idx, best_score = -1, float("inf")
             for doc_idx in remaining_docs:
-                min_similarity_to_centroids = float("inf")
-                for centroid_idx in centroids_indices:
-                    sim = self._tanimoto_similarity(
+                closest = max(
+                    self._tanimoto_similarity(
                         processed_docs[doc_idx], processed_docs[centroid_idx]
                     )
-                    min_similarity_to_centroids = min(min_similarity_to_centroids, sim)
-
-                if min_similarity_to_centroids > max_min_similarity:
-                    max_min_similarity = min_similarity_to_centroids
-                    best_doc_idx = doc_idx
-
-            if best_doc_idx != -1:
-                centroids_indices.add(best_doc_idx)
-                remaining_docs.remove(best_doc_idx)
-            else:
-                break
-
-        # Step 2: Calculate all similarities to find the dynamic threshold (lambda)
-        all_similarities = []
-        for p_idx in centroids_indices:
-            for q_idx in range(num_docs):
-                all_similarities.append(
-                    self._tanimoto_similarity(
-                        processed_docs[p_idx], processed_docs[q_idx]
-                    )
+                    for centroid_idx in centroids_indices
                 )
+                if closest < best_score:
+                    best_score, best_doc_idx = closest, doc_idx
+            centroids_indices.add(best_doc_idx)
+            remaining_docs.remove(best_doc_idx)
 
-        all_similarities.sort(reverse=True)
-
-        # The threshold is set such that at least half of the documents are close
-        # to at least one centroid.
-        target_index = num_docs // 2
-        if target_index < len(all_similarities):
-            self.similarity_threshold = all_similarities[target_index]
-        else:
-            self.similarity_threshold = 0.0
+        # Step 2: the dynamic threshold lambda is chosen so that at least half
+        # of the documents are within lambda of some centroid: it is the
+        # median of every document's similarity to its closest centroid.
+        # Earlier releases took the (n/2)-th largest of all centroid-document
+        # similarities, self-similarities included, which set lambda so high
+        # that most documents joined no cluster.
+        closest_similarity = sorted(
+            (
+                max(
+                    self._tanimoto_similarity(
+                        processed_docs[q_idx], processed_docs[p_idx]
+                    )
+                    for p_idx in centroids_indices
+                )
+                for q_idx in range(num_docs)
+            ),
+            reverse=True,
+        )
+        half = (num_docs + 1) // 2
+        self.similarity_threshold = closest_similarity[half - 1] if num_docs else 0.0
 
         # Step 3: Filter out any outlier centroids
         initial_centroids = [{p} for p in centroids_indices]
@@ -318,6 +343,11 @@ class SISC(BaseSoftClusterer):
             csr_matrix: A sparse matrix of shape (num_docs, num_clusters) indicating
                         document membership in the final clusters.
         """
+        if isinstance(docs, str) or not all(isinstance(d, str) for d in docs):
+            raise TypeError("SISC: docs must be a list of strings, one per document.")
+        self.k = self.n_clusters
+        self.k_initial = 2 * self.n_clusters
+        self._rng = random.Random(self.random_state)
         processed_docs = self._preprocess(docs)
         num_docs = len(docs)
 
@@ -325,9 +355,9 @@ class SISC(BaseSoftClusterer):
         centroids = self._initialize_centroids(processed_docs)
 
         # Phase 2: Iteratively refine and merge clusters
-        while True:
+        for _ in range(self.max_iter):
             changes_made = False
-            new_centroids = [set() for _ in range(len(centroids))]
+            new_centroids: list[set[int]] = [set() for _ in range(len(centroids))]
 
             # Update each centroid's documents
             for c_idx, centroid in enumerate(centroids):
@@ -336,9 +366,11 @@ class SISC(BaseSoftClusterer):
                     m_value = self._calculate_membership_measure(
                         doc_idx, centroid, processed_docs
                     )
-                    if random.random() < m_value / (self.similarity_threshold + 1e-9):
-                        if m_value >= self.similarity_threshold:
-                            new_centroids[c_idx].add(doc_idx)
+                    # The reference accepts a document with probability
+                    # m / lambda; for m >= lambda that probability is one,
+                    # so the test reduces to the threshold below.
+                    if m_value >= self.similarity_threshold:
+                        new_centroids[c_idx].add(doc_idx)
 
             # Check for significant changes in centroids to determine if the loop should terminate
             current_centroids_sets = [frozenset(c) for c in centroids]

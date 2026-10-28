@@ -27,12 +27,12 @@ BENCH_EXTRA_HINT = (
 try:
     import pandas as pd
 except ImportError:  # pragma: no cover - exercised only without the extra
-    pd = None  # type: ignore[assignment]
+    pd = None
 
 try:
     import psutil
 except ImportError:  # pragma: no cover - exercised only without the extra
-    psutil = None  # type: ignore[assignment]
+    psutil = None
 
 
 def _require(module: Any, package: str, feature: str) -> Any:

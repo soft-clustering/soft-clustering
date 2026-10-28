@@ -188,17 +188,29 @@ def fuzzy_hypervolume(
     Pattern Recognition Letters, 9(2):77--86, 1989.
     """
     X = np.asarray(X, dtype=np.float64)
+    centers = np.asarray(centers, dtype=np.float64)
     U_m = np.asarray(U, dtype=np.float64) ** m
-    weights = U_m.sum(axis=0)
-
-    diff = X[:, None, :] - np.asarray(centers, dtype=np.float64)[None, :, :]
-    cov = np.einsum("nk,nkd,nke->kde", U_m, diff, diff, optimize=True)
-    cov /= np.maximum(weights, np.finfo(float).tiny)[:, None, None]
+    weights = np.maximum(U_m.sum(axis=0), np.finfo(float).tiny)
+    n_samples, n_features = X.shape
 
     # A cluster confined to a subspace has determinant zero, which is a
-    # legitimate value here (zero volume), so no ridge is added.
-    determinants = np.maximum(np.linalg.det(cov), 0.0)
-    return float(np.sum(np.sqrt(determinants)))
+    # legitimate value here (zero volume), so no ridge is added. Each F_i is a
+    # sum of n rank-one terms, so with fewer samples than features every
+    # volume is exactly zero; return that without forming d x d matrices.
+    if n_samples < n_features:
+        return 0.0
+
+    # One cluster at a time keeps memory at O(n d + d^2) rather than
+    # O(n K d + K d^2); slogdet avoids the under- and overflow of det in high
+    # dimensions.
+    total = 0.0
+    for i in range(centers.shape[0]):
+        diff = X - centers[i]
+        cov = (U_m[:, i, None] * diff).T @ diff / weights[i]
+        sign, logdet = np.linalg.slogdet(cov)
+        if sign > 0:
+            total += float(np.exp(0.5 * logdet))
+    return total
 
 
 def xie_beni_index(

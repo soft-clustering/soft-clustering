@@ -510,6 +510,13 @@ class TestSoftMetrics:
         centers = X.mean(axis=0, keepdims=True)
         assert metrics.fuzzy_hypervolume(X, U, centers, m=1.0) == pytest.approx(0.0)
 
+    def test_fuzzy_hypervolume_is_zero_with_fewer_samples_than_features(self):
+        """Every fuzzy covariance then has rank < d; no d x d matrix is formed."""
+        rng = np.random.default_rng(0)
+        X = rng.normal(size=(5, 50_000))  # a (K, d, d) batch would need 40 GB
+        U = rng.dirichlet(np.ones(2), size=5)
+        assert metrics.fuzzy_hypervolume(X, U, X[:2], m=2.0) == 0.0
+
     def test_fuzzy_separation_is_mean_pairwise_distance(self):
         centers = np.array([[0.0, 0.0], [3.0, 4.0]])
         assert metrics.fuzzy_separation_index(centers) == pytest.approx(5.0)
@@ -1244,3 +1251,50 @@ class TestEndToEnd:
         assert df["ari"].iloc[0] > 0.5  # FCM recovers the iris structure
         assert 0.0 <= df["partition_coefficient"].iloc[0] <= 1.0
         assert BenchmarkReport(df).leaderboard("ari").shape[0] == 1
+
+
+def test_adapter_n_clusters_overrides_the_constructor_default():
+    """Regression: the adapter assigned ``model.n_clusters`` directly, which a
+    fit silently undoes (every fit restores the constructor parameters), and
+    skipped it entirely when the constructor had a default."""
+    from soft_clustering import FCM
+    from soft_clustering.benchmarking import BenchmarkAdapter
+
+    X = np.random.default_rng(0).normal(size=(40, 2))
+    adapter = BenchmarkAdapter(FCM(random_state=0), n_clusters=5).fit(X)
+    assert adapter.membership_.shape == (40, 5)
+
+
+def test_olivetti_falls_back_to_openml(monkeypatch):
+    """A refused scikit-learn download is replaced by the OpenML copy."""
+
+    def refused():
+        raise OSError("HTTP Error 403: Forbidden")
+
+    class _Bunch:
+        data = np.ones((4, 6))
+        target = np.array(["0", "0", "1", "1"])
+
+    calls = {}
+
+    def openml(**kwargs):
+        calls.update(kwargs)
+        return _Bunch()
+
+    monkeypatch.setattr(datasets, "fetch_olivetti_faces", refused)
+    monkeypatch.setattr(datasets, "fetch_openml", openml)
+    X, y = datasets.get_dataset("olivetti_faces")
+    assert calls["data_id"] == 41083
+    assert X.dtype == np.float64 and X.shape == (4, 6)
+    np.testing.assert_array_equal(y, [0, 0, 1, 1])
+
+
+def test_olivetti_reports_both_failures(monkeypatch):
+    def refused(**kwargs):
+        raise OSError("unreachable")
+
+    monkeypatch.setattr(datasets, "fetch_olivetti_faces", refused)
+    monkeypatch.setattr(datasets, "fetch_openml", refused)
+    with pytest.raises(OSError) as info:
+        datasets.get_dataset("olivetti_faces")
+    assert isinstance(info.value.__cause__, OSError)

@@ -1,76 +1,57 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
 
-import random
+"""Possibilistic c-means (Krishnapuram and Keller, 1993)."""
+
+from __future__ import annotations
 
 import numpy as np
-import scipy.sparse as sp
 from typeguard import typechecked
 
 from ._base import BaseSoftClusterer
-
-
-def _euclidean_dist2(X, centers):
-    """Compute squared Euclidean distances between samples and centers.
-
-    Args:
-        X: data matrix, shape (n_samples, n_features)
-        centers: cluster centers, shape (K, n_features)
-
-    Returns:
-        dist2: squared distances, shape (n_samples, K)
-    """
-    x_norm = np.sum(X * X, axis=1, keepdims=True)
-    c_norm = np.sum(centers * centers, axis=1, keepdims=True).T
-    dist2 = x_norm + c_norm - 2.0 * (X @ centers.T)
-    np.maximum(dist2, 0.0, out=dist2)
-    return dist2
-
-
-def _init_centers_kpp(X, K, rng):
-    """k-means++ style seeding from data points."""
-    n, _ = X.shape
-    centers = np.empty((K, X.shape[1]), dtype=X.dtype)
-    idx0 = rng.integers(0, n)
-    centers[0] = X[idx0]
-    for k in range(1, K):
-        d2 = _euclidean_dist2(X, centers[:k])
-        dmin = np.min(d2, axis=1)
-        s = dmin.sum()
-        if not np.isfinite(s) or s <= 0.0:
-            idx = rng.integers(0, n)
-        else:
-            probs = dmin / s
-            idx = rng.choice(n, p=probs)
-        centers[k] = X[idx]
-    return centers
+from ._fcm import _euclidean_dist2, _init_centers_kpp, fcm_fit
+from ._validation import (
+    check_array,
+    check_generator,
+    check_n_clusters,
+    check_n_features,
+    check_scalar,
+    objective_converged,
+)
 
 
 def _update_T_from_centers(X, centers, etas, m, eps=1e-12):
-    """Update typicality matrix given centers and eta (per-cluster scale)."""
-    d2 = _euclidean_dist2(X, centers) + eps
-    power = 1.0 / (m - 1.0)
-    # t_ik = 1 / (1 + (d2_ik / eta_k)^{power})
-    T = 1.0 / (1.0 + (d2 / (etas[None, :] + eps)) ** power)
+    """Typicality update ``t_ik = 1 / (1 + (d_ik^2 / eta_k)^{1/(m-1)})``.
+
+    Evaluated as a logistic function of ``log(d^2/eta) / (m - 1)`` so that it
+    neither overflows for ``m`` close to one nor returns NaN for a sample
+    coincident with a prototype.
+    """
+    d2 = _euclidean_dist2(X, centers)
+    # Floors at the smallest positive double only guard log(0); a floor in data
+    # units (such as eps) would make the typicalities depend on the scale of X.
+    tiny = np.finfo(np.float64).tiny
+    log_ratio = np.log(np.maximum(d2, tiny)) - np.log(np.maximum(etas, tiny))[None, :]
+    z = log_ratio / (m - 1.0)
+    # 1 / (1 + exp(z)) without overflow.
+    T = np.empty_like(z)
+    pos = z >= 0
+    ez = np.exp(-z[pos])
+    T[pos] = ez / (1.0 + ez)
+    T[~pos] = 1.0 / (1.0 + np.exp(z[~pos]))
     return np.clip(T, eps, 1.0)
 
 
 def _update_centers_from_T(X, T, m, eps=1e-12):
-    """Update centers given typicalities."""
     Tm = T**m
-    num = Tm.T @ X
-    den = np.sum(Tm, axis=0, keepdims=True).T
-    centers = num / (den + eps)
-    return centers
+    return (Tm.T @ X) / (Tm.sum(axis=0)[:, None] + eps)
 
 
-def _update_etas(X, T, centers, m, alpha=1.0, eps=1e-12):
-    """Update per-cluster eta as weighted intra-cluster variance."""
+def _estimate_etas(X, W, centers, m, alpha=1.0, eps=1e-12):
+    """``eta_k = alpha * sum_i w_ik^m d_ik^2 / sum_i w_ik^m`` (K&K, Eq. 9)."""
     d2 = _euclidean_dist2(X, centers)
-    Tm = T**m
-    num = np.sum(Tm * d2, axis=0)  # (K,)
-    den = np.sum(Tm, axis=0) + eps  # (K,)
-    etas = alpha * (num / den + eps)
+    Wm = W**m
+    etas = alpha * (Wm * d2).sum(axis=0) / (Wm.sum(axis=0) + eps)
     return np.maximum(etas, eps)
 
 
@@ -83,94 +64,175 @@ def _objective_pcm(X, T, centers, etas, m):
 
 @typechecked
 class PossibilisticCMeans(BaseSoftClusterer):
-    # typicalities are independent per cluster (Krishnapuram and Keller, 2002)
+    """Possibilistic c-means (PCM).
+
+    Drops the fuzzy partition constraint and penalises low typicality instead:
+
+    .. math::
+
+        J(T, V) = \\sum_{i,k} t_{ik}^m \\lVert x_i - v_k\\rVert^2
+                + \\sum_k \\eta_k \\sum_i (1 - t_{ik})^m ,
+
+    giving the closed-form updates
+
+    .. math::
+
+        t_{ik} = \\Big[1 + \\big(\\lVert x_i - v_k\\rVert^2/\\eta_k\\big)^{1/(m-1)}\\Big]^{-1},
+        \\qquad v_k = \\frac{\\sum_i t_{ik}^m x_i}{\\sum_i t_{ik}^m}.
+
+    Typicalities are computed independently for each cluster, so rows of
+    ``memberships_`` do **not** sum to one: an outlier receives low typicality
+    in every cluster.
+
+    Following Krishnapuram and Keller (1993), the run is initialised from a
+    fuzzy c-means partition and the scale of each cluster is estimated once
+    from it, ``eta_k = alpha * sum_i u_ik^m d_ik^2 / sum_i u_ik^m``, and then
+    held fixed. With fixed ``eta`` each update minimises :math:`J` in one
+    block of variables, so ``objective_trajectory_`` is non-increasing.
+
+    PCM is known to produce coincident clusters when two prototypes are
+    attracted to the same dense region; this is a property of the
+    formulation (Barni et al., 1996), not of this implementation, and is one
+    motivation for :class:`PFCM`.
+
+    Parameters
+    ----------
+    n_clusters : int, default=3
+        Number of clusters.
+    m : float, default=2.0
+        Fuzzifier, ``m > 1``.
+    alpha : float, default=1.0
+        Scale factor ``K`` in the estimate of ``eta_k`` (Krishnapuram and
+        Keller use ``K = 1``). Larger values give wider, more tolerant
+        clusters.
+    max_iter : int, default=300
+        Maximum number of sweeps.
+    tol : float, default=1e-5
+        Stop when the objective changes by at most ``tol`` relative to its
+        magnitude.
+    init : {"fcm", "kmeans++", "random"}, default="fcm"
+        ``"fcm"`` initialises prototypes and ``eta`` from a fuzzy c-means run,
+        as the reference prescribes. ``"kmeans++"`` and ``"random"`` seed
+        prototypes directly and estimate ``eta`` from the nearest-prototype
+        partition; they are provided for ablation.
+    random_state : int, numpy Generator or None, default=None
+        Seed for the initialisation.
+
+    Attributes
+    ----------
+    memberships_ : ndarray of shape (n_samples, n_clusters)
+        Typicalities in ``(0, 1]``; rows need not sum to one.
+    typicalities_ : ndarray of shape (n_samples, n_clusters)
+        Same array as ``memberships_``.
+    centers_ : ndarray of shape (n_clusters, n_features)
+        Prototypes.
+    etas_ : ndarray of shape (n_clusters,)
+        Fixed per-cluster scale parameters.
+    objective_trajectory_ : ndarray
+        Objective after every sweep.
+    n_iter_ : int
+        Number of sweeps performed.
+
+    References
+    ----------
+    R. Krishnapuram and J. M. Keller. A possibilistic approach to clustering.
+    *IEEE Transactions on Fuzzy Systems*, 1(2):98--110, 1993.
+    doi:10.1109/91.227387
+    """
+
     _partition_constrained = False
+    _membership_attrs = ("typicalities_",)
+    _centers_attrs = ("centers_",)
+    _supports_out_of_sample = True
 
     def __init__(
         self,
-        random_state: int | None = None,
+        n_clusters: int = 3,
         m: float = 2.0,
         alpha: float = 1.0,
         max_iter: int = 300,
         tol: float = 1e-5,
-        init: str = "kmeans++",
+        init: str = "fcm",
+        random_state: int | np.random.Generator | None = None,
     ):
-        self.random_state = random_state
-        if random_state is not None:
-            np.random.seed(random_state)
-            random.seed(random_state)
-
+        self.n_clusters = n_clusters
         self.m = m
         self.alpha = alpha
         self.max_iter = max_iter
         self.tol = tol
         self.init = init
+        self.random_state = random_state
 
-        self.centers_ = None
-        self.typicalities_ = None
-        self.etas_ = None
-        self.objective_trajectory_ = None
+    def fit_predict(self, X, y=None, K: int | None = None):
+        """Fit the model and return the typicality matrix.
 
-    def fit_predict(self, X, K):
-        """Fit the PCM model and compute typicalities.
+        Parameters
+        ----------
+        X : array-like or sparse matrix of shape (n_samples, n_features)
+        y : ignored
+            Accepted for scikit-learn compatibility.
+        K : int, optional
+            Deprecated fit-time cluster count; prefer ``n_clusters``.
 
-        Args:
-            X: Data matrix (numpy.ndarray or scipy.sparse), shape (n_samples, n_features).
-            K: Number of clusters (int).
-
-        Returns:
-            typicalities: Typicality matrix (numpy.ndarray, shape (n_samples, K)).
+        Returns
+        -------
+        ndarray of shape (n_samples, n_clusters)
         """
-        if sp.issparse(X):
-            X = X.toarray()
-        X = np.asarray(X, dtype=np.float64)
-        n, d = X.shape
-        if K <= 0 or K > n:
-            raise ValueError(f"Invalid K: {K}. Must be in [1, n_samples].")
-        if self.m <= 1.0:
-            raise ValueError(f"m must be > 1. Got m={self.m}.")
+        name = type(self).__name__
+        X = check_array(X, estimator=name)
+        K = check_n_clusters(
+            self.n_clusters if K is None else K, X.shape[0], estimator=name
+        )
+        m = check_scalar(self.m, "m", estimator=name, lower=1.0, lower_inclusive=False)
+        alpha = check_scalar(
+            self.alpha, "alpha", estimator=name, lower=0.0, lower_inclusive=False
+        )
+        rng = check_generator(self.random_state)
 
-        rng = np.random.default_rng(self.random_state)
-
-        # initialize centers
-        if self.init == "kmeans++":
-            centers = _init_centers_kpp(X, K, rng)
-        elif self.init == "random":
-            idx = rng.integers(0, n, size=K)
-            centers = X[idx].copy()
-        else:
-            raise ValueError(f"Unknown init='{self.init}'.")
-
-        # initialize etas by average within-cluster squared distance (hard assign)
-        d2 = _euclidean_dist2(X, centers)
-        labels = np.argmin(d2, axis=1)
-        etas = np.empty(K, dtype=np.float64)
-        global_mean = np.mean(d2, axis=0)
-        for k in range(K):
-            mask = labels == k
-            if np.any(mask):
-                etas[k] = np.mean(d2[mask, k])
+        if self.init == "fcm":
+            U, centers, _ = fcm_fit(X, K, m, rng, max_iter=self.max_iter, tol=self.tol)
+        elif self.init in ("kmeans++", "random"):
+            if self.init == "kmeans++":
+                centers = _init_centers_kpp(X, K, rng)
             else:
-                etas[k] = global_mean[k]
-        etas = np.maximum(self.alpha * (etas + 1e-12), 1e-12)
+                centers = X[rng.choice(X.shape[0], size=K, replace=False)].copy()
+            labels = np.argmin(_euclidean_dist2(X, centers), axis=1)
+            U = np.zeros((X.shape[0], K))
+            U[np.arange(X.shape[0]), labels] = 1.0
+        else:
+            raise ValueError(
+                f"{name}: init must be 'fcm', 'kmeans++' or 'random'; got "
+                f"{self.init!r}."
+            )
 
-        # initial typicalities
-        T = _update_T_from_centers(X, centers, etas, self.m)
+        etas = _estimate_etas(X, U, centers, m, alpha=alpha)
+        if not np.all(etas > 1e-12):
+            # A cluster with zero spread (e.g. all its points identical)
+            # would make every other point atypical; fall back to the mean
+            # spread so the typicality stays defined.
+            fallback = float(np.mean(_euclidean_dist2(X, centers)))
+            etas = np.where(etas > 1e-12, etas, max(fallback, 1e-12))
 
+        T = _update_T_from_centers(X, centers, etas, m)
         obj_prev = np.inf
         trajectory = []
         for _ in range(self.max_iter):
-            centers = _update_centers_from_T(X, T, self.m)
-            etas = _update_etas(X, T, centers, self.m, alpha=self.alpha)
-            T = _update_T_from_centers(X, centers, etas, self.m)
-            obj = _objective_pcm(X, T, centers, etas, self.m)
+            centers = _update_centers_from_T(X, T, m)
+            T = _update_T_from_centers(X, centers, etas, m)
+            obj = _objective_pcm(X, T, centers, etas, m)
             trajectory.append(obj)
-            if abs(obj_prev - obj) <= self.tol:
+            if objective_converged(obj_prev, obj, self.tol):
                 break
             obj_prev = obj
 
         self.centers_ = centers
-        self.typicalities_ = np.clip(T, 1e-12, 1.0)
+        self.typicalities_ = T
         self.etas_ = etas
         self.objective_trajectory_ = np.array(trajectory, dtype=np.float64)
+        self.n_iter_ = len(trajectory)
         return self.typicalities_
+
+    def _predict_memberships(self, X):
+        X = check_array(X, estimator=type(self).__name__)
+        check_n_features(X, self.centers_.shape[1], estimator=type(self).__name__)
+        return _update_T_from_centers(X, self.centers_, self.etas_, self.m)

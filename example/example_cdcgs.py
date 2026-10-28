@@ -1,36 +1,25 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
 
-import sys
-from os import path
+"""CDCGS: Community detection via Gumbel-softmax (needs the deep extra).
 
-import torch
+Run with ``python example/example_cdcgs.py`` after ``pip install "soft-clustering[deep]"``.
+"""
 
-if __name__ == "__main__":
-    base_dir = path.dirname(path.realpath(__file__))
-    sys.path.append(base_dir[:-4])
-    from soft_clustering import CDCGS
+import numpy as np
 
-    adj = torch.tensor(
-        [
-            [0, 1, 0, 0, 0, 0],
-            [1, 0, 1, 0, 0, 0],
-            [0, 1, 0, 1, 0, 0],
-            [0, 0, 1, 0, 1, 0],
-            [0, 0, 0, 1, 0, 1],
-            [0, 0, 0, 0, 1, 0],
-        ],
-        dtype=torch.float,
-    )
+from soft_clustering import CDCGS
 
-    model = CDCGS(num_nodes=6, n_clusters=2, tau=1.0)
-    R, soft_assign = model(adj)
-    loss = model.loss(R)
+# A graph with three planted communities of 20 nodes each.
+rng = np.random.default_rng(0)
+communities = np.repeat([0, 1, 2], 20)
+p = np.where(communities[:, None] == communities[None, :], 0.5, 0.03)
+A = np.triu(rng.random((60, 60)) < p, 1).astype(float)
+A = A + A.T
 
-    print("Soft Cluster Assignment:")
-    print(soft_assign)
+model = CDCGS(n_clusters=3, random_state=0).fit(A)
 
-    print("Cluster Relation Matrix (R):")
-    print(R)
-
-    print("Loss:", loss.item())
+print("memberships_ shape:", model.memberships_.shape)
+print("first three rows:\n", np.round(model.memberships_[:3], 3))
+print("labels_:", model.labels_)
+print("clusters produced:", model.n_clusters_)

@@ -40,11 +40,7 @@ from ._base import BaseSoftClusterer
 
 
 class KMART(BaseSoftClusterer):
-    # ART vigilance yields independent per-category activations
-    _partition_constrained = False
-    # Discovers the cluster count; see BaseSoftClusterer._determines_k.
-    _determines_k = True
-    """
+    r"""
     Implements a modified Fuzzy Adaptive Resonance Theory (Fuzzy ART) algorithm
     for soft document clustering.
 
@@ -53,19 +49,48 @@ class KMART(BaseSoftClusterer):
     It removes the iterative search for a "winning" category, leading to a
     more efficient clustering process.
 
-    Attributes:
-        vigilance_param (float): The vigilance parameter (rho), between 0 and 1.
-                                 A higher value leads to more specific (tighter) clusters.
-        learning_rate (float): The learning rate (lambda), between 0 and 1.
-                               If set to 1.0 (fast learning), the prototype is
-                               immediately updated to match the input.
-        clusters_ (List[Set[int]]): A list of sets, where each set contains the
-                                     document indices belonging to a cluster.
-        prototypes_ (List[np.ndarray]): A list of the final prototype vectors for each cluster.
-        cluster_words_ (List[Set[str]]): The representative words for each final cluster.
+    Every document is a bag-of-words vector. A document resonates with every
+    existing category prototype ``P`` that passes the vigilance test
+    ``|I ^ P|_1 / |I|_1 >= rho`` (with ``^`` the fuzzy AND, an element-wise
+    minimum), and all resonating prototypes are updated as
+    ``P <- lambda (I ^ P) + (1 - lambda) P``. A document that resonates with
+    none founds a new category. ``memberships_`` is the binary
+    document-category incidence matrix: a document may belong to several
+    categories, or to exactly one, so rows are not normalised. The number of
+    categories is discovered, and the result depends on the order in which
+    documents are presented.
+
+    Reference: R. Kondadadi and R. Kozma. A modified fuzzy ART for soft
+    document clustering. In *Proc. International Joint Conference on Neural
+    Networks (IJCNN '02)*, vol. 3, pp. 2545--2549, 2002.
+    doi:10.1109/IJCNN.2002.1007544
+
+    Attributes
+    ----------
+    memberships_ : ndarray of shape (n_documents, n_categories)
+        Binary document-category incidence; a document may be in several.
+    clusters\_ : list of set of int
+        Document indices of every category.
+    prototypes\_ : list of ndarray
+        Final prototype vector of every category.
+    cluster_words\_ : list of set of str
+        Up to ten most frequent words of every category.
     """
 
+    # ART vigilance yields independent per-category activations
+    _partition_constrained = False
+    # Discovers the cluster count; see BaseSoftClusterer._determines_k.
+    _determines_k = True
+
     def __init__(self, vigilance_param: float = 0.5, learning_rate: float = 1.0):
+        if not 0.0 <= vigilance_param <= 1.0:
+            raise ValueError(
+                f"KMART: vigilance_param must lie in [0, 1]; got {vigilance_param}."
+            )
+        if not 0.0 < learning_rate <= 1.0:
+            raise ValueError(
+                f"KMART: learning_rate must lie in (0, 1]; got {learning_rate}."
+            )
         """
         Initializes the KMART algorithm's parameters.
 
@@ -130,7 +155,7 @@ class KMART(BaseSoftClusterer):
         # First pass: Build word counts for each document and the global vocabulary
         for doc in docs:
             words = doc.lower().split()
-            doc_word_counts = defaultdict(int)
+            doc_word_counts: defaultdict[str, int] = defaultdict(int)
             for word in words:
                 # Use the class's stop word set for filtering
                 if word not in self._stop_words:
@@ -182,7 +207,7 @@ class KMART(BaseSoftClusterer):
         """
         cluster_keywords = []
         for doc_set in self.clusters_:
-            word_counts = defaultdict(int)
+            word_counts: defaultdict[str, int] = defaultdict(int)
             for doc_idx in doc_set:
                 words = docs[doc_idx].lower().split()
                 for word in words:
@@ -206,6 +231,11 @@ class KMART(BaseSoftClusterer):
             csr_matrix: A sparse matrix of shape (num_docs, num_clusters) indicating
                         document membership in the final clusters.
         """
+        if isinstance(docs, str) or not all(isinstance(d, str) for d in docs):
+            raise TypeError("KMART: docs must be a list of strings, one per document.")
+        # Fitted state is rebuilt on every call; earlier releases kept
+        # appending to the clusters of the previous fit.
+        self.clusters_ = []
         doc_vectors, self._unique_words = self._preprocess(docs)
 
         vocab_size = len(self._unique_words)

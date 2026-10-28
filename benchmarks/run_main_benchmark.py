@@ -75,29 +75,75 @@ from soft_clustering.benchmarking.metrics import (  # noqa: E402
 # Which estimators take a plain feature matrix
 # ---------------------------------------------------------------------------
 
-#: name -> constructor kwargs, given the cluster count K. Every estimator here
-#: is fitted as ``model.fit(X)`` on an ``(n, d)`` matrix.
+
+def _scale(X: np.ndarray) -> float:
+    """Mean per-feature variance; the reference scale for kernel bandwidths."""
+    return float(X.var(axis=0).mean()) or 1.0
+
+
+#: name -> constructor kwargs, given the cluster count ``k``, the seed and the
+#: data. Every estimator here is fitted as ``model.fit(X)`` on an ``(n, d)``
+#: matrix, and every stochastic one is seeded, so a row of the results can be
+#: reproduced exactly from its ``seed`` column.
+#:
+#: Kernel bandwidths are in the units of the data, and the suite is not
+#: standardised, so a fixed default would be meaningful on some datasets and
+#: degenerate on others. They are set by the same scale heuristic for every
+#: dataset (scikit-learn's ``gamma="scale"``: ``1 / (d * mean variance)``),
+#: which is a choice of this benchmark, not of the methods.
 FEATURE_ESTIMATORS: dict[str, callable] = {
-    "AFCM": lambda k: {"n_clusters": k},
-    "AFCMSimple": lambda k: {"n_clusters": k},
-    "CAFCM": lambda k: {"n_clusters": k},
-    "CAFHFCM": lambda k: {"n_clusters": k},
-    "ECM": lambda k: {"n_clusters": k},
-    "ENTROPYFCM": lambda k: {"n_clusters": k},
-    "EVCLUS": lambda k: {"n_clusters": k, "random_state": 0},
-    "FCC": lambda k: {"n_clusters": k},
-    "FCM": lambda k: {"n_clusters": k, "random_state": 0},
-    "GK": lambda k: {"n_clusters": k, "random_state": 0},
-    "GMM": lambda k: {"n_clusters": k, "random_state": 0},
-    "GathGeva": lambda k: {"n_clusters": k, "random_state": 0},
-    "KFCCL": lambda k: {"n_clusters": k},
-    "KFCM": lambda k: {"n_clusters": k},
-    "PCM": lambda k: {"n_clusters": k, "random_state": 0},
-    "PFCM": lambda k: {"n_clusters": k, "random_state": 0},
-    "RPFKM": lambda k: {"n_clusters": k, "d": 2, "random_state": 0},
-    "RoughKMeans": lambda k: {"n_clusters": k, "random_state": 0},
-    "SCM": lambda k: {},  # discovers K itself
-    "SoftDBSCANGM": lambda k: {},  # discovers K itself
+    "AFCM": lambda k, s, X: {"n_clusters": k, "random_state": s},
+    "AFCMSimple": lambda k, s, X: {"n_clusters": k, "random_state": s},
+    "CAFCM": lambda k, s, X: {"n_clusters": k, "random_state": s},
+    "CAFHFCM": lambda k, s, X: {"random_state": s},  # discovers K itself
+    # The full focal-set lattice has 2**K - 1 elements; above 12 clusters ECM
+    # requires the singleton-plus-frame variant, as its error message says.
+    "ECM": lambda k, s, X: {
+        "n_clusters": k,
+        "focal_sets": "full" if k <= 12 else "simple",
+        "random_state": s,
+    },
+    "ENTROPYFCM": lambda k, s, X: {
+        "n_clusters": k,
+        "entropy_weight": _scale(X),
+        "random_state": s,
+    },
+    "EVCLUS": lambda k, s, X: {"n_clusters": k, "random_state": s},
+    # FCC's default jnd (20) is a perceptual threshold in CIELAB units; on
+    # other data it is set to a tenth of the RMS spread, sqrt(d * mean var).
+    "FCC": lambda k, s, X: {
+        "n_clusters": k,
+        "jnd": 0.1 * float(np.sqrt(X.shape[1] * _scale(X))),
+        "random_state": s,
+    },
+    "FCM": lambda k, s, X: {"n_clusters": k, "random_state": s},
+    "GK": lambda k, s, X: {"n_clusters": k, "random_state": s},
+    "GMM": lambda k, s, X: {"n_clusters": k, "random_state": s},
+    "GathGeva": lambda k, s, X: {"n_clusters": k, "random_state": s},
+    "KFCCL": lambda k, s, X: {
+        "n_clusters": k,
+        "gamma": 1.0 / (X.shape[1] * _scale(X)),
+        "random_state": s,
+    },
+    "KFCM": lambda k, s, X: {
+        "n_clusters": k,
+        "sigma": float(np.sqrt(X.shape[1] * _scale(X))),
+        "random_state": s,
+    },
+    "PCM": lambda k, s, X: {"n_clusters": k, "random_state": s},
+    "PFCM": lambda k, s, X: {"n_clusters": k, "random_state": s},
+    "RPFKM": lambda k, s, X: {
+        "n_clusters": k,
+        "d": min(2, X.shape[1]),
+        "random_state": s,
+    },
+    "RoughKMeans": lambda k, s, X: {"n_clusters": k, "random_state": s},
+    "SCM": lambda k, s, X: {},  # deterministic; discovers K itself
+    "SoftDBSCANGM": lambda k, s, X: {},  # deterministic; discovers K itself
+    "SoftKSC": lambda k, s, X: {
+        "n_clusters": max(k, 2),
+        "gamma": 1.0 / (X.shape[1] * _scale(X)),
+    },
 }
 
 #: Input modality of every exported estimator, so the exclusions above are
@@ -107,7 +153,6 @@ MODALITIES: dict[str, str] = {
     "MBMM": "feature matrix in (0, 1)",
     "SFCMEP": "feature matrix + partial labels",
     "BGMM": "two aligned views",
-    "SoftKSC": "labelled + unlabelled parts",
     "FeMIFuzzy": "list of client matrices",
     "AFCMAdaptive": "grayscale image",
     "SKFCM": "pixels + image shape",
@@ -149,7 +194,9 @@ METRIC_COLUMNS = [
 # ---------------------------------------------------------------------------
 
 
-def run_one(name: str, X: np.ndarray, y: np.ndarray, k: int, timeout_s: float) -> dict:
+def run_one(
+    name: str, X: np.ndarray, y: np.ndarray, k: int, seed: int, timeout_s: float
+) -> dict:
     """Fit one estimator in a subprocess and score it.
 
     The subprocess is not for measurement hygiene but for survivability: some
@@ -164,6 +211,7 @@ def run_one(name: str, X: np.ndarray, y: np.ndarray, k: int, timeout_s: float) -
         "n": int(X.shape[0]),
         "d": int(X.shape[1]),
         "k_requested": int(k),
+        "seed": int(seed),
         "k_fitted": None,
         "status": "timeout",
         "error": f"did not finish within {timeout_s:.0f} s",
@@ -174,7 +222,7 @@ def run_one(name: str, X: np.ndarray, y: np.ndarray, k: int, timeout_s: float) -
 
     context = multiprocessing.get_context("spawn")
     queue = context.Queue()
-    worker = context.Process(target=_fit_and_score, args=(queue, name, X, y, k))
+    worker = context.Process(target=_fit_and_score, args=(queue, name, X, y, k, seed))
     worker.start()
 
     # Read the result *before* joining. A child that has put an item on the
@@ -197,13 +245,16 @@ def run_one(name: str, X: np.ndarray, y: np.ndarray, k: int, timeout_s: float) -
     return result
 
 
-def _fit_and_score(queue, name: str, X: np.ndarray, y: np.ndarray, k: int) -> None:
+def _fit_and_score(
+    queue, name: str, X: np.ndarray, y: np.ndarray, k: int, seed: int
+) -> None:
     """Subprocess body: fit, score, put one row on the queue."""
     row = {
         "algorithm": name,
         "n": int(X.shape[0]),
         "d": int(X.shape[1]),
         "k_requested": int(k),
+        "seed": int(seed),
         "k_fitted": None,
         "status": "ok",
         "error": "",
@@ -213,7 +264,7 @@ def _fit_and_score(queue, name: str, X: np.ndarray, y: np.ndarray, k: int) -> No
     }
 
     try:
-        estimator = getattr(sc, name)(**FEATURE_ESTIMATORS[name](k))
+        estimator = getattr(sc, name)(**FEATURE_ESTIMATORS[name](k, seed, X))
     except Exception as exc:  # pragma: no cover - construction should not fail
         row["status"], row["error"] = "construct_error", f"{type(exc).__name__}: {exc}"
         queue.put(row)
@@ -249,18 +300,22 @@ def _fit_and_score(queue, name: str, X: np.ndarray, y: np.ndarray, k: int) -> No
     if len(np.unique(labels)) < 2:
         row["status"] = "degenerate"
 
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        row.update(clustering_metrics(X, labels, y_true=y))
-        row.update(
-            soft_clustering_metrics(
-                X,
-                U,
-                centers=estimator.centers_,
-                m=2.0,
-                partition_constrained=estimator._partition_constrained,
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            row.update(clustering_metrics(X, labels, y_true=y))
+            row.update(
+                soft_clustering_metrics(
+                    X,
+                    U,
+                    centers=estimator.centers_,
+                    m=2.0,
+                    partition_constrained=estimator._partition_constrained,
+                )
             )
-        )
+    except Exception as exc:  # the fit succeeded; record why scoring did not
+        row["status"] = "metric_error"
+        row["error"] = f"{type(exc).__name__}: {str(exc)[:200]}"
     queue.put(row)
 
 
@@ -277,7 +332,8 @@ def summarise(rows: list[dict]) -> list[dict]:
         ok = [r for r in mine if r["status"] in ("ok", "slow")]
         entry = {
             "algorithm": name,
-            "datasets": len(mine),
+            "datasets": len({r["dataset"] for r in mine}),
+            "runs": len(mine),
             "completed": len(ok),
             "degenerate": sum(r["status"] == "degenerate" for r in mine),
             "errors": sum(r["status"] in ("error", "construct_error") for r in mine),
@@ -289,7 +345,33 @@ def summarise(rows: list[dict]) -> list[dict]:
     return summary
 
 
-def write_outputs(rows: list[dict], summary: list[dict], groups: list[str]) -> None:
+def _git_commit() -> str:
+    """The commit the results were produced from, for provenance."""
+    import subprocess
+
+    try:
+        out = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        dirty = subprocess.run(
+            ["git", "status", "--porcelain", "--", "soft_clustering"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        return out + ("+uncommitted-changes" if dirty else "")
+    except (OSError, subprocess.CalledProcessError):
+        return "unknown"
+
+
+def write_outputs(
+    rows: list[dict], summary: list[dict], groups: list[str], skipped: list[str]
+) -> None:
     OUT.mkdir(parents=True, exist_ok=True)
 
     with (OUT / "main_benchmark.csv").open("w", newline="") as handle:
@@ -306,6 +388,9 @@ def write_outputs(rows: list[dict], summary: list[dict], groups: list[str]) -> N
         json.dumps(
             {
                 "groups": groups,
+                "skipped_datasets": skipped,
+                "seeds": sorted({int(r["seed"]) for r in rows}),
+                "scpp_commit": _git_commit(),
                 "python": platform.python_version(),
                 "platform": platform.platform(),
                 "machine": platform.machine(),
@@ -327,17 +412,18 @@ def write_outputs(rows: list[dict], summary: list[dict], groups: list[str]) -> N
         r"\small",
         r"\caption{Cross-family comparison over the dataset suite that ships "
         r"with SCPP. Every estimator that consumes a feature matrix is fitted "
-        r"on every dataset under one protocol. \emph{Completed} counts the "
-        r"datasets on which the fit returned a non-degenerate partition; "
-        r"failures are reported, not dropped. ARI, NMI and silhouette are "
-        r"means over the completed runs. The fuzziness indices are reported "
+        r"on every dataset under one protocol, once per seed. \emph{Runs} is "
+        r"datasets times seeds; \emph{Compl.} counts the runs that returned a "
+        r"non-degenerate partition, and failures are reported, not dropped. "
+        r"ARI, NMI and fit time are means over the completed runs. The "
+        r"fuzziness indices are reported "
         r"per run in the released CSV and deliberately omitted here: they "
         r"measure crispness, not quality, and ranking estimators by them "
         r"rewards a fuzzy method for degenerating to a hard partition.}",
         r"\label{tab:main-benchmark}",
         r"\begin{tabular}{lrrrrrrr}",
         r"\toprule",
-        r"Algorithm & Datasets & Compl. & Degen. & Err. & ARI $\uparrow$ & "
+        r"Algorithm & Runs & Compl. & Degen. & Err. & ARI $\uparrow$ & "
         r"NMI $\uparrow$ & $\bar{t}$ (ms) \\",
         r"\midrule",
     ]
@@ -345,7 +431,7 @@ def write_outputs(rows: list[dict], summary: list[dict], groups: list[str]) -> N
         summary, key=lambda e: -(e["mean_ari"] if np.isfinite(e["mean_ari"]) else -9)
     ):
         lines.append(
-            f"{entry['algorithm']} & {entry['datasets']} & {entry['completed']} & "
+            f"{entry['algorithm']} & {entry['runs']} & {entry['completed']} & "
             f"{entry['degenerate']} & {entry['errors']} & "
             f"{cell(entry['mean_ari'])} & {cell(entry['mean_nmi'])} & "
             f"{cell(entry['mean_fit_time_ms'], '.1f')} \\\\"
@@ -397,6 +483,13 @@ def main() -> int:
         help="subsample larger datasets, so one estimator "
         "cannot dominate the wall time",
     )
+    parser.add_argument(
+        "--seeds",
+        type=int,
+        nargs="+",
+        default=[0, 1, 2],
+        help="random_state values; every stochastic estimator is run once per seed",
+    )
     parser.add_argument("--list-modalities", action="store_true")
     args = parser.parse_args()
 
@@ -405,8 +498,12 @@ def main() -> int:
         return 0
 
     datasets: dict[str, tuple] = {}
+    skipped: list[str] = []
     for group in args.groups:
-        datasets.update(benchmark_suite(group))
+        datasets.update(benchmark_suite(group, skip_unavailable=True))
+        skipped += benchmark_suite.skipped
+    if skipped:
+        print(f"skipped (could not be loaded): {', '.join(skipped)}")
 
     rng = np.random.default_rng(0)
     rows: list[dict] = []
@@ -421,16 +518,17 @@ def main() -> int:
 
         print(f"\n{dataset_name}  n={X.shape[0]} d={X.shape[1]} K={k}")
         for name in sorted(FEATURE_ESTIMATORS):
-            row = run_one(name, X, y, k, args.timeout)
-            row["dataset"] = dataset_name
-            rows.append(row)
-            ari = row["ari"]
-            flag = "" if row["status"] == "ok" else f"  [{row['status']}]"
-            print(
-                f"   {name:14s} ARI={ari:6.3f}  t={row['fit_time_ms']:8.1f} ms{flag}"
-                if np.isfinite(ari)
-                else f"   {name:14s} ARI=   ---  t={row['fit_time_ms']:8.1f} ms{flag}"
-            )
+            for seed in args.seeds:
+                row = run_one(name, X, y, k, seed, args.timeout)
+                row["dataset"] = dataset_name
+                rows.append(row)
+                ari = row["ari"]
+                flag = "" if row["status"] == "ok" else f"  [{row['status']}]"
+                print(
+                    f"   {name:14s} ARI={ari:6.3f}  t={row['fit_time_ms']:8.1f} ms{flag}"
+                    if np.isfinite(ari)
+                    else f"   {name:14s} ARI=   ---  t={row['fit_time_ms']:8.1f} ms{flag}"
+                )
 
     summary = summarise(rows)
     print("\n" + "=" * 72)
@@ -448,7 +546,7 @@ def main() -> int:
             f"{entry['mean_ari']:9.3f} {entry['mean_fit_time_ms']:12.1f}"
         )
 
-    write_outputs(rows, summary, args.groups)
+    write_outputs(rows, summary, args.groups, skipped)
     return 0
 
 

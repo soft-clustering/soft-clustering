@@ -9,10 +9,13 @@ planted community structure, not only for output shape.
 
 import numpy as np
 import pytest
-import torch
-from sklearn.metrics import adjusted_rand_score
 
-from soft_clustering import DMoN
+pytest.importorskip("torch", reason="needs the `deep` extra")
+
+import torch  # noqa: E402
+from sklearn.metrics import adjusted_rand_score  # noqa: E402
+
+from soft_clustering import DMoN  # noqa: E402
 
 
 def planted_graph(n=60, k=3, p_in=0.6, p_out=0.05, n_features=4, seed=0):
@@ -208,3 +211,28 @@ def test_empty_graph_is_handled():
         .memberships_
     )
     assert np.isfinite(U).all()
+
+
+def test_gcn_layer_matches_torch_geometric():
+    """DMoN's built-in graph convolution reproduces torch_geometric's GCNConv.
+
+    torch_geometric used to be a dependency for this one layer. The check runs
+    only where torch_geometric happens to be installed.
+    """
+    import torch
+
+    gcn = pytest.importorskip("torch_geometric.nn", reason="reference not installed")
+    from soft_clustering._dmon import _GCNLayer
+
+    torch.manual_seed(0)
+    n = 12
+    edge_index = torch.randint(0, n, (2, 30))
+    edge_index = torch.cat([edge_index, torch.tensor([[3], [3]])], dim=1)
+    x = torch.randn(n, 5)
+    reference, ours = gcn.GCNConv(5, 4), _GCNLayer(5, 4)
+    with torch.no_grad():
+        ours.weight.copy_(reference.lin.weight.T)
+        reference.bias.copy_(torch.randn(4))
+        ours.bias.copy_(reference.bias)
+    propagation = _GCNLayer.propagation_matrix(edge_index, n)
+    assert torch.allclose(reference(x, edge_index), ours(x, propagation), atol=1e-6)

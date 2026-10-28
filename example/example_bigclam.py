@@ -1,30 +1,26 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
 
-import sys
-from os import path
+"""BIGCLAM: BigCLAM overlapping community affiliations.
+
+Run with ``python example/example_bigclam.py`` after ``pip install soft-clustering``.
+"""
 
 import numpy as np
 
-if __name__ == "__main__":
-    base_dir = path.dirname(path.realpath(__file__))
-    sys.path.append(base_dir[:-4])
-    from soft_clustering import BIGCLAM
+from soft_clustering import BIGCLAM
 
-    adj = np.array(
-        [
-            [0, 1, 0, 0, 0, 0],
-            [1, 0, 1, 0, 0, 0],
-            [0, 1, 0, 1, 0, 0],
-            [0, 0, 1, 0, 1, 0],
-            [0, 0, 0, 1, 0, 1],
-            [0, 0, 0, 0, 1, 0],
-        ]
-    )
+# A graph with three planted communities of 20 nodes each.
+rng = np.random.default_rng(0)
+communities = np.repeat([0, 1, 2], 20)
+p = np.where(communities[:, None] == communities[None, :], 0.5, 0.03)
+A = np.triu(rng.random((60, 60)) < p, 1).astype(float)
+A = A + A.T
 
-    model = BIGCLAM(n_nodes=6, n_communities=2, max_iter=100, learning_rate=0.01)
-    model.fit(adj)
-    F = model.get_membership()
+model = BIGCLAM(n_clusters=3, random_state=0).fit(A)
 
-    print("Membership Matrix (F):")
-    print(F)
+print("memberships_ shape:", model.memberships_.shape)
+print("first three rows:\n", np.round(model.memberships_[:3], 3))
+print("labels_:", model.labels_)
+print("clusters produced:", model.n_clusters_)
+print("affiliations are unnormalised; first row:", np.round(model.memberships_[0], 3))

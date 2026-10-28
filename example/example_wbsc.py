@@ -1,44 +1,31 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
 
-import sys
-from os import path
+"""WBSC: Word-based soft clustering of documents.
 
-if __name__ == "__main__":
-    base_dir = path.dirname(path.realpath(__file__))
-    sys.path.append(base_dir[:-4])
-    from soft_clustering import WBSC
+Run with ``python example/example_wbsc.py`` after ``pip install soft-clustering``.
+"""
 
-    # A sample collection of documents
-    documents = [
-        "the cat sat on the mat",
-        "a dog ate my homework",
-        "the cat and the dog are friends",
-        "my homework is about machine learning",
-        "machine learning models need data",
-        "cat and dog are common pets",
-    ]
+import numpy as np
 
-    # Create an instance of the WBSC class
-    # Using a lower threshold to encourage more merges in this small example
-    wbsc_model = WBSC(similarity_threshold=0.2, min_doc_freq=2)
+from soft_clustering import WBSC
 
-    # Run the algorithm
-    memberships_matrix = wbsc_model.fit_predict(documents)
+docs = [
+    "fuzzy clustering membership degree centroid",
+    "fuzzy membership partition prototype degree",
+    "clustering centroid prototype fuzzy partition",
+    "graph community detection nodes edges",
+    "network community nodes modularity graph",
+    "edges nodes graph community network",
+    "topic document word text corpus",
+    "document text vocabulary language corpus",
+    "word topic corpus document language",
+]
 
-    print("--- WBSC Clustering Results ---")
-    print(f"Number of documents: {memberships_matrix.shape[0]}")
-    print(f"Number of final clusters: {memberships_matrix.shape[1]}")
-    print("\n--- Cluster Details ---")
+model = WBSC(min_doc_freq=2, max_doc_freq_ratio=0.5).fit(docs)
 
-    # Display the representative words and members of each cluster
-    for i, words in enumerate(wbsc_model.cluster_words_):
-        cluster_docs_indices = wbsc_model.clusters_[i]
-        print(f"Cluster {i+1}:")
-        print(f"  Representative Words: {sorted(list(words))}")
-        print(f"  Document Indices: {sorted(list(cluster_docs_indices))}")
-        print("-" * 20)
-
-    # Display the membership matrix
-    print("\n--- Membership Matrix (Sparse) ---")
-    print(memberships_matrix)
+print("memberships_ shape:", model.memberships_.shape)
+print("first three rows:\n", np.round(model.memberships_[:3], 3))
+print("labels_:", model.labels_)
+print("clusters produced:", model.n_clusters_)
+print("words per cluster:", [sorted(w) for w in model.cluster_words_])

@@ -1,27 +1,29 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
 
-# Overview of PCM usage
-import sys
-from os import path
+"""PCM: Possibilistic c-means: typicalities need not sum to one.
+
+Run with ``python example/example_pcm.py`` after ``pip install soft-clustering``.
+"""
 
 import numpy as np
 
-if __name__ == "__main__":
-    base_dir = path.dirname(path.realpath(__file__))
-    sys.path.append(base_dir[:-4])
-    from soft_clustering import PCM
+from soft_clustering import PCM
 
-    np.random.seed(42)
-    n = 50
-    X1 = np.random.randn(n, 2) * 0.25 + np.array([0.0, 0.0])
-    X2 = np.random.randn(n, 2) * 0.25 + np.array([2.5, 2.5])
-    X = np.vstack([X1, X2])
+rng = np.random.default_rng(0)
+X = np.vstack(
+    [
+        rng.normal([0.0, 0.0], 0.5, (40, 2)),
+        rng.normal([4.0, 0.0], 0.5, (40, 2)),
+        rng.normal([2.0, 3.5], 0.5, (40, 2)),
+    ]
+)
+X = np.vstack([X, [[20.0, 20.0]]])  # one far outlier
 
-    K = 2  # number of clusters
+model = PCM(n_clusters=3, random_state=0).fit(X)
 
-    # Initialize and fit the model
-    model = PCM(random_state=42, max_iter=100, m=2.0, alpha=1.0, init="kmeans++")
-
-    typicalities = model.fit_predict(X, K)
-    print("Typicality matrix:\n", typicalities)
+print("memberships_ shape:", model.memberships_.shape)
+print("first three rows:\n", np.round(model.memberships_[:3], 3))
+print("labels_:", model.labels_)
+print("clusters produced:", model.n_clusters_)
+print("typicalities of the outlier (all small):", np.round(model.memberships_[-1], 4))

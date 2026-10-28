@@ -6,7 +6,7 @@
 Reference
 ---------
 E. M. Airoldi, D. M. Blei, S. E. Fienberg and E. P. Xing. *Mixed membership
-stochastic blockmodels.* Advances in Neural Information Processing Systems 21,
+stochastic blockmodels.* Journal of Machine Learning Research, 9:1981--2014,
 2008.
 
 Generative model. Each node :math:`p` draws a membership vector
@@ -64,6 +64,7 @@ from scipy.special import digamma
 from typeguard import typechecked
 
 from ._base import BaseSoftClusterer
+from ._validation import check_array, check_generator
 
 _EPS = 1e-10
 
@@ -72,26 +73,29 @@ _EPS = 1e-10
 class MMSB(BaseSoftClusterer):
     """Mixed Membership Stochastic Blockmodel fitted by variational EM."""
 
-    _k_param = "n_blocks"
     _membership_attrs = ("memberships_",)
     _centers_attrs = ()
 
+    # Fitted attributes, set by ``fit`` (not before).
+    B: np.ndarray
+    pi: np.ndarray
+
     def __init__(
         self,
-        n_blocks: int = 3,
+        n_clusters: int = 3,
         alpha: float = 0.5,
         max_iter: int = 100,
         n_inner: int = 5,
         tol: float = 1e-4,
         init: str = "spectral",
-        random_state: int | None = None,
+        random_state: int | np.random.Generator | None = None,
         n_nodes: int | None = None,
     ):
         """
         Parameters
         ----------
-        n_blocks : int
-            Number of latent blocks.
+        n_clusters : int
+            Number of latent blocks (``n_blocks`` is accepted as an alias).
         alpha : float
             Symmetric Dirichlet prior on the node memberships.
         max_iter : int
@@ -118,8 +122,8 @@ class MMSB(BaseSoftClusterer):
             is used generatively without a fit. Ignored by :meth:`fit`, which
             takes the node count from the adjacency matrix.
         """
-        if n_blocks < 1:
-            raise ValueError(f"n_blocks must be >= 1, got {n_blocks}")
+        if n_clusters < 1:
+            raise ValueError(f"MMSB: n_clusters must be >= 1; got {n_clusters}.")
         if alpha <= 0:
             raise ValueError(f"alpha must be > 0, got {alpha}")
         if max_iter < 1:
@@ -129,7 +133,7 @@ class MMSB(BaseSoftClusterer):
         if init not in ("spectral", "random"):
             raise ValueError(f"init must be 'spectral' or 'random', got {init!r}")
 
-        self.n_blocks = n_blocks
+        self.n_clusters = n_clusters
         self.alpha = alpha
         self.max_iter = max_iter
         self.n_inner = n_inner
@@ -138,28 +142,22 @@ class MMSB(BaseSoftClusterer):
         self.random_state = random_state
         self.n_nodes = n_nodes
 
-        self.memberships_: np.ndarray | None = None
-        self.gamma_: np.ndarray | None = None
-        self.B: np.ndarray | None = None
-        self.pi: np.ndarray | None = None
-        self.n_iter_: int | None = None
-
     # ------------------------------------------------------------------
     # Inference
     # ------------------------------------------------------------------
 
     def _initial_partition(self, Y: np.ndarray, rng: np.random.Generator) -> np.ndarray:
         """Hard partition used to break the mean-field symmetry."""
-        n, K = Y.shape[0], self.n_blocks
+        n, K = Y.shape[0], self.n_clusters
         if self.init == "random" or K == 1 or n <= K:
-            return rng.integers(0, K, size=n)
+            return np.asarray(rng.integers(0, K, size=n))
 
         # Leading eigenvectors of the symmetrised adjacency, then k-means.
         symmetric = 0.5 * (Y + Y.T)
         try:
             eigenvalues, eigenvectors = np.linalg.eigh(symmetric)
         except np.linalg.LinAlgError:  # pragma: no cover - defensive
-            return rng.integers(0, K, size=n)
+            return np.asarray(rng.integers(0, K, size=n))
 
         order = np.argsort(np.abs(eigenvalues))[::-1][:K]
         embedding = eigenvectors[:, order]
@@ -176,17 +174,17 @@ class MMSB(BaseSoftClusterer):
 
     def fit(self, adjacency_matrix: np.ndarray) -> MMSB:
         """Fit the model to a binary ``(n_nodes, n_nodes)`` adjacency matrix."""
-        Y = np.asarray(adjacency_matrix, dtype=np.float64)
+        Y = check_array(adjacency_matrix, estimator="MMSB", name="adjacency_matrix")
         if Y.ndim != 2 or Y.shape[0] != Y.shape[1]:
             raise ValueError(
                 f"adjacency_matrix must be square (n, n), got shape {Y.shape}"
             )
         n = Y.shape[0]
-        K = self.n_blocks
+        K = self.n_clusters
         if n < K:
             raise ValueError(f"n_nodes={n} is smaller than n_blocks={K}")
 
-        rng = np.random.default_rng(self.random_state)
+        rng = check_generator(self.random_state)
 
         # Self-pairs carry no information about the block structure.
         off_diagonal = ~np.eye(n, dtype=bool)
@@ -287,8 +285,8 @@ class MMSB(BaseSoftClusterer):
         prior otherwise. This is a data generator, not an inference routine;
         :meth:`fit` is what estimates memberships from an observed graph.
         """
-        rng = np.random.default_rng(self.random_state)
-        K = self.n_blocks
+        rng = check_generator(self.random_state)
+        K = self.n_clusters
 
         if self.memberships_ is not None:
             pi = self.memberships_

@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
 
-"""Unit and integration tests for SCSPA (Soft Consensus Spectral Partition Analysis)."""
+"""Tests specific to SCSPA; behaviour shared by the consensus estimators is in
+``tests/test_consensus.py``."""
 
 import numpy as np
 import pytest
@@ -11,7 +12,7 @@ from soft_clustering import SCSPA
 
 @pytest.fixture
 def soft_memberships():
-    rng = np.random.default_rng(25)
+    rng = np.random.default_rng(29)
     mats = []
     for _ in range(3):
         m = np.abs(rng.normal(size=(30, 3)))
@@ -20,25 +21,31 @@ def soft_memberships():
     return mats
 
 
-def test_fit_predict_shape(soft_memberships):
-    labels = SCSPA(n_clusters=3).fit_predict(soft_memberships)
-    assert labels.shape == (30,)
-
-
-def test_labels_in_range(soft_memberships):
-    labels = SCSPA(n_clusters=3).fit_predict(soft_memberships)
-    assert set(labels).issubset({0, 1, 2})
+def test_fit_predict_returns_memberships(soft_memberships):
+    model = SCSPA(n_clusters=3, random_state=0)
+    U = model.fit_predict(soft_memberships)
+    assert U.shape == (30, 3)
+    np.testing.assert_array_equal(U, model.memberships_)
+    np.testing.assert_allclose(U.sum(axis=1), 1.0, atol=1e-12)
 
 
 def test_k2(soft_memberships):
-    labels = SCSPA(n_clusters=2).fit_predict(soft_memberships)
-    assert labels.shape == (30,)
-    assert set(labels).issubset({0, 1})
+    assert SCSPA(n_clusters=2, random_state=0).fit_predict(soft_memberships).shape == (
+        30,
+        2,
+    )
 
 
-def test_single_partition():
-    rng = np.random.default_rng(26)
-    m = np.abs(rng.normal(size=(20, 2)))
-    m /= m.sum(axis=1, keepdims=True)
-    labels = SCSPA(n_clusters=2).fit_predict([m])
-    assert labels.shape == (20,)
+def test_more_clusters_than_available_raises(soft_memberships):
+    with pytest.raises(ValueError, match="exceeds"):
+        SCSPA(n_clusters=100).fit_predict(soft_memberships)
+
+
+def test_partitions_the_normalised_concatenation(soft_memberships):
+    """Samples with identical normalised concatenated vectors share a cluster."""
+    mats = [m.copy() for m in soft_memberships]
+    for m in mats:
+        m[1] = m[0] * 3.0  # same direction, different scale
+    model = SCSPA(n_clusters=3, random_state=0)
+    model.fit_predict(mats)
+    assert model.labels_[0] == model.labels_[1]

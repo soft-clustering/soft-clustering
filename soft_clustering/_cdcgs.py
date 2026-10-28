@@ -48,6 +48,7 @@ import torch.nn.functional as F
 from typeguard import typechecked
 
 from ._base import BaseSoftClusterer
+from ._torch_utils import isolated_torch_rng
 
 
 @typechecked
@@ -133,14 +134,10 @@ class CDCGS(nn.Module, BaseSoftClusterer):
         self.tol = tol
         self.random_state = random_state
 
-        self.memberships_: np.ndarray | None = None
-        self.loss_curve_: list[float] = []
-
-        if random_state is not None:
-            torch.manual_seed(random_state)
-        self.W_C = (
-            nn.Parameter(torch.randn(num_nodes, n_clusters)) if num_nodes else None
-        )
+        with isolated_torch_rng(random_state):
+            self.W_C = (
+                nn.Parameter(torch.randn(num_nodes, n_clusters)) if num_nodes else None
+            )
 
     # ------------------------------------------------------------------
     # Module interface
@@ -148,12 +145,17 @@ class CDCGS(nn.Module, BaseSoftClusterer):
 
     def _ensure_parameters(self, num_nodes: int, seed: int | None = None) -> None:
         if seed is not None or self.W_C is None or self.W_C.shape[0] != num_nodes:
+            generator = torch.Generator()
             if seed is not None:
-                torch.manual_seed(seed)
+                generator.manual_seed(seed)
             elif self.random_state is not None:
-                torch.manual_seed(self.random_state)
-            self.W_C = nn.Parameter(torch.randn(num_nodes, self.n_clusters))
-            self.num_nodes = num_nodes
+                generator.manual_seed(int(self.random_state))
+            else:
+                generator.seed()
+            self.W_C = nn.Parameter(
+                torch.randn(num_nodes, self.n_clusters, generator=generator)
+            )
+            self.n_nodes_ = num_nodes
 
     def forward(self, adj: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """Return ``(community interaction matrix, soft assignment)``.
@@ -163,10 +165,12 @@ class CDCGS(nn.Module, BaseSoftClusterer):
         model produces deterministic memberships.
         """
         self._ensure_parameters(adj.shape[0])
+        W_C = self.W_C
+        assert W_C is not None  # created by _ensure_parameters
         if self.training:
-            soft_assign = F.gumbel_softmax(self.W_C, tau=self._tau, hard=False, dim=1)
+            soft_assign = F.gumbel_softmax(W_C, tau=self._tau, hard=False, dim=1)
         else:
-            soft_assign = F.softmax(self.W_C / self._tau, dim=1)
+            soft_assign = F.softmax(W_C / self._tau, dim=1)
 
         R = soft_assign.T @ adj @ soft_assign  # (k, k)
         output = F.softmax(R, dim=1)
@@ -217,6 +221,25 @@ class CDCGS(nn.Module, BaseSoftClusterer):
         best_logits = None
         best_curve: list[float] = []
 
+        # The Gumbel noise is drawn from torch's global generator; run the
+        # whole optimisation in a private, seeded stream so that a fit is
+        # reproducible and leaves the caller's stream untouched.
+        with isolated_torch_rng(self.random_state):
+            best_loss, best_logits, best_curve = self._restarts(
+                adj, decay, base_seed, best_loss, best_logits, best_curve
+            )
+
+        self.W_C = nn.Parameter(best_logits)
+        self._tau = self.tau_min
+        self.loss_curve_ = best_curve
+        self.best_loss_ = best_loss
+        self.eval()
+        with torch.no_grad():
+            _, soft_assign = self(adj)
+        self.memberships_ = soft_assign.detach().cpu().numpy().astype(np.float64)
+        return self
+
+    def _restarts(self, adj, decay, base_seed, best_loss, best_logits, best_curve):
         for restart in range(self.n_init):
             self._ensure_parameters(adj.shape[0], seed=base_seed + restart)
             optimiser = torch.optim.Adam(self.parameters(), lr=self.lr)
@@ -251,16 +274,7 @@ class CDCGS(nn.Module, BaseSoftClusterer):
                 best_loss = final
                 best_logits = self.W_C.detach().clone()
                 best_curve = curve
-
-        self.W_C = nn.Parameter(best_logits)
-        self._tau = self.tau_min
-        self.loss_curve_ = best_curve
-        self.best_loss_ = best_loss
-        self.eval()
-        with torch.no_grad():
-            _, soft_assign = self(adj)
-        self.memberships_ = soft_assign.detach().cpu().numpy().astype(np.float64)
-        return self
+        return best_loss, best_logits, best_curve
 
 
 def _soft_modularity(soft_assign: torch.Tensor, adj: torch.Tensor) -> torch.Tensor:

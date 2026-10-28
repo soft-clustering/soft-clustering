@@ -123,6 +123,8 @@ def test_collinear_cluster_gives_singular_covariance(name):
 
 @pytest.mark.parametrize("name", FEATURE_ESTIMATORS)
 def test_more_clusters_than_samples(name):
+    if getattr(sc, name)._determines_k:
+        pytest.skip(f"{name} discovers the number of clusters itself")
     """K > n has no valid solution; raising is the only correct outcome."""
     rng = np.random.default_rng(0)
     X = rng.normal(size=(3, 2))

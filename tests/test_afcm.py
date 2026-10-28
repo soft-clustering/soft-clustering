@@ -1,12 +1,14 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
 
-"""Unit and integration tests for AFCM (Adaptive FCM with graph embedding)."""
+"""Tests for AFCM (adaptive fuzzy c-means with graph embedding)."""
 
 import numpy as np
 import pytest
+from sklearn.datasets import make_circles, make_moons
+from sklearn.metrics import adjusted_rand_score
 
-from soft_clustering import AFCM
+from soft_clustering import AFCM, FCM
 
 
 @pytest.fixture
@@ -17,32 +19,61 @@ def X():
     )
 
 
-def test_returns_labels_and_memberships(X):
-    labels, U = AFCM(c=2, n_neighbors=4).fit_predict(X)
-    assert labels.shape == (40,)
+def test_fit_predict_returns_memberships(X):
+    model = AFCM(n_clusters=2, n_neighbors=4, random_state=0)
+    U = model.fit_predict(X)
     assert U.shape == (40, 2)
-
-
-def test_labels_in_range(X):
-    labels, _ = AFCM(c=2, n_neighbors=4).fit_predict(X)
-    assert set(labels).issubset({0, 1})
-
-
-def test_memberships_nonneg(X):
-    _, U = AFCM(c=2, n_neighbors=4).fit_predict(X)
+    np.testing.assert_allclose(U.sum(axis=1), 1.0, atol=1e-9)
     assert np.all(U >= 0)
 
 
-def test_memberships_sum_to_one(X):
-    _, U = AFCM(c=2, n_neighbors=4).fit_predict(X)
-    np.testing.assert_allclose(U.sum(axis=1), 1.0, atol=1e-5)
+def test_embedding_shape(X):
+    model = AFCM(n_clusters=3, n_neighbors=4, random_state=0).fit(X)
+    assert model.embedding_.shape == (40, 3)
+    # The embedding has orthonormal columns (the constraint X~ X~^T = I).
+    np.testing.assert_allclose(
+        model.embedding_.T @ model.embedding_, np.eye(3), atol=1e-8
+    )
 
 
-def test_k3(X):
-    labels, U = AFCM(c=3, n_neighbors=4).fit_predict(X)
-    assert U.shape == (40, 3)
+@pytest.mark.parametrize(
+    "data",
+    [
+        make_moons(200, noise=0.05, random_state=0),
+        make_circles(200, noise=0.03, factor=0.4, random_state=0),
+    ],
+    ids=["moons", "circles"],
+)
+def test_graph_term_separates_non_convex_clusters(data):
+    """The point of the graph embedding: FCM cannot do this, AFCM can."""
+    X, y = data
+    afcm = AFCM(n_clusters=2, random_state=0).fit(X)
+    fcm = FCM(n_clusters=2, random_state=0).fit(X)
+    assert adjusted_rand_score(y, afcm.labels_) > 0.95
+    assert adjusted_rand_score(y, fcm.labels_) < 0.5
 
 
-def test_lambda_parameter(X):
-    labels, U = AFCM(c=2, lambda_=2.0, n_neighbors=4).fit_predict(X)
-    assert U.shape == (40, 2)
+def test_objective_is_non_increasing():
+    X, _ = make_circles(150, noise=0.03, factor=0.4, random_state=1)
+    J = AFCM(n_clusters=2, random_state=0).fit(X).objective_trajectory_
+    # gamma is capped at a degenerate optimum, where the step is no longer an
+    # exact minimiser; allow a relative 1e-5.
+    assert np.all(np.diff(J) <= 1e-5 * np.abs(J).max())
+
+
+def test_reproducible(X):
+    a = AFCM(n_clusters=2, random_state=3).fit(X).memberships_
+    b = AFCM(n_clusters=2, random_state=3).fit(X).memberships_
+    np.testing.assert_array_equal(a, b)
+
+
+def test_legacy_c_keyword_still_accepted(X):
+    assert AFCM(c=2, random_state=0).fit(X).memberships_.shape == (40, 2)
+
+
+@pytest.mark.parametrize(
+    "kwargs", [{"lambda_": -1.0}, {"n_neighbors": 0}, {"sigma": 0.0}]
+)
+def test_invalid_parameters_raise(X, kwargs):
+    with pytest.raises(ValueError):
+        AFCM(n_clusters=2, **kwargs).fit(X)
