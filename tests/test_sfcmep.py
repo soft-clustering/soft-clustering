@@ -164,9 +164,7 @@ def test_memberships_are_the_prior_reweighted_by_distance(Xy):
     model = SFCMEP(n_clusters=2, lam=lam, random_state=0)
     U = model.fit_predict(X, y)
     d2 = ((X[:, None, :] - model.centers_[None, :, :]) ** 2).sum(axis=2)
-    prior = np.where(
-        np.isclose(model.prior_memberships_, 0.0), 1.0, model.prior_memberships_
-    )
+    prior = np.maximum(model.prior_memberships_, np.finfo(np.float64).tiny)
     expected = prior * np.exp(-(d2 - d2.min(axis=1, keepdims=True)) / lam)
     expected /= expected.sum(axis=1, keepdims=True)
     np.testing.assert_allclose(U, expected, atol=1e-6)
@@ -236,3 +234,42 @@ def test_label_enforcement_is_monotone_in_rho():
         for rho in (0.5, 0.9, 1.0)
     ]
     assert own[0] <= own[1] <= own[2]
+
+
+def test_conflicting_prior_and_distance_keep_normalized_memberships():
+    X = np.array([0.0, 100.0, 1.0, 2.0])[:, None]
+    model = SFCMEP(n_clusters=2, rho=1.0, lam=1.0, max_iter=20, random_state=0).fit(
+        X, np.array([0, 0, 1, 1])
+    )
+    assert np.isfinite(model.memberships_).all()
+    assert (model.memberships_ >= 0).all()
+    np.testing.assert_allclose(model.memberships_.sum(1), 1, rtol=0, atol=1e-15)
+
+
+@pytest.mark.parametrize("near_prior", [0.0, 1e-20])
+def test_full_prior_weighted_score_retains_zero_policy_and_tiny_positive_prior(
+    near_prior,
+):
+    model = SFCMEP(n_clusters=2, lam=1.0)
+    model.N = 1
+    actual = model._update_membership_matrix(
+        np.array([[0.0]]), np.array([[1.0], [near_prior]]), np.array([[10.0], [0.0]])
+    )
+    weights = np.array([np.exp(-100.0), max(near_prior, np.finfo(np.float64).tiny)])
+    expected = weights / weights.sum()
+    np.testing.assert_allclose(actual[:, 0], expected, rtol=1e-12, atol=0)
+    assert actual.sum() == pytest.approx(1.0)
+
+
+@pytest.mark.parametrize("lam", [0.0, 1e-320])
+def test_zero_and_tiny_temperatures_keep_assignment_and_tie_contract(lam):
+    model = SFCMEP(n_clusters=2, lam=lam)
+    model.N = 3
+    prior = np.array([[0.0, 0.25, 1.0], [1.0, 0.75, 0.0]])
+    with np.errstate(divide="raise", invalid="raise", over="raise"):
+        actual = model._update_membership_matrix(
+            np.array([[0.0], [1.0], [2.0]]), prior, np.array([[0.0], [2.0]])
+        )
+    np.testing.assert_array_equal(actual[:, [0, 2]], np.eye(2))
+    np.testing.assert_allclose(actual[:, 1], [1.0, 0.0] if lam == 0 else [0.25, 0.75])
+    np.testing.assert_allclose(actual.sum(0), 1)
