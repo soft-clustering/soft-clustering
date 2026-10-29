@@ -95,6 +95,27 @@ def _collate_fn(batch):
     return (edges, nonedges)
 
 
+def _check_edge_counts(num_nodes, num_edges):
+    if num_nodes < 2 or not 0 < num_edges < num_nodes * (num_nodes - 1):
+        raise ValueError(
+            "NOCD: the graph must contain at least one off-diagonal edge "
+            "and one off-diagonal nonedge."
+        )
+
+
+def _prepare_adjacency(A):
+    """Copy the weighted topology, coalesce entries, and ignore self-loops."""
+    A = sp.csr_matrix(A, dtype=np.float32, copy=True)
+    n = A.shape[0]
+    if A.shape != (n, n):
+        raise ValueError(f"NOCD: adjacency_matrix must be square; got {A.shape}.")
+    A.sum_duplicates()
+    A.setdiag(0)
+    A.eliminate_zeros()
+    _check_edge_counts(n, A.nnz)
+    return A
+
+
 def _get_edge_sampler(
     A, num_pos=1000, num_neg=1000, num_workers=0, random_seed=None, device="cpu"
 ):
@@ -119,7 +140,10 @@ def _get_edge_sampler(
 
 
 class _EdgeSampler(torch.utils.data.Dataset):
-    """Sample edges and non-edges uniformly from a graph.
+    """Sample ordered edges and nonedges uniformly with replacement.
+
+    A finite rank map uses O(nnz + n) storage, without a dense complement or
+    rejection loop. Self-loops are ignored, and both edge classes must exist.
 
     Args:
         A: adjacency matrix.
@@ -131,10 +155,20 @@ class _EdgeSampler(torch.utils.data.Dataset):
         self.base_seed = base_seed
         self.num_pos = num_pos
         self.num_neg = num_neg
-        self.A = A
-        self.edges = np.transpose(A.nonzero())
+        self.A = A = _prepare_adjacency(A)
+        self.edges = np.transpose(A.nonzero()).astype(np.int64, copy=False)
         self.num_nodes = A.shape[0]
         self.num_edges = self.edges.shape[0]
+        forbidden = np.unique(
+            np.concatenate(
+                [
+                    self.edges[:, 0] * self.num_nodes + self.edges[:, 1],
+                    np.arange(self.num_nodes, dtype=np.int64) * (self.num_nodes + 1),
+                ]
+            )
+        )
+        self._nonedge_offsets = forbidden - np.arange(len(forbidden), dtype=np.int64)
+        self.num_nonedges = self.num_nodes**2 - len(forbidden)
 
     def __getitem__(self, key):
         # A private generator per batch, derived from the fit's seed and the
@@ -143,16 +177,9 @@ class _EdgeSampler(torch.utils.data.Dataset):
         edges_idx = rng.integers(0, self.num_edges, size=self.num_pos, dtype=np.int64)
         next_edges = self.edges[edges_idx, :]
 
-        # Select num_neg non-edges
-        generated = False
-        while not generated:
-            candidate_ne = rng.integers(
-                0, self.num_nodes, size=(2 * self.num_neg, 2), dtype=np.int64
-            )
-            cne1, cne2 = candidate_ne[:, 0], candidate_ne[:, 1]
-            to_keep = (1 - self.A[cne1, cne2]).astype(bool).A1 * (cne1 != cne2)
-            next_nonedges = candidate_ne[to_keep][: self.num_neg]
-            generated = to_keep.sum() >= self.num_neg
+        ranks = rng.integers(0, self.num_nonedges, size=self.num_neg, dtype=np.int64)
+        flat = ranks + np.searchsorted(self._nonedge_offsets, ranks, side="right")
+        next_nonedges = np.column_stack((flat // self.num_nodes, flat % self.num_nodes))
         return torch.LongTensor(next_edges), torch.LongTensor(next_nonedges)
 
     def __len__(self):
@@ -257,6 +284,7 @@ class _BernoulliDecoder(torch.nn.Module):
             balance_loss: Whether to balance contribution from edges and non-edges.
         """
         super().__init__()
+        _check_edge_counts(num_nodes, num_edges)
         self.num_nodes = num_nodes
         self.num_edges = num_edges
         self.num_possible_edges = num_nodes**2 - num_nodes
@@ -539,6 +567,9 @@ class NOCD(BaseSoftClusterer):
     batch_norm : bool, default=True
     lr : float, default=1e-3
     max_epochs : int, default=500
+        Maximum optimizer updates. Zero returns the evaluated initial model.
+        Evaluate after every 25 updates and the final update, keeping the best
+        full-loss checkpoint (including initialization).
     balance_loss : bool, default=True
         Weight edges and non-edges equally in the loss.
     stochastic_loss : bool, default=True
@@ -608,6 +639,10 @@ class NOCD(BaseSoftClusterer):
         Parameters
         ----------
         adjacency_matrix : scipy sparse matrix or ndarray of shape (n_nodes, n_nodes)
+            Must contain an off-diagonal edge and an off-diagonal nonedge.
+            Self-loops are ignored on a private copy; duplicate coordinates are
+            summed and stored zeros removed. Off-diagonal weights and direction
+            are preserved, with nonzero entries defining edges.
         feature_matrix : scipy sparse matrix or ndarray of shape (n_nodes, n_features), optional
             Node attributes. ``None`` uses the identity (no attributes); the
             adjacency rows are always appended, as in the reference.
@@ -618,12 +653,10 @@ class NOCD(BaseSoftClusterer):
         -------
         ndarray of shape (n_nodes, n_clusters)
         """
-        adjacency_matrix = sp.csr_matrix(adjacency_matrix, dtype=np.float32)
+        if self.max_epochs < 0:
+            raise ValueError("NOCD: max_epochs must be nonnegative.")
+        adjacency_matrix = _prepare_adjacency(adjacency_matrix)
         n = adjacency_matrix.shape[0]
-        if adjacency_matrix.shape != (n, n):
-            raise ValueError(
-                f"NOCD: adjacency_matrix must be square; got {adjacency_matrix.shape}."
-            )
         K = check_n_clusters(self.n_clusters if K is None else K, n, estimator="NOCD")
         if feature_matrix is None:
             feature_matrix = sp.identity(n, format="csr", dtype=np.float32)
@@ -635,14 +668,6 @@ class NOCD(BaseSoftClusterer):
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         x_norm = sp.hstack([feature_matrix, adjacency_matrix])
         x_norm = _to_sparse_tensor(x_norm).to(device)
-        sampler = _get_edge_sampler(
-            adjacency_matrix,
-            self.batch_size,
-            self.batch_size,
-            num_workers=self.num_workers,
-            random_seed=int_seed(self.random_state),
-            device=device,
-        )
         gnn = _GCN(
             x_norm.shape[1],
             self.hidden_sizes,
@@ -666,34 +691,50 @@ class NOCD(BaseSoftClusterer):
         early_stopping = _NoImprovementStopping(validation_fn, patience=10)
         model_saver = _ModelSaver(gnn)
 
-        for epoch, batch in enumerate(sampler):
-            if epoch > self.max_epochs:
-                break
-            if epoch % 25 == 0:
-                with torch.no_grad():
-                    gnn.eval()
-                    # Compute validation loss
-                    Z = torch.nn.functional.relu(gnn(x_norm, adj_norm))
-                    val_loss = decoder.loss_full(Z, adjacency_matrix)
-                    # Check if it's time for early stopping / to save the model
-                    early_stopping.next_step()
-                    if early_stopping.should_save():
-                        model_saver.save()
-                    if early_stopping.should_stop():
-                        break
+        def validate():
+            nonlocal val_loss
+            with torch.no_grad():
+                gnn.eval()
+                Z = torch.nn.functional.relu(gnn(x_norm, adj_norm))
+                val_loss = decoder.loss_full(Z, adjacency_matrix)
+                early_stopping.next_step()
+                if early_stopping.should_save():
+                    model_saver.save()
+            return early_stopping.should_stop()
+
+        validate()
+        if not hasattr(model_saver, "state_dict"):
+            model_saver.save()
+        batches = None
+        if self.stochastic_loss and self.max_epochs > 0:
+            batches = iter(
+                _get_edge_sampler(
+                    adjacency_matrix,
+                    self.batch_size,
+                    self.batch_size,
+                    num_workers=self.num_workers,
+                    random_seed=int_seed(self.random_state),
+                    device=device,
+                )
+            )
+
+        for completed in range(1, self.max_epochs + 1):
 
             # Training step
             gnn.train()
             opt.zero_grad()
             Z = torch.nn.functional.relu(gnn(x_norm, adj_norm))
-            ones_idx, zeros_idx = batch
-            if self.stochastic_loss:
+            if batches is not None:
+                ones_idx, zeros_idx = next(batches)
                 loss = decoder.loss_batch(Z, ones_idx, zeros_idx)
             else:
                 loss = decoder.loss_full(Z, adjacency_matrix)
             loss += _l2_reg_loss(gnn, scale=self.weight_decay)
             loss.backward()
             opt.step()
+            if completed % 25 == 0 or completed == self.max_epochs:
+                if validate():
+                    break
 
         # Restore the weights with the best validation loss and evaluate
         # without dropout. Earlier releases saved those weights but never
