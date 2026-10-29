@@ -2,12 +2,54 @@
 # Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
 
 import numpy as np
-from scipy.sparse import csr_matrix, issparse
+from scipy.sparse import csr_matrix
 from sklearn.feature_extraction.text import CountVectorizer
 from typeguard import typechecked
 
 from ._base import BaseSoftClusterer
 from ._validation import check_random_state
+
+
+def _split_tokens(X, rng, heldout_ratio):
+    """Split canonical CSR integer counts, retaining training support per document."""
+    if not 0 < heldout_ratio < 1:
+        raise ValueError("PLSI: TEM requires 0 < heldout_ratio < 1.")
+    if np.any(X.data != np.floor(X.data)):
+        raise ValueError(
+            "PLSI: token-level TEM holdout requires integer counts; "
+            "plain EM accepts fractional weighted inputs."
+        )
+    if np.any(X.data >= 2**63):
+        raise ValueError("PLSI: TEM token counts must fit in signed 64-bit integers.")
+    counts = X.data.astype(np.int64)
+    heldout = rng.binomial(counts, heldout_ratio)
+    train = counts - heldout
+    for start, end in zip(X.indptr[:-1], X.indptr[1:]):
+        if train[start:end].sum() == 0:
+            positions = np.arange(start, end)
+            chosen = rng.choice(
+                positions, p=heldout[start:end] / heldout[start:end].sum()
+            )
+            train[chosen] += 1
+            heldout[chosen] -= 1
+    if heldout.sum() == 0:
+        totals = np.add.reduceat(train, X.indptr[:-1])
+        eligible = np.flatnonzero(
+            np.repeat(totals > 1, np.diff(X.indptr)) & (train > 0)
+        )
+        if eligible.size == 0:
+            raise ValueError(
+                "PLSI: a nonempty TEM holdout needs at least one document with "
+                "two tokens while retaining training tokens in every document."
+            )
+        chosen = rng.choice(eligible, p=train[eligible] / train[eligible].sum())
+        train[chosen] -= 1
+        heldout[chosen] += 1
+    coo = X.tocoo()
+    return tuple(
+        (coo.row[values > 0], coo.col[values > 0], values[values > 0])
+        for values in (train, heldout)
+    )
 
 
 class PLSI(BaseSoftClusterer):
@@ -16,7 +58,8 @@ class PLSI(BaseSoftClusterer):
     Models a document-word count matrix as :math:`P(d, w) = \sum_z P(z)
     P(d \mid z) P(w \mid z)` and maximises the likelihood by EM (Hofmann,
     1999). ``memberships_`` holds :math:`P(z \mid d) \propto P(d \mid z)
-    P(z)`. The training log-likelihood (``log_likelihoods``) is non-decreasing
+    P(z)` in document-by-topic orientation; legacy ``P_z_given_d`` remains
+    topic-by-document. The training log-likelihood (``log_likelihoods``) is non-decreasing
     under plain EM. Tempered EM, with Hofmann's annealing schedule and a
     held-out set, is available through ``tempered=True``; it targets
     generalisation to unseen documents and needs a large corpus. Parameters
@@ -72,7 +115,10 @@ class PLSI(BaseSoftClusterer):
         beta_step : float, default=0.9
             Multiplicative step to reduce beta at each iteration.
         heldout_ratio : float, default=0.1
-            Fraction of word tokens used as held-out validation data.
+            Approximate fraction of integer word tokens held out by TEM;
+            must be strictly between zero and one when tempered=True. Every
+            document retains a training token, and validation retains at least
+            one token globally. Plain EM also accepts fractional weights.
         n_init : int, default=3
             Number of random restarts. The run with the highest training
             log-likelihood (plain EM) or held-out log-likelihood (tempered
@@ -282,7 +328,9 @@ class PLSI(BaseSoftClusterer):
         Parameters
         ----------
         data : list of str or csr_matrix
-            Raw text corpus or a sparse term-document matrix.
+            Raw text corpus or a sparse term-document matrix. Counts must be
+            finite and nonnegative. Empty documents are rejected: their topic
+            proportions cannot be inferred without observed tokens.
         """
         # Every fit starts from the constructor's seed and an empty history.
         # Earlier releases stored a RandomState in ``random_state`` itself,
@@ -293,34 +341,43 @@ class PLSI(BaseSoftClusterer):
         self.log_likelihoods = []
         if isinstance(data, list):
             vectorizer = CountVectorizer()
-            X = vectorizer.fit_transform(data)
+            try:
+                X = vectorizer.fit_transform(data)
+            except ValueError as exc:
+                if "empty vocabulary" in str(exc):
+                    raise ValueError(
+                        "PLSI: the corpus has no observed word tokens."
+                    ) from exc
+                raise
             self.vocab = vectorizer.get_feature_names_out()
         else:
             X = data
 
         n_docs, n_words = X.shape
-        X = csr_matrix(X) if not issparse(X) else X
-        X = X.tocoo()
-        doc_idx = X.row
-        word_idx = X.col
-        count = X.data
+        X = csr_matrix(X, copy=True)
+        if not np.isfinite(X.data).all() or np.any(X.data < 0):
+            raise ValueError("PLSI: counts must be finite and nonnegative.")
+        X.sum_duplicates()
+        X.eliminate_zeros()
+        empty = np.flatnonzero(np.asarray(X.sum(axis=1)).ravel() == 0)
+        if n_docs == 0 or empty.size:
+            raise ValueError(
+                f"PLSI: empty documents at indices {empty.tolist()}; cannot infer "
+                "topic proportions without observed tokens."
+            )
+        coo = X.tocoo()
+        doc_idx, word_idx, count = coo.row, coo.col, coo.data
 
         # Split held-out if TEM
         if self.tempered:
-            mask = self._rng.rand(len(count)) >= self.heldout_ratio
-            train_mask = mask
-            heldout_mask = ~mask
-
-            doc_idx_train, word_idx_train, count_train = (
-                doc_idx[train_mask],
-                word_idx[train_mask],
-                count[train_mask],
-            )
-            doc_idx_val, word_idx_val, count_val = (
-                doc_idx[heldout_mask],
-                word_idx[heldout_mask],
-                count[heldout_mask],
-            )
+            # Generator supports int64 binomial counts even where RandomState
+            # uses a 32-bit C long (Windows with older NumPy releases).
+            split_rng = np.random.default_rng(self._rng.randint(0, 2**31 - 1))
+            (doc_idx_train, word_idx_train, count_train), (
+                doc_idx_val,
+                word_idx_val,
+                count_val,
+            ) = _split_tokens(X, split_rng, self.heldout_ratio)
         else:
             doc_idx_train, word_idx_train, count_train = doc_idx, word_idx, count
             doc_idx_val, word_idx_val, count_val = None, None, None
@@ -328,6 +385,7 @@ class PLSI(BaseSoftClusterer):
         if self.n_init < 1:
             raise ValueError(f"PLSI: n_init must be >= 1; got {self.n_init}.")
         best_score, best_state = -np.inf, None
+        best_diagnostics = None
         for _ in range(self.n_init):
             self.log_likelihoods = []
             self._initialize(n_docs, n_words)
@@ -357,12 +415,17 @@ class PLSI(BaseSoftClusterer):
                     self.P_w_given_z.copy(),
                     list(self.log_likelihoods),
                 )
+                if self.tempered:
+                    best_diagnostics = (self.beta_, self.heldout_log_likelihood_)
         assert best_state is not None  # n_init >= 1 runs were made
         self.P_z, self.P_d_given_z, self.P_w_given_z, self.log_likelihoods = best_state
+        if best_diagnostics is not None:
+            self.beta_, self.heldout_log_likelihood_ = best_diagnostics
 
         self.perplexity = self._perplexity(X, doc_idx, word_idx, count)
         self.P_z_given_d = (self.P_d_given_z.T * self.P_z).T
         self.P_z_given_d /= self.P_z_given_d.sum(axis=0, keepdims=True)
+        self.memberships_ = self.P_z_given_d.T
 
         return self
 

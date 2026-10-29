@@ -64,7 +64,7 @@ from scipy.special import digamma
 from typeguard import typechecked
 
 from ._base import BaseSoftClusterer
-from ._validation import check_array, check_generator
+from ._validation import check_array, check_generator, int_seed
 
 _EPS = 1e-10
 
@@ -114,9 +114,10 @@ class MMSB(BaseSoftClusterer):
             standard practical initialiser for blockmodel variational
             inference. ``"random"`` seeds from a random hard partition and is
             provided for ablation.
-        random_state : int or None
+        random_state : int, numpy.random.Generator, or None
             Seed for the variational initialisation and for
-            :meth:`sample_graph`.
+            :meth:`sample_graph`. A Generator is consumed in place, including
+            an integer draw for the spectral initializer's KMeans seed.
         n_nodes : int or None
             Number of nodes, used only by :meth:`sample_graph` when the model
             is used generatively without a fit. Ignored by :meth:`fit`, which
@@ -166,7 +167,7 @@ class MMSB(BaseSoftClusterer):
 
         from sklearn.cluster import KMeans
 
-        seed = self.random_state if self.random_state is not None else 0
+        seed = int_seed(self.random_state) if self.random_state is not None else 0
         labels = KMeans(n_clusters=K, n_init=10, random_state=seed).fit_predict(
             embedding
         )

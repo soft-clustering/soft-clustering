@@ -189,3 +189,37 @@ def test_empty_graph_is_handled():
     U = MMSB(n_blocks=3, random_state=0, max_iter=5).fit(A).memberships_
     assert np.isfinite(U).all()
     np.testing.assert_allclose(U.sum(axis=1), 1.0, atol=1e-9)
+
+
+@pytest.mark.parametrize("init", ["spectral", "random"])
+def test_generator_replay_preserves_identity_and_consumes_stream(init):
+    A = np.ones((6, 6)) - np.eye(6)
+    generator = np.random.default_rng(0)
+    before = repr(generator.bit_generator.state)
+    model = MMSB(n_clusters=2, max_iter=2, init=init, random_state=generator).fit(A)
+    replay = MMSB(
+        n_clusters=2, max_iter=2, init=init, random_state=np.random.default_rng(0)
+    ).fit(A)
+    assert model.random_state is generator
+    assert model.get_params()["random_state"] is generator
+    assert repr(generator.bit_generator.state) != before
+    assert np.isfinite(model.memberships_).all()
+    np.testing.assert_allclose(model.memberships_.sum(1), 1)
+    np.testing.assert_allclose(model.memberships_, replay.memberships_)
+
+
+@pytest.mark.parametrize("seed,expected", [(None, 0), (7, 7)])
+def test_spectral_integer_and_none_seeds_are_unchanged(monkeypatch, seed, expected):
+    import sklearn.cluster
+
+    original = sklearn.cluster.KMeans
+    observed = []
+
+    def kmeans(**kwargs):
+        observed.append(kwargs["random_state"])
+        assert kwargs["n_init"] == 10
+        return original(**kwargs)
+
+    monkeypatch.setattr(sklearn.cluster, "KMeans", kmeans)
+    MMSB(n_clusters=2, max_iter=2, random_state=seed).fit(np.ones((6, 6)) - np.eye(6))
+    assert observed == [expected]
