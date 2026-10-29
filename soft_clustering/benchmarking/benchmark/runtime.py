@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import time
+import warnings
 from typing import Any
 
 import numpy as np
@@ -14,6 +15,10 @@ from ..base import BaseBenchmark
 class RuntimeBenchmark(BaseBenchmark):
     """
     Benchmark training and inference runtime.
+
+    Inference time is NaN if any repeat lacks a callable predictor or raises.
+    Unsupported inference (NotImplementedError) is silent; other prediction
+    exceptions produce a RuntimeWarning. Fit exceptions still propagate.
     """
 
     name = "runtime"
@@ -40,16 +45,24 @@ class RuntimeBenchmark(BaseBenchmark):
             model.fit(X)
             fit_times.append(time.perf_counter() - start)
 
-            if hasattr(model, "predict"):
-
+            predict = getattr(model, "predict", None)
+            if callable(predict):
                 start = time.perf_counter()
-
                 try:
-                    model.predict(X)
-                except Exception:
-                    pass
-
-                predict_times.append(time.perf_counter() - start)
+                    predict(X)
+                except NotImplementedError:
+                    predict_times.append(np.nan)
+                except Exception as exc:
+                    predict_times.append(np.nan)
+                    warnings.warn(
+                        f"Prediction timing unavailable: {type(exc).__name__}: {exc}",
+                        RuntimeWarning,
+                        stacklevel=2,
+                    )
+                else:
+                    predict_times.append(time.perf_counter() - start)
+            else:
+                predict_times.append(np.nan)
 
         return {
             "fit_time_sec": float(np.mean(fit_times)),

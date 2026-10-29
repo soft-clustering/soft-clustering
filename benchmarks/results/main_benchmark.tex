@@ -1,23 +1,23 @@
 \begin{table}[t]
 \centering
 \small
-\caption{Cross-family comparison over the dataset suite that ships with SCPP. Every estimator that consumes a feature matrix is fitted on every dataset under one protocol, once per seed. \emph{Runs} is datasets times seeds; \emph{Compl.} counts the runs that returned a non-degenerate partition, and failures are reported, not dropped. ARI, NMI and fit time are means over the completed runs. The fuzziness indices are reported per run in the released CSV and deliberately omitted here: they measure crispness, not quality, and ranking estimators by them rewards a fuzzy method for degenerating to a hard partition.}
+\caption{Cross-family comparison over the dataset suite that ships with SCPP. Every estimator that consumes a feature matrix is fitted on every dataset under one protocol, once per seed. \emph{Runs} is datasets times seeds; \emph{Compl.} counts successful, non-degenerate results whose scoring succeeded. \emph{Failures} includes timeouts and other failures; the summary CSV provides their breakdown. ARI, NMI and fit time are means over the completed runs. The fuzziness indices are reported per run in the released CSV and deliberately omitted here: they measure crispness, not quality, and ranking estimators by them rewards a fuzzy method for degenerating to a hard partition.}
 \label{tab:main-benchmark}
 \begin{tabular}{lrrrrrrr}
 \toprule
-Algorithm & Runs & Compl. & Degen. & Err. & ARI $\uparrow$ & NMI $\uparrow$ & $\bar{t}$ (ms) \\
+Algorithm & Runs & Compl. & Degen. & Failures & ARI $\uparrow$ & NMI $\uparrow$ & $\bar{t}$ (ms) \\
 \midrule
 GMM & 33 & 30 & 0 & 3 & 0.711 & 0.718 & 515.9 \\
-GathGeva & 33 & 24 & 0 & 0 & 0.652 & 0.669 & 641.8 \\
+GathGeva & 33 & 24 & 0 & 9 & 0.652 & 0.669 & 641.8 \\
 AFCM & 33 & 33 & 0 & 0 & 0.648 & 0.725 & 2419.1 \\
-CAFCM & 33 & 30 & 0 & 0 & 0.627 & 0.634 & 5271.9 \\
+CAFCM & 33 & 30 & 0 & 3 & 0.627 & 0.634 & 5271.9 \\
 KFCCL & 33 & 33 & 0 & 0 & 0.577 & 0.626 & 14984.1 \\
-RPFKM & 33 & 30 & 0 & 0 & 0.570 & 0.601 & 834.5 \\
+RPFKM & 33 & 30 & 0 & 3 & 0.570 & 0.601 & 834.5 \\
 ENTROPYFCM & 33 & 33 & 0 & 0 & 0.558 & 0.618 & 244.4 \\
 AFCMSimple & 33 & 33 & 0 & 0 & 0.558 & 0.623 & 187.9 \\
 SoftKSC & 33 & 33 & 0 & 0 & 0.536 & 0.585 & 4545.2 \\
 KFCM & 33 & 33 & 0 & 0 & 0.534 & 0.592 & 2054.4 \\
-GK & 33 & 30 & 0 & 0 & 0.520 & 0.542 & 798.4 \\
+GK & 33 & 30 & 0 & 3 & 0.520 & 0.542 & 798.4 \\
 PFCM & 33 & 33 & 0 & 0 & 0.514 & 0.549 & 472.4 \\
 FCM & 33 & 33 & 0 & 0 & 0.506 & 0.551 & 237.7 \\
 CAFHFCM & 33 & 31 & 2 & 0 & 0.493 & 0.533 & 9250.6 \\
@@ -25,7 +25,7 @@ RoughKMeans & 33 & 33 & 0 & 0 & 0.482 & 0.581 & 2242.4 \\
 ECM & 33 & 33 & 0 & 0 & 0.462 & 0.517 & 958.2 \\
 PCM & 33 & 29 & 4 & 0 & 0.445 & 0.512 & 40.8 \\
 SCM & 33 & 33 & 0 & 0 & 0.360 & 0.534 & 269.7 \\
-SoftDBSCANGM & 33 & 21 & 6 & 3 & 0.347 & 0.550 & 8620.7 \\
+SoftDBSCANGM & 33 & 21 & 6 & 6 & 0.347 & 0.550 & 8620.7 \\
 FCC & 33 & 33 & 0 & 0 & 0.343 & 0.428 & 154.4 \\
 EVCLUS & 33 & 33 & 0 & 0 & 0.316 & 0.400 & 9605.5 \\
 \bottomrule

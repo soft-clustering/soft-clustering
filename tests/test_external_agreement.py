@@ -38,6 +38,8 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from scipy.optimize import linear_sum_assignment
+from scipy.spatial.distance import cdist
 
 import soft_clustering as sc
 
@@ -83,17 +85,15 @@ def topical_corpus(per=8):
 
 
 def align(reference: np.ndarray, candidate: np.ndarray) -> np.ndarray:
-    """Permute ``candidate``'s columns to best match ``reference``.
+    """Match equal-shaped partitions by minimum total squared column error.
 
     Cluster labels are arbitrary, so two correct implementations routinely
     return the same partition under a different permutation.
     """
-    remaining = list(range(candidate.shape[1]))
-    order = []
-    for column in reference.T:
-        best = max(remaining, key=lambda j: float(np.dot(column, candidate[:, j])))
-        order.append(best)
-        remaining.remove(best)
+    if reference.ndim != 2 or reference.shape != candidate.shape:
+        raise ValueError("align requires equally shaped 2-D membership matrices.")
+    cost = cdist(reference.T, candidate.T, metric="sqeuclidean")
+    _, order = linear_sum_assignment(cost)
     return candidate[:, order]
 
 

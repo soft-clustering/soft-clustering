@@ -223,16 +223,17 @@ def xie_beni_index(
 
     :math:`\\mathrm{XB} = \\sum_{ij} u_{ij}^m \\lVert x_j - v_i \\rVert^2 /
     (n \\min_{i \\neq l} \\lVert v_i - v_l \\rVert^2)`. Lower is better.
+    Returns infinity for coincident distinct prototypes, or by convention for
+    one prototype, where the minimum separation is undefined.
     """
     n_samples = X.shape[0]
     distances = np.linalg.norm(X[:, None, :] - centers[None, :, :], axis=2)
     numerator = np.sum((U**m) * (distances**2))
 
     center_distances = np.linalg.norm(centers[:, None, :] - centers[None, :, :], axis=2)
-    center_distances[center_distances == 0] = np.inf
+    np.fill_diagonal(center_distances, np.inf)
     min_center_distance = np.min(center_distances)
-    if not np.isfinite(min_center_distance):
-        # Every prototype coincides; separation is zero and XB diverges.
+    if min_center_distance == 0 or not np.isfinite(min_center_distance):
         return float("inf")
 
     return float(numerator / (n_samples * min_center_distance**2))

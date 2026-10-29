@@ -51,6 +51,14 @@ Design choices that affect the numbers:
   methods in high dimensions, not a benchmark failure.
 - A run whose fit succeeded but whose scoring raised is recorded as
   `metric_error` with the reason.
+- Completed runs are successful, non-degenerate results whose scoring succeeded
+  (`ok` or `slow`); means include only their finite measurements. The console and
+  LaTeX table show aggregate **Failures**, including timeouts. In the summary CSV,
+  `errors` retains its narrower meaning (`error` plus `construct_error`), while
+  `timeouts`, `crashes`, `empty_partitions`, `metric_errors`, and `other_failures`
+  give the rest of the disjoint breakdown. Their sum is `failures`, and
+  `runs = completed + degenerate + failures`. Unknown statuses count as
+  `other_failures`.
 - Datasets larger than `--max-samples` (2000) are subsampled with a fixed
   seed.
 - Fuzziness indices (partition coefficient, entropy) measure crispness, not

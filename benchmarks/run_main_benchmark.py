@@ -56,6 +56,7 @@ import sys
 import time
 import tracemalloc
 import warnings
+from collections import Counter
 from pathlib import Path
 
 import numpy as np
@@ -325,11 +326,12 @@ def _fit_and_score(
 
 
 def summarise(rows: list[dict]) -> list[dict]:
-    """Per-algorithm means over the datasets where the fit succeeded."""
+    """Count every outcome; average successful, non-degenerate scored runs."""
     summary = []
     for name in sorted({r["algorithm"] for r in rows}):
         mine = [r for r in rows if r["algorithm"] == name]
         ok = [r for r in mine if r["status"] in ("ok", "slow")]
+        counts = Counter(r["status"] for r in mine)
         entry = {
             "algorithm": name,
             "datasets": len({r["dataset"] for r in mine}),
@@ -337,7 +339,38 @@ def summarise(rows: list[dict]) -> list[dict]:
             "completed": len(ok),
             "degenerate": sum(r["status"] == "degenerate" for r in mine),
             "errors": sum(r["status"] in ("error", "construct_error") for r in mine),
+            "timeouts": counts["timeout"],
+            "crashes": counts["crashed"],
+            "empty_partitions": counts["empty_partition"],
+            "metric_errors": counts["metric_error"],
+            "other_failures": sum(
+                count
+                for status, count in counts.items()
+                if status
+                not in {
+                    "ok",
+                    "slow",
+                    "degenerate",
+                    "error",
+                    "construct_error",
+                    "timeout",
+                    "crashed",
+                    "empty_partition",
+                    "metric_error",
+                }
+            ),
         }
+        entry["failures"] = sum(
+            entry[key]
+            for key in (
+                "errors",
+                "timeouts",
+                "crashes",
+                "empty_partitions",
+                "metric_errors",
+                "other_failures",
+            )
+        )
         for column in ("ari", "nmi", "silhouette", "fit_time_ms", "peak_traced_mb"):
             values = [r[column] for r in ok if np.isfinite(r[column])]
             entry[f"mean_{column}"] = float(np.mean(values)) if values else float("nan")
@@ -380,7 +413,9 @@ def write_outputs(
         writer.writerows(rows)
 
     with (OUT / "main_benchmark_summary.csv").open("w", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=list(summary[0]))
+        writer = csv.DictWriter(
+            handle, fieldnames=list(summary[0]), lineterminator="\n"
+        )
         writer.writeheader()
         writer.writerows(summary)
 
@@ -413,8 +448,9 @@ def write_outputs(
         r"\caption{Cross-family comparison over the dataset suite that ships "
         r"with SCPP. Every estimator that consumes a feature matrix is fitted "
         r"on every dataset under one protocol, once per seed. \emph{Runs} is "
-        r"datasets times seeds; \emph{Compl.} counts the runs that returned a "
-        r"non-degenerate partition, and failures are reported, not dropped. "
+        r"datasets times seeds; \emph{Compl.} counts successful, non-degenerate "
+        r"results whose scoring succeeded. \emph{Failures} includes timeouts "
+        r"and other failures; the summary CSV provides their breakdown. "
         r"ARI, NMI and fit time are means over the completed runs. The "
         r"fuzziness indices are reported "
         r"per run in the released CSV and deliberately omitted here: they "
@@ -423,7 +459,7 @@ def write_outputs(
         r"\label{tab:main-benchmark}",
         r"\begin{tabular}{lrrrrrrr}",
         r"\toprule",
-        r"Algorithm & Runs & Compl. & Degen. & Err. & ARI $\uparrow$ & "
+        r"Algorithm & Runs & Compl. & Degen. & Failures & ARI $\uparrow$ & "
         r"NMI $\uparrow$ & $\bar{t}$ (ms) \\",
         r"\midrule",
     ]
@@ -432,7 +468,7 @@ def write_outputs(
     ):
         lines.append(
             f"{entry['algorithm']} & {entry['runs']} & {entry['completed']} & "
-            f"{entry['degenerate']} & {entry['errors']} & "
+            f"{entry['degenerate']} & {entry['failures']} & "
             f"{cell(entry['mean_ari'])} & {cell(entry['mean_nmi'])} & "
             f"{cell(entry['mean_fit_time_ms'], '.1f')} \\\\"
         )
@@ -533,7 +569,7 @@ def main() -> int:
     summary = summarise(rows)
     print("\n" + "=" * 72)
     print(
-        f"{'algorithm':16s} {'compl.':>7s} {'degen.':>7s} {'err':>4s} "
+        f"{'algorithm':16s} {'compl.':>7s} {'degen.':>7s} {'Failures':>8s} "
         f"{'mean ARI':>9s} {'mean t (ms)':>12s}"
     )
     print("-" * 72)
@@ -542,7 +578,7 @@ def main() -> int:
     ):
         print(
             f"{entry['algorithm']:16s} {entry['completed']:7d} "
-            f"{entry['degenerate']:7d} {entry['errors']:4d} "
+            f"{entry['degenerate']:7d} {entry['failures']:8d} "
             f"{entry['mean_ari']:9.3f} {entry['mean_fit_time_ms']:12.1f}"
         )
 

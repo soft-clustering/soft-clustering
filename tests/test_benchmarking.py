@@ -378,6 +378,149 @@ class TestAdapterDispatch:
         with pytest.raises(RuntimeError, match="before predict"):
             BenchmarkAdapter(FitPredictWithK(), n_clusters=2).predict(X)
 
+    def test_predictor_without_training_labels_and_failed_refit(self, X):
+        from soft_clustering.benchmarking import BenchmarkAdapter
+
+        class Predictor:
+            fail = False
+
+            def fit(self, X):
+                if self.fail:
+                    raise ValueError("fit failed")
+
+            def predict(self, X):
+                if X.shape[1] != 2:
+                    raise ValueError("expected two features")
+                return np.zeros(len(X), dtype=int)
+
+        model = Predictor()
+        a = BenchmarkAdapter(model)
+        with pytest.raises(RuntimeError, match="before predict"):
+            a.predict(X)
+        a.fit(X)
+        with pytest.raises(RuntimeError, match="training labels are unavailable"):
+            a.predict()
+        np.testing.assert_array_equal(a.predict(X[:1]), [0])
+        with pytest.raises(ValueError, match="expected two features"):
+            a.predict(X[:, :1])
+        model.fail = True
+        with pytest.raises(ValueError, match="fit failed"):
+            a.fit(X)
+        with pytest.raises(RuntimeError, match="before predict"):
+            a.predict(X)
+
+    def test_unsupported_inference_preserves_training_access(self, X):
+        from soft_clustering.benchmarking import BenchmarkAdapter
+
+        a = BenchmarkAdapter(LabelsOnly()).fit(X)
+        assert a.predict() is a.labels_
+        assert a.predict(None) is a.labels_
+        with pytest.raises(NotImplementedError, match="no callable predict"):
+            a.predict(X)
+
+    def test_membership_only_refit_refreshes_labels(self, X):
+        from soft_clustering.benchmarking import BenchmarkAdapter
+
+        a = BenchmarkAdapter(MembershipOnly()).fit(X[:4])
+        assert a.labels_.shape == (4,)
+        a.fit(X[:1])
+        assert a.membership_.shape == (1, 2)
+        np.testing.assert_array_equal(a.predict(), a.membership_.argmax(axis=1))
+
+    @pytest.mark.parametrize("failure", ["fit", "labels", "centers"])
+    def test_failed_refit_clears_all_adapter_caches(self, failure, X):
+        from soft_clustering.benchmarking import BenchmarkAdapter
+
+        class Refittable(FitOnly):
+            fail = False
+            custom_attr = "preserved"
+
+            def fit(self, X):
+                if self.fail and failure == "fit":
+                    raise ValueError("fit failed")
+                super().fit(X)
+                self.labels_ = np.zeros(len(X), dtype=int)
+                if self.fail and failure == "labels":
+                    self.labels_ = np.zeros(len(X) + 1, dtype=int)
+                return self
+
+            @property
+            def centers_(self):
+                if self.fail and failure == "centers":
+                    raise ValueError("centers failed")
+                return self.V
+
+        model = Refittable()
+        a = BenchmarkAdapter(model, n_clusters=2, name="kept").fit(X[:4])
+        assert all(v is not None for v in (a.membership_, a.labels_, a.centers_))
+        model.fail = True
+        with pytest.raises(ValueError):
+            a.fit(X[:1])
+        assert a.membership_ is a.labels_ is a.centers_ is None
+        assert a.model is model
+        assert a.name == "kept" and a.n_clusters == 2
+        assert a.custom_attr == "preserved"
+        # Cleanup is confined to the adapter; foreign attributes remain intact.
+        assert model.U is not None and model.V is not None
+        with pytest.raises(RuntimeError, match="before predict"):
+            a.predict()
+        with pytest.raises(RuntimeError, match="before predict"):
+            a.predict(X)
+
+    def test_explicit_fit_only_labels_override_membership_argmax(self, X):
+        from soft_clustering.benchmarking import BenchmarkAdapter
+
+        class ExplicitLabels(MembershipOnly):
+            def fit(self, X):
+                super().fit(X)
+                self.labels_ = np.full(len(X), -1)
+                return self
+
+        a = BenchmarkAdapter(ExplicitLabels()).fit(X)
+        assert a.labels_ is a.model.labels_
+        np.testing.assert_array_equal(a.labels_, np.full(len(X), -1))
+        assert not np.array_equal(a.labels_, a.membership_.argmax(axis=1))
+
+    @pytest.mark.parametrize("mixed", [False, True])
+    def test_explicit_returned_labels_take_precedence(self, mixed, X):
+        from soft_clustering.benchmarking import BenchmarkAdapter
+
+        class ReturnedLabels(MembershipOnly):
+            def fit_predict(self, X):
+                self.fit(X)
+                self.labels_ = np.zeros(len(X), dtype=int)
+                labels = np.full(len(X), -1)
+                return (labels, self.U) if mixed else labels
+
+        a = BenchmarkAdapter(ReturnedLabels()).fit(X)
+        np.testing.assert_array_equal(a.labels_, np.full(len(X), -1))
+
+    def test_mixed_tuple_loss_trajectory_is_not_labels(self, X):
+        from soft_clustering.benchmarking import BenchmarkAdapter
+
+        class LossTrace:
+            def fit_predict(self, X):
+                return np.linspace(1.0, 0.1, len(X)), _random_memberships(len(X), 2)
+
+        a = BenchmarkAdapter(LossTrace()).fit(X)
+        np.testing.assert_array_equal(a.labels_, a.membership_.argmax(axis=1))
+
+    @pytest.mark.parametrize("shape", [(2,), (30, 1)])
+    def test_malformed_fitted_labels_are_rejected(self, shape, X):
+        from soft_clustering.benchmarking import BenchmarkAdapter
+
+        class Malformed(LabelsOnly):
+            def fit(self, X):
+                self.labels_ = np.zeros(shape, dtype=int)
+                return self
+
+        a = BenchmarkAdapter(Malformed())
+        with pytest.raises(
+            ValueError, match="one-dimensional with one label per sample"
+        ):
+            a.fit(X)
+        assert a.labels_ is a.membership_ is a.centers_ is None
+
 
 class TestAdapterIdentity:
     """Regression tests for the removal of the ``__class__`` property."""
@@ -580,6 +723,29 @@ class TestSoftMetrics:
         U = _random_memberships(10, 3)
         assert metrics.xie_beni_index(X, U, np.zeros((3, 2))) == np.inf
 
+    def test_xie_beni_diverges_for_partially_coincident_prototypes(self):
+        X = np.array([[1.0], [9.0]])
+        U = np.array([[0.5, 0.5, 0.0], [0.0, 0.0, 1.0]])
+        centers = np.array([[0.0], [0.0], [10.0]])
+        assert metrics.xie_beni_index(X, U, centers) == np.inf
+        assert metrics.soft_clustering_metrics(X, U, centers)["xie_beni"] == np.inf
+
+    def test_xie_beni_one_prototype_convention(self):
+        with np.errstate(divide="raise", invalid="raise"):
+            assert (
+                metrics.xie_beni_index(
+                    np.zeros((2, 1)), np.ones((2, 1)), np.zeros((1, 1))
+                )
+                == np.inf
+            )
+
+    def test_xie_beni_preserves_small_positive_separation(self):
+        distance = 1e-10
+        X = np.array([[distance / 4], [3 * distance / 4]])
+        assert metrics.xie_beni_index(
+            X, np.eye(2), np.array([[0.0], [distance]])
+        ) == pytest.approx(1 / 16)
+
     def test_fuzziness_indices_are_nan_for_unnormalised_memberships(self):
         """PC, MPC and PE are only defined under the partition constraint.
 
@@ -731,14 +897,17 @@ class TestDatasetLoading:
 
 class TestRuntimeBenchmark:
     def test_reports_fit_and_predict_times(self, X):
+        from soft_clustering import FCM
         from soft_clustering.benchmarking import BenchmarkAdapter, RuntimeBenchmark
 
         out = RuntimeBenchmark(n_repeats=2).evaluate(
-            BenchmarkAdapter(FitPredictWithK(), n_clusters=2), X
+            BenchmarkAdapter(FCM(n_clusters=2, random_state=0)), X
         )
         assert out["fit_time_sec"] >= 0
         assert out["fit_time_std"] >= 0
-        assert "predict_time_sec" in out
+        assert np.isfinite(out["predict_time_sec"]) and out["predict_time_sec"] >= 0
+        assert set(out) == {"fit_time_sec", "fit_time_std", "predict_time_sec"}
+        assert all(isinstance(value, float) for value in out.values())
 
     def test_callable_shorthand(self, X):
         from soft_clustering.benchmarking import BenchmarkAdapter, RuntimeBenchmark
@@ -750,14 +919,71 @@ class TestRuntimeBenchmark:
     def test_failing_predict_is_tolerated(self, X):
         from soft_clustering.benchmarking import RuntimeBenchmark
 
-        out = RuntimeBenchmark(n_repeats=1).evaluate(PredictRaises(), X)
-        assert np.isfinite(out["predict_time_sec"])
+        with pytest.warns(RuntimeWarning, match="RuntimeError: predict is unavailable"):
+            out = RuntimeBenchmark(n_repeats=1).evaluate(PredictRaises(), X)
+        assert np.isnan(out["predict_time_sec"])
+        assert np.isfinite(out["fit_time_sec"])
 
     def test_model_without_predict_reports_nan(self, X):
         from soft_clustering.benchmarking import RuntimeBenchmark
 
         out = RuntimeBenchmark(n_repeats=1).evaluate(LabelsOnly(), X)
         assert np.isnan(out["predict_time_sec"])
+
+    def test_non_callable_predict_and_unsupported_adapter_report_nan(self, X):
+        from soft_clustering.benchmarking import BenchmarkAdapter, RuntimeBenchmark
+
+        non_callable = LabelsOnly()
+        non_callable.predict = None
+        for model in (non_callable, BenchmarkAdapter(LabelsOnly())):
+            out = RuntimeBenchmark(n_repeats=2).evaluate(model, X)
+            assert np.isnan(out["predict_time_sec"])
+            assert np.isfinite(out["fit_time_sec"])
+
+    @pytest.mark.parametrize("error", [NotImplementedError, RuntimeError])
+    def test_mixed_prediction_repeats_do_not_hide_failure(self, error, X):
+        from soft_clustering.benchmarking import RuntimeBenchmark
+
+        class Intermittent(LabelsOnly):
+            calls = 0
+
+            def predict(self, X):
+                self.calls += 1
+                if self.calls == 2:
+                    raise error("second prediction failed")
+                return self.labels_
+
+        model = Intermittent()
+        if error is RuntimeError:
+            with pytest.warns(RuntimeWarning, match="RuntimeError: second prediction"):
+                out = RuntimeBenchmark(n_repeats=2).evaluate(model, X)
+        else:
+            out = RuntimeBenchmark(n_repeats=2).evaluate(model, X)
+        assert model.calls == 2
+        assert np.isnan(out["predict_time_sec"])
+        assert np.isfinite(out["fit_time_sec"])
+        assert np.isfinite(out["fit_time_std"])
+
+    def test_fit_exceptions_propagate(self, X):
+        from soft_clustering.benchmarking import RuntimeBenchmark
+
+        class FitRaises:
+            def fit(self, X):
+                raise ValueError("fit failed")
+
+        with pytest.raises(ValueError, match="fit failed"):
+            RuntimeBenchmark().evaluate(FitRaises(), X)
+
+    @pytest.mark.parametrize("error", [KeyboardInterrupt, SystemExit])
+    def test_prediction_interruptions_propagate(self, error, X):
+        from soft_clustering.benchmarking import RuntimeBenchmark
+
+        class Interrupted(LabelsOnly):
+            def predict(self, X):
+                raise error()
+
+        with pytest.raises(error):
+            RuntimeBenchmark().evaluate(Interrupted(), X)
 
 
 class SleepingFit:
@@ -1000,6 +1226,28 @@ class TestScalabilityBenchmark:
 
 
 class TestClusteringQualityBenchmark:
+    @needs_sklearn
+    def test_adapter_preserves_labels_only_hard_metrics(self, X):
+        from soft_clustering.benchmarking import (
+            BenchmarkAdapter,
+            ClusteringQualityBenchmark,
+        )
+
+        y = np.arange(len(X)) % 2
+        benchmark = ClusteringQualityBenchmark()
+        expected = benchmark.evaluate(LabelsOnly(), X, y)
+        adapter = BenchmarkAdapter(LabelsOnly())
+        actual = benchmark.evaluate(adapter, X, y)
+        assert adapter.membership_ is None
+        assert {
+            "silhouette",
+            "calinski_harabasz",
+            "davies_bouldin",
+            "ari",
+            "nmi",
+        } <= set(actual)
+        assert actual == pytest.approx(expected, nan_ok=True)
+
     def test_soft_metrics_are_reported(self, X):
         from soft_clustering.benchmarking import (
             BenchmarkAdapter,
@@ -1070,6 +1318,8 @@ class TestClusteringBenchmark:
 
         assert list(df["model"]) == ["A", "B"]
         assert "fit_time_sec" in df.columns
+        assert df["fit_time_sec"].notna().all()
+        assert df["predict_time_sec"].isna().all()
 
     def test_metrics_from_several_backends_are_merged(self, X):
         from soft_clustering.benchmarking import (
@@ -1203,6 +1453,26 @@ class TestAdapterOnSCPPEstimators:
         assert adapter.membership_ is model.memberships_
         assert adapter.labels_ is model.labels_
         assert adapter.centers_ is model.centers_
+
+    def test_inference_uses_supplied_rows_without_replacing_training_labels(self):
+        from soft_clustering import FCM
+        from soft_clustering.benchmarking import BenchmarkAdapter
+
+        X = np.array([[0.0], [0.1], [4.0], [4.1]])
+        model = FCM(n_clusters=2, random_state=0)
+        adapter = BenchmarkAdapter(model).fit(X)
+        training = adapter.predict()
+        snapshot = training.copy()
+        predicted = adapter.predict(np.array([[4.2]]))
+        assert predicted.shape == (1,)
+        np.testing.assert_array_equal(predicted, model.predict(np.array([[4.2]])))
+        assert adapter.predict() is training
+        np.testing.assert_array_equal(training, snapshot)
+        # Even the original training object must go through the predictor.
+        sentinel = np.full(4, -1)
+        model.predict = lambda data: sentinel
+        assert adapter.predict(X) is sentinel
+        assert adapter.predict() is training
 
     def test_n_clusters_may_be_given_to_the_adapter_instead(self, features):
         from soft_clustering import FCM
