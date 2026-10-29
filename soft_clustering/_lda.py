@@ -138,7 +138,10 @@ class LDA(BaseSoftClusterer):
             else:
                 self.vocab_ = np.array([f"w{i}" for i in range(X.shape[1])])
 
-        X_csr = X.tocsr()
+        # Counts must not depend on sparse storage, and the caller owns X.
+        X_csr = X.tocsr(copy=True)
+        X_csr.sum_duplicates()
+        X_csr.eliminate_zeros()
 
         # Variational EM is run from n_init random initialisations and the run
         # with the highest corpus log-likelihood is kept. A single run merges

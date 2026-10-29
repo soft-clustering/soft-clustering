@@ -10,7 +10,9 @@ optimized estimator is fitted alongside the preserved reference from
 and unchanged outputs must agree to floating-point tolerance. SoftDBSCANGM now
 also exposes its existing prototypes as ``centers_``; MBMM's corrected terminal
 posterior is checked independently under the unchanged final parameters rather
-than against the reference's stale responsibilities.
+than against the reference's stale responsibilities. KMART's inclusive
+vigilance is checked against a scalar rule oracle, with archived comparisons
+retained where both threshold formulas make the same decisions.
 
 They are the regression guard for a specific failure mode — a future change
 that speeds an estimator up by quietly altering what it computes.
@@ -212,28 +214,65 @@ class TestMBMM:
 # optimization/README.md, "Status after the 0.2.0 correctness audit".
 
 
+def _kmart_scalar(vectors, rho, rate):
+    """Independent sequential rule on known count vectors, without vectorization."""
+    prototypes, clusters, decisions = [], [], []
+    for i, vector in enumerate(vectors):
+        norm = sum(vector)
+        matched = False
+        for j, prototype in enumerate(prototypes):
+            intersection = [min(x, p) for x, p in zip(vector, prototype)]
+            overlap = sum(intersection)
+            score = overlap / norm if norm > 0 else 0.0
+            decisions.append((score, overlap / (norm + 1e-9)))
+            if score >= rho:
+                matched = True
+                clusters[j].add(i)
+                prototypes[j] = [
+                    rate * x + (1 - rate) * p for x, p in zip(intersection, prototype)
+                ]
+        if not matched:
+            prototypes.append(list(vector))
+            clusters.append({i})
+    memberships = np.zeros((len(vectors), len(clusters)))
+    for j, members in enumerate(clusters):
+        for i in members:
+            memberships[i, j] = 1
+    return memberships, prototypes, clusters, np.array(decisions)
+
+
+def _known_document_counts(docs):
+    """Count the non-stopword vocabulary used by the randomized fixtures."""
+    tokens = [doc.split() for doc in docs]
+    vocabulary = sorted({word for row in tokens for word in row})
+    return [[float(row.count(word)) for word in vocabulary] for row in tokens]
+
+
 class TestKMART:
-    """Broadcast vigilance test over a contiguous prototype block."""
+    """Vectorized vigilance with the corrected inclusive threshold contract."""
 
     @pytest.mark.parametrize("seed", [0, 1, 2])
-    def test_memberships_match_reference(self, seed):
+    def test_memberships_match_scalar_rule(self, seed):
         docs = _documents(seed=seed)
         opt = sc.KMART()
-        ref = scpp_original.KMART()
         opt_U = opt.fit_predict(docs)
-        ref_U = ref.fit_predict(docs)
-        # This rewrite is exact in integer/float terms, not merely close: the
-        # same minima are summed in the same order.
-        assert np.array_equal(np.asarray(opt_U), ref_U.toarray())
+        expected, prototypes, clusters, _ = _kmart_scalar(
+            _known_document_counts(docs), 0.5, 1.0
+        )
+        np.testing.assert_array_equal(opt_U, expected)
+        np.testing.assert_array_equal(opt.prototypes_, prototypes)
+        assert opt.clusters_ == clusters
 
-    def test_prototypes_and_clusters_match_reference(self):
+    def test_prototypes_and_clusters_match_scalar_rule(self):
         docs = _documents()
-        opt, ref = sc.KMART(), scpp_original.KMART()
+        opt = sc.KMART()
         opt.fit_predict(docs)
-        ref.fit_predict(docs)
-        assert opt.clusters_ == ref.clusters_
-        assert len(opt.prototypes_) == len(ref.prototypes_)
-        for got, expected in zip(opt.prototypes_, ref.prototypes_):
+        _, prototypes, clusters, _ = _kmart_scalar(
+            _known_document_counts(docs), 0.5, 1.0
+        )
+        assert opt.clusters_ == clusters
+        assert len(opt.prototypes_) == len(prototypes)
+        for got, expected in zip(opt.prototypes_, prototypes):
             np.testing.assert_array_equal(got, expected)
 
     def test_prototypes_are_published_as_a_list_of_vectors(self):
@@ -246,14 +285,52 @@ class TestKMART:
         assert all(isinstance(p, np.ndarray) and p.ndim == 1 for p in model.prototypes_)
         assert len(model.prototypes_) == len(model.clusters_)
 
-    def test_partial_learning_rate_matches_reference(self):
+    def test_partial_learning_rate_matches_scalar_rule(self):
         """learning_rate < 1 exercises the convex-combination update path."""
         docs = _documents(n=120)
         opt = sc.KMART(vigilance_param=0.3, learning_rate=0.4)
-        ref = scpp_original.KMART(vigilance_param=0.3, learning_rate=0.4)
-        assert np.array_equal(
-            np.asarray(opt.fit_predict(docs)), ref.fit_predict(docs).toarray()
+        expected, prototypes, clusters, _ = _kmart_scalar(
+            _known_document_counts(docs), 0.3, 0.4
         )
+        np.testing.assert_array_equal(opt.fit_predict(docs), expected)
+        np.testing.assert_array_equal(opt.prototypes_, prototypes)
+        assert opt.clusters_ == clusters
+
+    @pytest.mark.parametrize("rate", [1.0, 0.4])
+    def test_nonboundary_training_matches_archived_reference(self, rate):
+        docs = [
+            "apple apple",
+            "banana banana",
+            "apple apple",
+            "banana banana",
+            "apple banana",
+            "apple banana",
+        ]
+        vectors = [
+            [2.0, 0.0],
+            [0.0, 2.0],
+            [2.0, 0.0],
+            [0.0, 2.0],
+            [1.0, 1.0],
+            [1.0, 1.0],
+        ]
+        expected, prototypes, clusters, decisions = _kmart_scalar(vectors, 0.4, rate)
+        # Every decision has a strict margin for both the rule and archived epsilon.
+        assert np.min(np.abs(decisions - 0.4)) > 0.09
+        np.testing.assert_array_equal(decisions[:, 0] >= 0.4, decisions[:, 1] >= 0.4)
+        np.testing.assert_array_equal(
+            expected, [[1, 0], [0, 1], [1, 0], [0, 1], [1, 1], [1, 1]]
+        )
+        opt = sc.KMART(vigilance_param=0.4, learning_rate=rate)
+        ref = scpp_original.KMART(vigilance_param=0.4, learning_rate=rate)
+        np.testing.assert_array_equal(
+            opt.fit_predict(docs), ref.fit_predict(docs).toarray()
+        )
+        np.testing.assert_array_equal(opt.memberships_, expected)
+        assert opt.clusters_ == ref.clusters_ == clusters
+        np.testing.assert_array_equal(opt.prototypes_, ref.prototypes_)
+        np.testing.assert_array_equal(opt.prototypes_, prototypes)
+        assert opt.cluster_words_ == ref.cluster_words_
 
 
 class TestKFCM:

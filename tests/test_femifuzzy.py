@@ -3,6 +3,8 @@
 
 """Unit and integration tests for FeMIFuzzy (Federated Fuzzy Clustering with MI)."""
 
+from itertools import permutations
+
 import numpy as np
 import pytest
 from sklearn.metrics import adjusted_rand_score
@@ -121,3 +123,65 @@ def test_single_sample_client_raises():
 def test_invalid_hyperparameters_raise(kwargs):
     with pytest.raises(ValueError):
         FeMIFuzzy(**kwargs)
+
+
+@pytest.mark.parametrize("d", [1, 2, 5])
+def test_empty_cluster_signature_uses_the_populated_summary_schema(d):
+    X = np.array([np.arange(d), np.arange(d) + 2.0])
+    U = np.array([[0.9, 0.1], [0.8, 0.2]])
+    model = FeMIFuzzy()
+    expected = np.concatenate(
+        (
+            [2],
+            np.arange(d) + 1,
+            np.arange(d),
+            np.arange(d) + 2,
+            np.ones(d),
+            np.arange(d) + 1,
+        )
+    )
+    np.testing.assert_array_equal(model._cluster_signature(X, U, 0), expected)
+    np.testing.assert_array_equal(
+        model._cluster_signature(X, U, 1), np.zeros(5 * d + 1)
+    )
+
+
+@pytest.mark.parametrize("empty_on_reference", [True, False])
+def test_matching_with_an_empty_hard_cluster_is_a_minimum_cost_bijection(
+    empty_on_reference,
+):
+    X = np.array([[0.0], [2.0], [10.0], [12.0]])
+    empty_U = np.eye(3)[[0, 0, 1, 1]]
+    full_U = np.eye(3)[[0, 1, 2, 2]]
+    empty_signatures = np.array([[2, 1, 0, 2, 1, 1], [2, 11, 10, 12, 1, 11], [0] * 6])
+    full_signatures = np.array(
+        [[1, 0, 0, 0, 0, 0], [1, 2, 2, 2, 0, 2], [2, 11, 10, 12, 1, 11]]
+    )
+    ref_U, new_U = (empty_U, full_U) if empty_on_reference else (full_U, empty_U)
+    ref_sig, new_sig = (
+        (empty_signatures, full_signatures)
+        if empty_on_reference
+        else (full_signatures, empty_signatures)
+    )
+    mapping = FeMIFuzzy()._match_centroids(X, ref_U, X, new_U)
+    np.testing.assert_array_equal(np.sort(mapping), np.arange(3))
+    costs = np.linalg.norm(ref_sig[:, None] - new_sig[None, :], axis=2)
+    best = min(
+        sum(costs[i, j] for i, j in enumerate(p)) for p in permutations(range(3))
+    )
+    assert costs[np.arange(3), mapping].sum() == pytest.approx(best)
+
+
+def test_duplicate_samples_fit_with_two_imputations_and_empty_hard_clusters():
+    X = np.array([[0.0], [0.0], [1.0], [1.0]])
+    model = FeMIFuzzy(max_clusters=3, n_imputations=2, random_state=0)
+    assert model.fit([X], [["x"]]) is model
+    assert model.memberships_.shape == (4, model.n_clusters_)
+    assert model.centers_.shape == (model.n_clusters_, 1)
+    assert np.isfinite(model.memberships_).all() and np.isfinite(model.centers_).all()
+    assert (model.memberships_ >= 0).all()
+    np.testing.assert_allclose(model.memberships_.sum(axis=1), 1)
+    np.testing.assert_array_equal(model.labels_, model.memberships_.argmax(axis=1))
+    np.testing.assert_array_equal(model.predict_proba(), model.memberships_)
+    assert model.client_sizes_ == [4]
+    assert adjusted_rand_score([0, 0, 1, 1], model.labels_) == 1

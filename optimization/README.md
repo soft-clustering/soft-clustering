@@ -37,6 +37,15 @@ reference outputs; equivalence tests retain parameter and density comparisons
 and use an independent SciPy posterior oracle. No new timings were measured
 for these repairs.
 
+KMART also now honors the inclusive vigilance threshold without perturbing a
+positive document norm. Exact matches can change category creation and the
+subsequent online trajectory relative to the archived epsilon rule. The
+vectorization and prototype update equation are retained. Tests use an
+independent scalar rule oracle for boundary-sensitive randomized inputs and
+retain archived comparisons on a corpus with verified nonboundary margins,
+including overlapping assignments and partial learning. Historical timings
+remain unchanged; this correction makes no new performance claim.
+
 Numbers in `reports/` and `figures/` are kept as the historical record of the
 study and have not been regenerated.
 
@@ -140,7 +149,8 @@ asserts that separation.
 
 `tests/test_optimization_equivalence.py` fits each optimized estimator
 alongside its preserved reference and requires unchanged outputs to agree,
-with the canonical-center and terminal-posterior corrections described above.
+with the canonical-center, terminal-posterior, and inclusive-vigilance
+corrections described above.
 It runs as part of the normal suite and skips cleanly when the reference build
 is absent (for example when testing an installed wheel).
 
