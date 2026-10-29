@@ -228,6 +228,12 @@ class KFCCL(BaseSoftClusterer):
                 # q_i' = s^2 q_i + 2 s b <v_i, phi(x_k)> + b^2 K_kk
                 q = shrink**2 * q + 2 * shrink * step * gk + step**2 * diag[k]
                 scale *= shrink
+                # A full step replaces the prototype by e_k. Reset its lazy
+                # storage before division; the common addition supplies e_k/K[k].
+                reset = shrink == 0
+                G_t[reset] = 0.0
+                GK_t[reset] = 0.0
+                scale[reset] = 1.0
                 add = step / scale
                 G_t[:, k] += add
                 GK_t += add[:, None] * kernel_rows(np.array([k]))

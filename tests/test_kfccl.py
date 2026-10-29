@@ -66,3 +66,43 @@ def test_cluster_major_view_is_kept(X):
 def test_invalid_parameters_raise(X, kwargs):
     with pytest.raises(ValueError):
         KFCCL(n_clusters=2, **kwargs).fit(X)
+
+
+@pytest.mark.parametrize("n_clusters,lam", [(1, 1.0), (2, 1000.0)])
+def test_unit_learning_rate_preserves_kernel_state(monkeypatch, n_clusters, lam):
+    X = np.array([[0.0], [1.0], [10.0], [11.0]])
+    K = rbf_kernel(X, gamma=1.0)
+    models = []
+    for threshold in (5000, 0):
+        monkeypatch.setattr("soft_clustering._kfccl._CACHE_KERNEL_UP_TO", threshold)
+        with np.errstate(divide="raise", invalid="raise"):
+            model = KFCCL(
+                n_clusters=n_clusters,
+                lambda_=lam,
+                learning_rate=1.0,
+                max_iter=2,
+                random_state=0,
+            ).fit(X)
+            predicted = model.predict_proba(X)
+        G = model.coefficients_
+        assert np.isfinite(G).all() and (G >= 0).all()
+        np.testing.assert_allclose(G.sum(1), 1, atol=1e-14)
+        q = np.einsum("ij,jk,ik->i", G, K, G)
+        np.testing.assert_allclose(model._q, q, atol=1e-14)
+        D = np.diag(K)[:, None] - 2 * (K @ G.T) + q[None, :]
+        expected = np.exp(-lam * (D - D.min(axis=1, keepdims=True)))
+        expected /= expected.sum(axis=1, keepdims=True)
+        assert np.isfinite(model.memberships_).all()
+        np.testing.assert_allclose(model.memberships_, expected, atol=1e-12)
+        np.testing.assert_allclose(model.memberships_.sum(1), 1, atol=1e-14)
+        np.testing.assert_allclose(predicted, expected, atol=1e-12)
+        if n_clusters == 1:
+            rng = np.random.default_rng(0)
+            rng.integers(len(X))  # replay the single prototype's seed draw
+            last = rng.permutation(len(X))[-1]
+            np.testing.assert_array_equal(G, np.eye(len(X))[[last]])
+            np.testing.assert_array_equal(model._q, [1.0])
+            assert model.n_iter_ == 1
+        models.append(model)
+    for attr in ("coefficients_", "_q", "memberships_"):
+        np.testing.assert_allclose(getattr(models[0], attr), getattr(models[1], attr))
