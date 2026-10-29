@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import numpy as np
+from scipy.spatial.distance import cdist
 from typeguard import typechecked
 
 from ._base import BaseSoftClusterer, ratio_memberships
@@ -22,14 +23,10 @@ from ._validation import (
 def _euclidean_dist2(X, centers):
     """Squared Euclidean distances, shape ``(n_samples, n_centers)``.
 
-    Uses the expansion ``|x|^2 + |c|^2 - 2 x.c``, clipped at zero to absorb the
-    cancellation error that expansion incurs for nearly coincident points.
+    Uses compiled direct differences, avoiding cancellation from subtracting
+    large squared norms without an (n_samples, n_centers, n_features) temporary.
     """
-    x_norm = np.sum(X * X, axis=1, keepdims=True)
-    c_norm = np.sum(centers * centers, axis=1, keepdims=True).T
-    dist2 = x_norm + c_norm - 2.0 * (X @ centers.T)
-    np.maximum(dist2, 0.0, out=dist2)
-    return dist2
+    return cdist(X, centers, metric="sqeuclidean")
 
 
 def _normalize_memberships(U, eps=1e-12):
@@ -71,12 +68,14 @@ def _update_U_from_centers(X, centers, m, eps=1e-12):
 
 
 def _update_centers_from_U(X, U, m, eps=1e-12):
-    """Fuzzy c-means prototype update for fixed memberships."""
+    """Weighted means for positive mass; zero vectors for empty clusters.
+
+    ``eps`` is retained for compatibility, but does not bias positive masses.
+    """
     Um = U**m
     num = Um.T @ X
     den = np.sum(Um, axis=0, keepdims=True).T
-    centers = num / (den + eps)
-    return centers
+    return np.divide(num, den, out=np.zeros_like(num, dtype=float), where=den > 0)
 
 
 def _objective(X, U, centers, m):
@@ -88,7 +87,7 @@ def fcm_fit(X, n_clusters, m, rng, *, max_iter=300, tol=1e-5, init="kmeans++"):
     """Run fuzzy c-means; return ``(U, centers, trajectory)``.
 
     Shared by the estimators that are defined as refinements of a fuzzy
-    c-means partition (PCM, PFCM, Gath--Geva).
+    c-means partition (PCM, PFCM, FeMIFuzzy).
     """
     n = X.shape[0]
     if init == "kmeans++":
