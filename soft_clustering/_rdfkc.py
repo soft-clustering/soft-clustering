@@ -167,12 +167,15 @@ class RDFKC(BaseSoftClusterer):
     :math:`\ell_\tau(d) = (1 + \tau) d^2 / (d + \tau)`, the method alternates
 
     1. one gradient step on the network weights for the reconstruction
-       error, plus the re-weighted clustering loss
+       error (summed over each sample's elements, averaged over samples),
+       plus the re-weighted clustering loss
        :math:`\sum_{n,c} u_{nc}^2 k_{nc} \lVert z_n - v_c\rVert^2`, with
        :math:`k_{nc} = (1+\tau)(d_{nc} + 2\tau) / (2 (d_{nc} + \tau)^2)`, plus
-       an :math:`L_2` penalty ``gamma`` on the weights;
+       an :math:`L_2` penalty ``gamma`` on the weights. The robust weights
+       :math:`k_{nc}` are held fixed during this network step;
     2. the closed-form prototype update
-       :math:`v_c = \sum_n u_{nc}^2 k_{nc} z_n / \sum_n u_{nc}^2 k_{nc}`;
+       :math:`v_c = \sum_n u_{nc}^2 k_{nc} z_n / \sum_n u_{nc}^2 k_{nc}`,
+       using refreshed evaluation-mode codes from the updated encoder;
     3. the membership update, which minimises, row by row,
        :math:`\sum_c \ell_\tau(d_{nc})\, u_{nc}^2 + \mu \sum_j S_{nj}
        (u_{nc} - u_{jc})^2` over the probability simplex, where :math:`S`
@@ -213,10 +216,10 @@ class RDFKC(BaseSoftClusterer):
     ----------
     memberships_ : ndarray of shape (n_samples, n_clusters)
     latent_ : ndarray of shape (n_samples, latent_dim)
-        Final latent codes.
+        Final evaluation-mode latent codes, also used for the last V/U update.
     latent_centers_ : ndarray of shape (n_clusters, latent_dim)
     encoder_, decoder_ : torch.nn.Module
-        The trained copies of the autoencoder.
+        The trained copies of the autoencoder, left in evaluation mode.
 
     References
     ----------
@@ -297,6 +300,15 @@ class RDFKC(BaseSoftClusterer):
             R.append(self.decoder_(z))
         return torch.cat(Z), torch.cat(R)
 
+    def _encode(self, X, batch_size):
+        """Batched latent codes without an unused decoder pass."""
+        return torch.cat(
+            [
+                self.encoder_(X[start : start + batch_size])
+                for start in range(0, X.shape[0], batch_size)
+            ]
+        )
+
     def _similarity(self, Z, k=10):
         n = Z.shape[0]
         k = min(k, n - 1)
@@ -326,8 +338,10 @@ class RDFKC(BaseSoftClusterer):
             params = list(self.encoder_.parameters()) + list(self.decoder_.parameters())
             optimizer = torch.optim.Adam(params, lr=self.lr)
 
+            self.encoder_.eval()
+            self.decoder_.eval()
             with torch.no_grad():
-                Z, _ = self._encode_decode(X, batch_size)
+                Z = self._encode(X, batch_size)
             U = torch.rand(N, K)
             U = U / U.sum(dim=1, keepdim=True)
             V = torch.randn(K, Z.shape[1])
@@ -341,12 +355,17 @@ class RDFKC(BaseSoftClusterer):
                 optimizer.zero_grad()
                 Z, R = self._encode_decode(X, batch_size)
                 dist = torch.cdist(Z, V)
-                cluster = (U**2 * self._robust_weight(dist) * dist**2).sum()
+                weights = self._robust_weight(dist).detach()
+                cluster = (U**2 * weights * dist**2).sum()
                 reg = sum((w**2).sum() for w in params)
-                loss = torch.nn.functional.mse_loss(R, X) + cluster + self.gamma * reg
+                reconstruction = (R - X).square().sum() / N
+                loss = reconstruction + cluster + self.gamma * reg
                 loss.backward()
                 optimizer.step()
-                Z = Z.detach()
+                self.encoder_.eval()
+                self.decoder_.eval()
+                with torch.no_grad():
+                    Z = self._encode(X, batch_size)
 
                 # 2. prototypes
                 dist = torch.cdist(Z, V)

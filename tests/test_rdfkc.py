@@ -108,3 +108,165 @@ def test_bundled_fashion_architecture_runs():
 def test_missing_networks_raise():
     with pytest.raises(ValueError, match="encoder and decoder"):
         RDFKC(n_clusters=3)
+
+
+class _ConstantEncoder(torch.nn.Module):
+    def __init__(self, value):
+        super().__init__()
+        self.value = torch.nn.Parameter(torch.tensor(float(value)))
+
+    def forward(self, X):
+        return self.value.expand(len(X), 1)
+
+
+class _ConstantDecoder(torch.nn.Module):
+    def __init__(self, sample_shape):
+        super().__init__()
+        self.sample_shape = sample_shape
+        self.value = torch.nn.Parameter(torch.tensor(0.0))
+
+    def forward(self, Z):
+        return self.value.expand(len(Z), *self.sample_shape)
+
+
+@pytest.fixture
+def recorded_gradients(monkeypatch):
+    """Observe the production backward pass without changing the parameters."""
+    snapshots = []
+
+    class RecordingOptimizer:
+        def __init__(self, params, lr):
+            self.params = list(params)
+
+        def zero_grad(self):
+            for param in self.params:
+                param.grad = None
+
+        def step(self):
+            snapshots.append([param.grad.detach().clone() for param in self.params])
+
+    monkeypatch.setattr(torch.optim, "Adam", RecordingOptimizer)
+    return snapshots
+
+
+def test_fit_network_gradient_holds_robust_weights_fixed(recorded_gradients):
+    # These modules have no reset_parameters or random forward operations.
+    # Replay only U/V initialization to put both samples exactly one unit from V.
+    with torch.random.fork_rng(devices=[]):
+        torch.manual_seed(0)
+        torch.rand(2, 1)
+        center = torch.randn(1, 1).item()
+    RDFKC(
+        n_clusters=1,
+        encoder=_ConstantEncoder(center + 1.0),
+        decoder=_ConstantDecoder((1,)),
+        random_state=0,
+        max_iter=1,
+        gamma=0.0,
+        tau=0.1,
+    ).fit(np.zeros((2, 1), dtype=np.float32))
+    # Two samples, U=1, d=1: sum ell'(d), with no reconstruction path to z.
+    expected = 2 * (1.0 + 0.1) * (1.0 + 2 * 0.1) / (1.0 + 0.1) ** 2
+    assert len(recorded_gradients) == 1
+    assert recorded_gradients[0][0].item() == pytest.approx(expected, abs=1e-6)
+
+
+@pytest.mark.parametrize(
+    "sample_values,sample_shape", [([0.0, 1.0, 2.0], (8,)), ([1.0, 1.0], (1, 28, 28))]
+)
+def test_fit_reconstruction_averages_samples_not_elements(
+    recorded_gradients, sample_values, sample_shape
+):
+    X = np.ones((len(sample_values), *sample_shape), dtype=np.float32)
+    X *= np.array(sample_values, dtype=np.float32).reshape(
+        len(sample_values), *([1] * len(sample_shape))
+    )
+    RDFKC(
+        n_clusters=1,
+        encoder=_ConstantEncoder(1.0),
+        decoder=_ConstantDecoder(sample_shape),
+        random_state=0,
+        max_iter=1,
+        batch_size=2,
+        gamma=0.0,
+    ).fit(X)
+    # Clustering cannot reach the decoder's shared scalar. The unequal final
+    # batch has a different mean in the feature case: an unweighted mean of
+    # batch means would give gradient -20 instead of -16. Both sample means are 1.
+    assert len(recorded_gradients) == 1
+    assert recorded_gradients[0][1].item() == pytest.approx(-2 * np.prod(sample_shape))
+
+
+def _batched_latent(model, X):
+    with torch.no_grad():
+        return torch.cat(
+            [model.encoder_(part) for part in torch.as_tensor(X).split(2)]
+        ).numpy()
+
+
+def test_one_round_state_uses_current_encoder_for_prototypes_and_memberships():
+    X = np.array([[0.0, 0.0], [1.0, 0.0], [5.0, 5.0], [6.0, 5.0]], dtype=np.float32)
+    with torch.random.fork_rng(devices=[]):
+        torch.manual_seed(0)
+        encoder, decoder = _autoencoder(d=2, latent=2)
+    kwargs = dict(
+        n_clusters=2,
+        encoder=encoder,
+        decoder=decoder,
+        random_state=0,
+        batch_size=2,
+        lr=0.1,
+        mu=0.0,
+    )
+    initial = RDFKC(max_iter=0, **kwargs).fit(X)
+    model = RDFKC(max_iter=1, **kwargs).fit(X)
+    Z = _batched_latent(model, X).astype(np.float64)
+    assert not np.allclose(Z, initial.latent_)
+    np.testing.assert_array_equal(model.latent_, Z)
+    # Independent NumPy oracle for the single V/U round, with graph term zero.
+    d0 = np.linalg.norm(Z[:, None] - initial.latent_centers_[None], axis=2)
+    k0 = (1 + model.tau) * (d0 + 2 * model.tau) / (2 * (d0 + model.tau) ** 2)
+    w0 = initial.memberships_**2 * k0
+    expected_V = (w0.T @ Z) / (w0.sum(0)[:, None] + 1e-8)
+    d1 = np.linalg.norm(Z[:, None] - expected_V[None], axis=2) + 1e-8
+    q1 = (1 + model.tau) * d1**2 / (d1 + model.tau)
+    assert q1.min() > 1e-12
+    expected_U = 1 / q1
+    expected_U /= expected_U.sum(1, keepdims=True)
+    np.testing.assert_allclose(model.latent_centers_, expected_V, rtol=1e-6, atol=1e-6)
+    np.testing.assert_allclose(model.memberships_, expected_U, rtol=1e-6, atol=1e-6)
+
+
+@pytest.mark.parametrize("rounds", [0, 1])
+def test_eval_refresh_preserves_modes_buffers_and_batching(rounds):
+    X = np.array([[0.0, 0.0], [1.0, 0.0], [5.0, 5.0], [6.0, 5.0]], dtype=np.float32)
+    nn = torch.nn
+    with torch.random.fork_rng(devices=[]):
+        torch.manual_seed(0)
+        encoder = nn.Sequential(nn.Linear(2, 2), nn.BatchNorm1d(2), nn.Dropout(0.5))
+        decoder = nn.Sequential(nn.Linear(2, 2), nn.BatchNorm1d(2), nn.Dropout(0.25))
+    decoder.eval()  # Preserve even different caller modes, not just parameters.
+    originals = (encoder, decoder)
+    modes = [[module.training for module in net.modules()] for net in originals]
+    states = [
+        {key: value.clone() for key, value in net.state_dict().items()}
+        for net in originals
+    ]
+    rng_before = torch.random.get_rng_state().clone()
+    model = RDFKC(
+        n_clusters=2,
+        encoder=encoder,
+        decoder=decoder,
+        random_state=0,
+        max_iter=rounds,
+        batch_size=2,
+    ).fit(X)
+    assert torch.equal(torch.random.get_rng_state(), rng_before)
+    for trained in (model.encoder_, model.decoder_):
+        assert all(not module.training for module in trained.modules())
+        assert trained[1].num_batches_tracked.item() == 2 * rounds
+    np.testing.assert_array_equal(model.latent_, _batched_latent(model, X))
+    for net, saved_modes, saved_state in zip(originals, modes, states):
+        assert [module.training for module in net.modules()] == saved_modes
+        for key, value in net.state_dict().items():
+            assert torch.equal(value, saved_state[key])
