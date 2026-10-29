@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 
 from soft_clustering import SoftDBSCANGM
+from soft_clustering.benchmarking import soft_clustering_metrics
 
 
 @pytest.fixture
@@ -57,3 +58,35 @@ def test_labels_stored(X):
     model.fit(X)
     assert model.labels_ is not None
     assert model.labels_.shape == (40,)
+
+
+def test_canonical_centers_refresh_on_refit_and_remain_transductive():
+    model = SoftDBSCANGM(eps=0.5, min_samples=2, max_iter=3)
+    for locations in ([-2.0, 2.0], [-5.0, 0.0, 5.0]):
+        X = np.array([[x + delta] for x in locations for delta in (0.0, 0.1)])
+        assert model.fit(X) is model
+        assert model.centers_.shape == (len(locations), 1)
+        np.testing.assert_array_equal(model.centers_, model.centers)
+        np.testing.assert_allclose(
+            model.centers_[:, 0], np.array(locations) + 0.05, atol=1e-5
+        )
+        np.testing.assert_array_equal(model.predict_proba(), model.U)
+        np.testing.assert_array_equal(model.predict(), model.U.argmax(axis=1))
+        for method in (model.predict, model.predict_proba):
+            with pytest.raises(NotImplementedError, match="transductive"):
+                method(X)
+
+
+def test_canonical_centers_enable_prototype_metrics():
+    X = np.array([[-2.0], [-1.9], [2.0], [2.1]])
+    model = SoftDBSCANGM(eps=0.5, min_samples=2, max_iter=3).fit(X)
+    metrics = soft_clustering_metrics(X, model.memberships_, model.centers_)
+    expected = {
+        "fuzzy_hypervolume": 0.10000781463395918,
+        "xie_beni": 0.00015622553255633192,
+        "fuzzy_compactness": 0.009998437011528045,
+        "fuzzy_separation": 4.000000585676229,
+    }
+    for name, value in expected.items():
+        assert np.isfinite(metrics[name])
+        np.testing.assert_allclose(metrics[name], value, rtol=1e-10, atol=1e-12)

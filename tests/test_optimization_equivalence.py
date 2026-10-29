@@ -6,8 +6,11 @@
 The optimization study replaced some algorithm bodies with vectorised
 implementations of the *same* mathematics. These tests pin that claim: each
 optimized estimator is fitted alongside the preserved reference from
-``optimization/original/scpp_original/`` on identical inputs, and the outputs
-must agree to floating-point tolerance.
+``optimization/original/scpp_original/`` on identical inputs. Training updates
+and unchanged outputs must agree to floating-point tolerance. SoftDBSCANGM now
+also exposes its existing prototypes as ``centers_``; MBMM's corrected terminal
+posterior is checked independently under the unchanged final parameters rather
+than against the reference's stale responsibilities.
 
 They are the regression guard for a specific failure mode — a future change
 that speeds an estimator up by quietly altering what it computes.
@@ -24,6 +27,8 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from scipy.special import softmax
+from scipy.stats import beta as beta_dist
 
 _REFERENCE_DIR = Path(__file__).resolve().parent.parent / "optimization" / "original"
 if _REFERENCE_DIR.is_dir() and str(_REFERENCE_DIR) not in sys.path:
@@ -99,14 +104,11 @@ class TestSoftDBSCANGM:
         opt, ref = _fit_pair("SoftDBSCANGM", X, global_seed=seed)
         assert np.array_equal(opt.labels_, ref.labels_)
         assert opt.n_clusters_ == ref.n_clusters
-        # This estimator publishes its prototypes as ``centers`` (no trailing
-        # underscore), which is not one of the names
-        # ``BaseSoftClusterer._centers_attrs`` searches, so ``centers_`` is None
-        # on both builds. That protocol gap predates the optimization and is
-        # recorded in the study report; the comparison uses the attribute the
-        # estimator actually populates.
-        assert opt.centers_ is None and ref.centers_ is None
+        # The reference lacks canonical centers; the repaired estimator exposes
+        # the same prototypes without changing their legacy values.
+        assert ref.centers_ is None
         np.testing.assert_allclose(opt.centers, ref.centers, atol=1e-8)
+        np.testing.assert_array_equal(opt.centers_, opt.centers)
 
     def test_invariants(self):
         X = _blobs()
@@ -134,33 +136,50 @@ class TestSoftDBSCANGM:
 
 class TestMBMM:
     """Direct scipy.special Beta log-density in place of the frozen
-    distribution, and a vectorised M-step."""
+    distribution, a vectorised M-step, and a corrected terminal posterior."""
+
+    @staticmethod
+    def _final_posterior(X, ref):
+        log_joint = np.column_stack(
+            [
+                np.log(ref.weights[k] + 1e-10)
+                + beta_dist.logpdf(X, ref.alpha[k], ref.beta[k]).sum(axis=1)
+                for k in range(ref.n_components)
+            ]
+        )
+        return softmax(log_joint, axis=1)
 
     @pytest.mark.parametrize("seed", [0, 1, 2])
-    def test_responsibilities_match_reference(self, seed):
+    def test_responsibilities_match_final_parameter_posterior(self, seed):
         X = _unit_blobs(seed=seed)
         opt, ref = _fit_pair("MBMM", X, global_seed=seed)
-        np.testing.assert_allclose(opt.resp, ref.resp, atol=ATOL)
-        np.testing.assert_allclose(opt.memberships_, ref.memberships_, atol=ATOL)
+        expected = self._final_posterior(X, ref)
+        np.testing.assert_allclose(opt.resp, expected, atol=ATOL)
+        np.testing.assert_allclose(opt.memberships_, expected, atol=ATOL)
 
     @pytest.mark.parametrize("seed", [0, 1])
-    def test_parameters_match_reference(self, seed):
+    @pytest.mark.parametrize(
+        "kwargs",
+        [{}, {"max_iter": 1}, {"max_iter": 30, "tol": 1e6}, {"max_iter": 0}],
+        ids=["default", "one-update", "early-stop", "initial-parameters"],
+    )
+    def test_parameters_match_reference(self, seed, kwargs):
         X = _unit_blobs(seed=seed)
-        opt, ref = _fit_pair("MBMM", X, global_seed=seed)
+        opt, ref = _fit_pair("MBMM", X, global_seed=seed, kwargs=kwargs)
         np.testing.assert_allclose(opt.alpha, ref.alpha, atol=1e-8)
         np.testing.assert_allclose(opt.beta, ref.beta, atol=1e-8)
         np.testing.assert_allclose(opt.weights, ref.weights, atol=1e-10)
 
-    def test_labels_match_reference(self):
+    def test_labels_match_final_parameter_posterior(self):
         X = _unit_blobs()
         opt, ref = _fit_pair("MBMM", X)
-        assert np.array_equal(opt.labels_, ref.labels_)
+        np.testing.assert_array_equal(
+            opt.labels_, self._final_posterior(X, ref).argmax(axis=1)
+        )
 
     def test_log_density_matches_scipy(self):
         """The vectorised Beta log-density must equal the frozen distribution
         it replaced, on the open interval the model assumes."""
-        from scipy.stats import beta as beta_dist
-
         from soft_clustering._mbmm import MBMM
 
         rng = np.random.default_rng(0)

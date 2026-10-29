@@ -74,6 +74,7 @@ class SoftDBSCANGM(BaseSoftClusterer):
     _partition_constrained = True
     # Discovers the cluster count; see BaseSoftClusterer._determines_k.
     _determines_k = True
+    _centers_attrs = ("centers",)
 
     # Fitted attributes, set by ``fit`` (not before).
     U: np.ndarray

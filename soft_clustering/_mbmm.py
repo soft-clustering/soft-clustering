@@ -10,6 +10,10 @@ updates, the initialisation draws, the clipping order and the convergence test
 are unchanged. The reference implementation is preserved at
 ``optimization/original/scpp_original/_mbmm.py``.
 
+After the unchanged parameter-update loop, a final E-step refreshes the
+published responsibilities under the fitted parameters. The preserved
+reference instead publishes responsibilities from before its final M-step.
+
 Profiling attributed the runtime to ``scipy.stats.beta.logpdf``, called
 ``n_components * n_features`` times per E-step and again per log-likelihood
 evaluation — 4,800 calls for a 200x8 input. Almost all of that is
@@ -78,7 +82,7 @@ class MBMM(BaseSoftClusterer):
     Attributes
     ----------
     memberships_ : ndarray of shape (n_samples, n_clusters)
-        Posterior responsibilities (also ``resp``).
+        Posterior responsibilities under the final fitted parameters (also ``resp``).
     weights, alpha, beta : ndarray
         Mixing weights and per-component, per-feature Beta parameters.
 
@@ -190,6 +194,9 @@ class MBMM(BaseSoftClusterer):
             if np.abs(ll - prev_ll) < self.tol:
                 break
             prev_ll = ll
+
+        # Publish the posterior for the final parameters without another M-step.
+        self._e_step(X)
 
     # predict() and predict_proba() come from BaseSoftClusterer; ``resp``
     # remains available for the raw responsibilities.

@@ -28,6 +28,15 @@ found that one of the five studied algorithms was not:
   evaluated with the overflow-free ratio rule, which agrees with the reference
   to floating-point tolerance.
 
+Subsequent output-contract repairs preserve SoftDBSCANGM's prototypes,
+memberships and labels while also exposing its legacy `centers` as `centers_`.
+MBMM retains the same initialization, parameter updates and stopping test, but
+now refreshes its terminal posterior under the final fitted parameters. Its
+responsibilities and derived labels intentionally differ from the stale
+reference outputs; equivalence tests retain parameter and density comparisons
+and use an independent SciPy posterior oracle. No new timings were measured
+for these repairs.
+
 Numbers in `reports/` and `figures/` are kept as the historical record of the
 study and have not been regenerated.
 
@@ -130,9 +139,10 @@ asserts that separation.
 ## Regression guard
 
 `tests/test_optimization_equivalence.py` fits each optimized estimator
-alongside its preserved reference and requires the outputs to agree. It runs as
-part of the normal suite and skips cleanly when the reference build is absent
-(for example when testing an installed wheel).
+alongside its preserved reference and requires unchanged outputs to agree,
+with the canonical-center and terminal-posterior corrections described above.
+It runs as part of the normal suite and skips cleanly when the reference build
+is absent (for example when testing an installed wheel).
 
 ## Status
 
