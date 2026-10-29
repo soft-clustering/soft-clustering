@@ -897,14 +897,17 @@ class TestDatasetLoading:
 
 class TestRuntimeBenchmark:
     def test_reports_fit_and_predict_times(self, X):
+        from soft_clustering import FCM
         from soft_clustering.benchmarking import BenchmarkAdapter, RuntimeBenchmark
 
         out = RuntimeBenchmark(n_repeats=2).evaluate(
-            BenchmarkAdapter(FitPredictWithK(), n_clusters=2), X
+            BenchmarkAdapter(FCM(n_clusters=2, random_state=0)), X
         )
         assert out["fit_time_sec"] >= 0
         assert out["fit_time_std"] >= 0
-        assert "predict_time_sec" in out
+        assert np.isfinite(out["predict_time_sec"]) and out["predict_time_sec"] >= 0
+        assert set(out) == {"fit_time_sec", "fit_time_std", "predict_time_sec"}
+        assert all(isinstance(value, float) for value in out.values())
 
     def test_callable_shorthand(self, X):
         from soft_clustering.benchmarking import BenchmarkAdapter, RuntimeBenchmark
@@ -916,14 +919,71 @@ class TestRuntimeBenchmark:
     def test_failing_predict_is_tolerated(self, X):
         from soft_clustering.benchmarking import RuntimeBenchmark
 
-        out = RuntimeBenchmark(n_repeats=1).evaluate(PredictRaises(), X)
-        assert np.isfinite(out["predict_time_sec"])
+        with pytest.warns(RuntimeWarning, match="RuntimeError: predict is unavailable"):
+            out = RuntimeBenchmark(n_repeats=1).evaluate(PredictRaises(), X)
+        assert np.isnan(out["predict_time_sec"])
+        assert np.isfinite(out["fit_time_sec"])
 
     def test_model_without_predict_reports_nan(self, X):
         from soft_clustering.benchmarking import RuntimeBenchmark
 
         out = RuntimeBenchmark(n_repeats=1).evaluate(LabelsOnly(), X)
         assert np.isnan(out["predict_time_sec"])
+
+    def test_non_callable_predict_and_unsupported_adapter_report_nan(self, X):
+        from soft_clustering.benchmarking import BenchmarkAdapter, RuntimeBenchmark
+
+        non_callable = LabelsOnly()
+        non_callable.predict = None
+        for model in (non_callable, BenchmarkAdapter(LabelsOnly())):
+            out = RuntimeBenchmark(n_repeats=2).evaluate(model, X)
+            assert np.isnan(out["predict_time_sec"])
+            assert np.isfinite(out["fit_time_sec"])
+
+    @pytest.mark.parametrize("error", [NotImplementedError, RuntimeError])
+    def test_mixed_prediction_repeats_do_not_hide_failure(self, error, X):
+        from soft_clustering.benchmarking import RuntimeBenchmark
+
+        class Intermittent(LabelsOnly):
+            calls = 0
+
+            def predict(self, X):
+                self.calls += 1
+                if self.calls == 2:
+                    raise error("second prediction failed")
+                return self.labels_
+
+        model = Intermittent()
+        if error is RuntimeError:
+            with pytest.warns(RuntimeWarning, match="RuntimeError: second prediction"):
+                out = RuntimeBenchmark(n_repeats=2).evaluate(model, X)
+        else:
+            out = RuntimeBenchmark(n_repeats=2).evaluate(model, X)
+        assert model.calls == 2
+        assert np.isnan(out["predict_time_sec"])
+        assert np.isfinite(out["fit_time_sec"])
+        assert np.isfinite(out["fit_time_std"])
+
+    def test_fit_exceptions_propagate(self, X):
+        from soft_clustering.benchmarking import RuntimeBenchmark
+
+        class FitRaises:
+            def fit(self, X):
+                raise ValueError("fit failed")
+
+        with pytest.raises(ValueError, match="fit failed"):
+            RuntimeBenchmark().evaluate(FitRaises(), X)
+
+    @pytest.mark.parametrize("error", [KeyboardInterrupt, SystemExit])
+    def test_prediction_interruptions_propagate(self, error, X):
+        from soft_clustering.benchmarking import RuntimeBenchmark
+
+        class Interrupted(LabelsOnly):
+            def predict(self, X):
+                raise error()
+
+        with pytest.raises(error):
+            RuntimeBenchmark().evaluate(Interrupted(), X)
 
 
 class SleepingFit:
@@ -1258,6 +1318,8 @@ class TestClusteringBenchmark:
 
         assert list(df["model"]) == ["A", "B"]
         assert "fit_time_sec" in df.columns
+        assert df["fit_time_sec"].notna().all()
+        assert df["predict_time_sec"].isna().all()
 
     def test_metrics_from_several_backends_are_merged(self, X):
         from soft_clustering.benchmarking import (
