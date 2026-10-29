@@ -69,6 +69,7 @@ from scipy.optimize import minimize
 from typeguard import typechecked
 
 from ._base import BaseSoftClusterer
+from ._fcm import _euclidean_dist2
 from ._validation import check_array, check_generator, check_n_clusters
 
 
@@ -155,9 +156,7 @@ class EVCLUS(BaseSoftClusterer):
         else:
             if data.ndim != 2:
                 raise ValueError(f"X must be 2-D, got shape {data.shape}")
-            sq = np.sum(data**2, axis=1)
-            delta = sq[:, None] + sq[None, :] - 2.0 * (data @ data.T)
-            np.maximum(delta, 0.0, out=delta)
+            delta = _euclidean_dist2(data, data)
             np.sqrt(delta, out=delta)
 
         np.fill_diagonal(delta, 0.0)

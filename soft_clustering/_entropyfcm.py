@@ -22,8 +22,9 @@ from ._validation import (
 
 def _entropy_memberships(d2: np.ndarray, lam: float) -> np.ndarray:
     """``u_ik = exp(-d_ik^2/lam) / sum_j exp(-d_ij^2/lam)``, as a stable softmax."""
-    scores = -d2 / lam
-    scores -= scores.max(axis=1, keepdims=True)
+    # Shift before scaling so at least one score stays zero even for tiny lam.
+    with np.errstate(over="ignore"):
+        scores = -(d2 - d2.min(axis=1, keepdims=True)) / lam
     np.exp(scores, out=scores)
     return scores / scores.sum(axis=1, keepdims=True)
 

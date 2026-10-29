@@ -11,6 +11,30 @@ from sklearn.metrics import adjusted_rand_score
 from soft_clustering import ENTROPYFCM
 
 
+def test_subnormal_temperature_preserves_ties_and_finite_prediction():
+    from soft_clustering._entropyfcm import _entropy_memberships
+
+    d2 = np.array([[2.0, 3.0, 2.0], [5.0, 4.0, 6.0], [0.0, 0.0, 1.0]])
+    expected = np.array([[0.5, 0.0, 0.5], [0.0, 1.0, 0.0], [0.5, 0.5, 0.0]])
+    with np.errstate(over="raise", invalid="raise", divide="raise"):
+        np.testing.assert_array_equal(_entropy_memberships(d2, 1e-320), expected)
+        X = np.array([[0.0], [1.0], [10.0], [11.0]])
+        model = ENTROPYFCM(n_clusters=2, entropy_weight=1e-320, random_state=0).fit(X)
+        train = model.predict_proba(X)
+        new = np.array([[0.5], [5.5], [10.5]])
+        predicted = model.predict_proba(new)
+    assert np.isfinite(model.centers_).all()
+    assert np.isfinite(model.objective_trajectory_).all()
+    assert np.isfinite(model.memberships_).all()
+    np.testing.assert_allclose(model.memberships_.sum(axis=1), 1.0, atol=1e-14)
+    np.testing.assert_array_equal(model.predict_proba(), train)
+    distances = ((new[:, None, :] - model.centers_[None, :, :]) ** 2).sum(axis=2)
+    closest = distances == distances.min(axis=1, keepdims=True)
+    np.testing.assert_array_equal(
+        predicted, closest / closest.sum(axis=1, keepdims=True)
+    )
+
+
 @pytest.fixture
 def blobs():
     rng = np.random.default_rng(3)

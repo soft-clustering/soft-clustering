@@ -5,9 +5,31 @@
 
 import numpy as np
 import pytest
+from scipy.spatial.distance import cdist
 from sklearn.metrics import adjusted_rand_score
 
 from soft_clustering import EVCLUS
+
+
+def test_translation_preserves_geometry_and_precomputed_fit():
+    X = np.array([[0.0], [1.0], [10.0], [11.0]])
+    shifted = X + 1e9
+    raw = cdist(X, X)
+    expected = raw / raw.max()
+    model = EVCLUS(n_clusters=2, random_state=0)
+    np.testing.assert_array_equal(model._dissimilarities(shifted), expected)
+    assert np.count_nonzero(expected) == 12
+    fits = [
+        model.fit(shifted),
+        EVCLUS(n_clusters=2, random_state=0).fit(X),
+        EVCLUS(n_clusters=2, metric="precomputed", random_state=0).fit(raw),
+    ]
+    np.testing.assert_array_equal(raw, cdist(X, X))
+    for other in fits[1:]:
+        np.testing.assert_allclose(other.masses_, fits[0].masses_, atol=1e-12)
+        np.testing.assert_allclose(other.memberships_, fits[0].memberships_, atol=1e-12)
+        assert other.stress_ == pytest.approx(fits[0].stress_, abs=1e-12)
+    assert not np.all(fits[0].masses_[:, -1] == 1.0)
 
 
 def blobs(n_per=30, d=3, k=3, spread=0.4, seed=0):
@@ -17,9 +39,7 @@ def blobs(n_per=30, d=3, k=3, spread=0.4, seed=0):
 
 
 def pairwise(X):
-    sq = (X**2).sum(axis=1)
-    d = np.maximum(sq[:, None] + sq[None, :] - 2 * X @ X.T, 0.0)
-    return np.sqrt(d)
+    return cdist(X, X)
 
 
 # ---------------------------------------------------------------------------
