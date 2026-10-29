@@ -580,6 +580,29 @@ class TestSoftMetrics:
         U = _random_memberships(10, 3)
         assert metrics.xie_beni_index(X, U, np.zeros((3, 2))) == np.inf
 
+    def test_xie_beni_diverges_for_partially_coincident_prototypes(self):
+        X = np.array([[1.0], [9.0]])
+        U = np.array([[0.5, 0.5, 0.0], [0.0, 0.0, 1.0]])
+        centers = np.array([[0.0], [0.0], [10.0]])
+        assert metrics.xie_beni_index(X, U, centers) == np.inf
+        assert metrics.soft_clustering_metrics(X, U, centers)["xie_beni"] == np.inf
+
+    def test_xie_beni_one_prototype_convention(self):
+        with np.errstate(divide="raise", invalid="raise"):
+            assert (
+                metrics.xie_beni_index(
+                    np.zeros((2, 1)), np.ones((2, 1)), np.zeros((1, 1))
+                )
+                == np.inf
+            )
+
+    def test_xie_beni_preserves_small_positive_separation(self):
+        distance = 1e-10
+        X = np.array([[distance / 4], [3 * distance / 4]])
+        assert metrics.xie_beni_index(
+            X, np.eye(2), np.array([[0.0], [distance]])
+        ) == pytest.approx(1 / 16)
+
     def test_fuzziness_indices_are_nan_for_unnormalised_memberships(self):
         """PC, MPC and PE are only defined under the partition constraint.
 
