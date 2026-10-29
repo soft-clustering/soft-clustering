@@ -315,6 +315,69 @@ def test_fit_returns_self(name):
     assert model.fit(*CASES[name][1]()) is model
 
 
+@pytest.mark.parametrize("method", ["fit", "fit_predict"])
+@pytest.mark.parametrize(
+    "container", [list, tuple, np.ndarray.tolist], ids=["list", "tuple", "nested-list"]
+)
+def test_array_row_containers_preserve_fitted_state(container, method):
+    """Row containers must describe the same observations as the feature array."""
+    X = np.array([[0, 0], [1, 0], [0, 1], [5, 5], [6, 5], [5, 6]], dtype=float)
+    baseline = sc.FCM(n_clusters=2, random_state=0).fit(X)
+    model = sc.FCM(n_clusters=2, random_state=0)
+    result = getattr(model, method)(container(X))
+
+    assert model.memberships_.shape == (6, 2)
+    assert model.labels_.shape == (6,)
+    assert model.n_clusters_ == model.n_clusters == 2
+    np.testing.assert_allclose(model.memberships_, baseline.memberships_)
+    np.testing.assert_array_equal(model.labels_, baseline.labels_)
+    np.testing.assert_allclose(model.centers_, baseline.centers_)
+    np.testing.assert_allclose(model.predict_proba(X), model.memberships_, atol=1e-8)
+    if method == "fit_predict":
+        np.testing.assert_array_equal(result, model.memberships_)
+    else:
+        assert result is model
+
+
+@pytest.mark.parametrize("name", ["SCSPA", "SHBGF", "SMCLA"])
+def test_ensemble_containers_preserve_fitted_state(name):
+    """Count rows of membership matrices, not partitions or input clusters."""
+    first = np.array(
+        [
+            [0.9, 0.1],
+            [0.8, 0.2],
+            [0.7, 0.3],
+            [0.2, 0.8],
+            [0.1, 0.9],
+            [0.3, 0.7],
+            [0.4, 0.6],
+        ]
+    )
+    second = np.array(
+        [
+            [0.8, 0.1, 0.1],
+            [0.7, 0.2, 0.1],
+            [0.6, 0.3, 0.1],
+            [0.1, 0.7, 0.2],
+            [0.1, 0.8, 0.1],
+            [0.2, 0.2, 0.6],
+            [0.3, 0.1, 0.6],
+        ]
+    )
+    ensemble = [first, second]
+    for reference, equivalent in ((ensemble, tuple(ensemble)), ([first], first)):
+        baseline = getattr(sc, name)(n_clusters=2, random_state=0).fit(reference)
+        model = getattr(sc, name)(n_clusters=2, random_state=0).fit(equivalent)
+        for fitted in (baseline, model):
+            assert fitted.memberships_.shape == (7, 2)
+            assert fitted.labels_.shape == (7,)
+            assert fitted.n_clusters_ == fitted.n_clusters == 2
+        np.testing.assert_allclose(model.memberships_, baseline.memberships_)
+        np.testing.assert_array_equal(model.labels_, baseline.labels_)
+        if name == "SMCLA":
+            assert np.any((model.memberships_ > 0) & (model.memberships_ < 1))
+
+
 @pytest.mark.parametrize("name", COVERED)
 def test_memberships_shape_and_dtype(name):
     model = _fit(name)
