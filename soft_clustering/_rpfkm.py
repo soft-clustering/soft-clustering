@@ -162,7 +162,10 @@ class RPFKM(BaseSoftClusterer):
         S_w = np.zeros((D, D))
         for k in range(self.c):
             s = p[k, :] * U[k, :]
-            x_mean_k = np.sum(s * X, axis=1, keepdims=True) / np.sum(s)
+            mass = np.sum(s)
+            if mass == 0.0:
+                continue
+            x_mean_k = np.sum((s / mass) * X, axis=1, keepdims=True)
             diff = X - x_mean_k
             # (diff * s) @ diff.T, not diff @ np.diag(s) @ diff.T: the latter
             # allocates an n x n matrix per cluster (0.8 GB at n = 10,000).

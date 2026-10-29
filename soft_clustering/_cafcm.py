@@ -160,7 +160,12 @@ class CAFCM(BaseSoftClusterer):
             steps.append(max(m, m_end))
             if m <= m_end:
                 break
-            m = 1.0 + (m - 1.0) * rate
+            next_m = 1.0 + (m - 1.0) * rate
+            if next_m >= m:
+                raise ValueError(
+                    "CAFCM: cooling schedule stalled at floating-point precision"
+                )
+            m = next_m
         schedule = np.array(steps)
 
         modules = [_init_centers_kpp(X, K, rng) for _ in range(self.n_modules)]

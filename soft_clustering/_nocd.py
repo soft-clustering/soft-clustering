@@ -377,6 +377,10 @@ class _BerpoDecoder(_BernoulliDecoder):
 
     def loss_full(self, emb, adj):
         """Compute BerPo loss for all edges & non-edges in a graph."""
+        dtype = emb.dtype
+        # Widen before products/reductions: the nonedge residual can be tiny
+        # relative to the total pair sum. Keep autograd and the original device.
+        emb = emb.to(dtype=torch.float64)
         e1, e2 = adj.nonzero()
         edge_dots = torch.sum(emb[e1] * emb[e2], dim=1)
         loss_edges = -torch.sum(torch.log(-torch.expm1(-self.eps - edge_dots)))
@@ -391,9 +395,10 @@ class _BerpoDecoder(_BernoulliDecoder):
             neg_scale = 1.0
         else:
             neg_scale = self.num_nonedges / self.num_edges
-        return (
+        loss = (
             loss_edges / self.num_edges + neg_scale * loss_nonedges / self.num_nonedges
         ) / (1 + neg_scale)
+        return loss.to(dtype=dtype)
 
 
 class _ModelSaver:

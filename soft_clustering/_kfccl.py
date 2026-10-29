@@ -6,10 +6,10 @@
 from __future__ import annotations
 
 import numpy as np
-from sklearn.metrics.pairwise import rbf_kernel
 from typeguard import typechecked
 
 from ._base import BaseSoftClusterer
+from ._fcm import _euclidean_dist2
 from ._validation import (
     check_array,
     check_generator,
@@ -189,11 +189,8 @@ class KFCCL(BaseSoftClusterer):
 
         # Kernel rows are computed when needed instead of storing the
         # (n, n) kernel matrix, so memory is O(n * n_clusters).
-        sq = np.einsum("ij,ij->i", X, X)
-
         def kernel_rows(idx):
-            d2 = sq[idx, None] + sq[None, :] - 2.0 * (X[idx] @ X.T)
-            return np.exp(-gamma * np.maximum(d2, 0.0))
+            return np.exp(-gamma * _euclidean_dist2(X[idx], X))
 
         if n <= _CACHE_KERNEL_UP_TO:
             # Small problems: one (n, n) kernel (at most 200 MB) is faster
@@ -259,6 +256,6 @@ class KFCCL(BaseSoftClusterer):
     def _predict_memberships(self, X) -> np.ndarray:
         X = check_array(X, estimator=type(self).__name__)
         check_n_features(X, self._X_fit.shape[1], estimator=type(self).__name__)
-        Kx = rbf_kernel(self._X_fit, X, gamma=self.gamma)  # (n_fit, n_new)
+        Kx = np.exp(-self.gamma * _euclidean_dist2(self._X_fit, X))  # (n_fit, n_new)
         D = 1.0 - 2 * (self.coefficients_ @ Kx) + self._q[:, None]
         return _gibbs(D.T, self.lambda_)

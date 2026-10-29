@@ -19,6 +19,62 @@ import scipy.sparse as sp  # noqa: E402
 from soft_clustering import NOCD, _nocd  # noqa: E402
 
 
+@pytest.mark.parametrize("n,seed,zero_rows", [(500, 5, True), (1000, 0, False)])
+@pytest.mark.parametrize("balanced", [False, True])
+@pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
+@pytest.mark.parametrize(
+    "device",
+    [
+        "cpu",
+        pytest.param(
+            "cuda",
+            marks=pytest.mark.skipif(
+                not torch.cuda.is_available(), reason="CUDA unavailable"
+            ),
+        ),
+    ],
+)
+def test_full_loss_and_gradients_match_explicit_pairs(
+    n, seed, zero_rows, balanced, dtype, device
+):
+    """The oracle enumerates nonedges; it never subtracts large pair totals."""
+    A = np.ones((n, n)) - np.eye(n)
+    A[0, 1] = A[1, 0] = 0
+    adj = sp.csr_matrix(A)
+    values = np.random.default_rng(seed).uniform(0.1, 1.0, (n, 2)).astype(np.float32)
+    if zero_rows:
+        values[:2] = 0.0
+    emb = torch.tensor(values, dtype=dtype, device=device, requires_grad=True)
+    loss = _nocd._BerpoDecoder(n, adj.nnz, balance_loss=balanced).loss_full(emb, adj)
+    loss.backward()
+
+    reference = torch.tensor(
+        values, dtype=torch.float64, device=device, requires_grad=True
+    )
+    edges = torch.tensor(np.transpose(adj.nonzero()), dtype=torch.long, device=device)
+    nonedge_mask = A == 0
+    np.fill_diagonal(nonedge_mask, False)
+    nonedges = torch.tensor(np.argwhere(nonedge_mask), dtype=torch.long, device=device)
+    assert nonedges.shape == (2, 2)
+    eps = -np.log(1.0 - len(edges) / (n * (n - 1)))
+    edge_dots = (reference[edges[:, 0]] * reference[edges[:, 1]]).sum(dim=1)
+    positive = -torch.log(-torch.expm1(-(eps + edge_dots))).mean()
+    negative = (reference[nonedges[:, 0]] * reference[nonedges[:, 1]]).sum(dim=1).mean()
+    scale = 1.0 if balanced else len(nonedges) / len(edges)
+    expected = (positive + scale * negative) / (1.0 + scale)
+    expected.backward()
+
+    assert loss.dtype == emb.dtype == emb.grad.dtype
+    assert loss.device == emb.device == emb.grad.device
+    assert torch.isfinite(loss) and torch.isfinite(emb.grad).all()
+    torch.testing.assert_close(loss.double(), expected, rtol=2e-6, atol=1e-10)
+    # Check small edge-only gradients separately from the missing-edge endpoints.
+    for rows in (slice(0, 2), slice(2, None)):
+        torch.testing.assert_close(
+            emb.grad[rows].double(), reference.grad[rows], rtol=2e-5, atol=1e-10
+        )
+
+
 @pytest.fixture
 def graph():
     rng = np.random.default_rng(37)

@@ -5,10 +5,76 @@
 
 import numpy as np
 import pytest
+from scipy.spatial.distance import cdist
+from scipy.special import softmax
 from sklearn.metrics import adjusted_rand_score
 from sklearn.metrics.pairwise import rbf_kernel
 
 from soft_clustering import KFCCL
+
+
+@pytest.mark.parametrize("repeated", [False, True])
+def test_translated_kernel_state_and_prediction_in_both_cache_modes(
+    monkeypatch, repeated
+):
+    from soft_clustering import _kfccl
+
+    X = np.array([[0.0], [1.0], [10.0], [11.0]])
+    if repeated:
+        X = np.vstack([X, X[1]])
+    new = np.array([[0.5], [10.5]])
+    reference = None
+    original_distance = _kfccl._euclidean_dist2
+    shapes = []
+
+    def distances(a, b):
+        shapes.append((len(a), len(b)))
+        return original_distance(a, b)
+
+    monkeypatch.setattr(_kfccl, "_euclidean_dist2", distances)
+    for threshold in (5000, 0):
+        monkeypatch.setattr(_kfccl, "_CACHE_KERNEL_UP_TO", threshold)
+        for offset in (0.0, 1e9):
+            shifted = X + offset
+            shapes.clear()
+            model = KFCCL(n_clusters=2, gamma=0.1, max_iter=3, random_state=0).fit(
+                shifted
+            )
+            if threshold == 0:
+                assert all(a <= model.n_clusters and b == len(X) for a, b in shapes)
+            K = np.exp(-model.gamma * cdist(shifted, shifted, "sqeuclidean"))
+            np.testing.assert_array_equal(
+                K, np.exp(-model.gamma * cdist(X, X, "sqeuclidean"))
+            )
+            if repeated:
+                assert K[1, -1] == 1.0
+            G = model.coefficients_
+            assert np.all(G >= 0)
+            np.testing.assert_allclose(G.sum(axis=1), 1.0, atol=1e-14)
+            q = np.einsum("ij,jk,ik->i", G, K, G)
+            np.testing.assert_allclose(model._q, q, rtol=1e-12, atol=1e-14)
+            expected = softmax(-model.lambda_ * (1 - 2 * K @ G.T + q), axis=1)
+            np.testing.assert_allclose(
+                model.memberships_, expected, rtol=1e-12, atol=1e-14
+            )
+            np.testing.assert_allclose(
+                model.predict_proba(shifted), expected, rtol=1e-12, atol=1e-14
+            )
+            Knew = np.exp(-model.gamma * cdist(shifted, new + offset, "sqeuclidean"))
+            expected_new = softmax(
+                -model.lambda_ * (1 - 2 * G @ Knew + q[:, None]).T, axis=1
+            )
+            actual_new = model.predict_proba(new + offset)
+            assert actual_new.shape == (len(new), model.n_clusters)
+            np.testing.assert_allclose(actual_new, expected_new, rtol=1e-12, atol=1e-14)
+            state = (G, model._q, model.memberships_, actual_new)
+            if reference is None:
+                reference = state
+            else:
+                for actual, expected_state in zip(state, reference):
+                    np.testing.assert_allclose(
+                        actual, expected_state, rtol=1e-12, atol=1e-14
+                    )
 
 
 @pytest.fixture
