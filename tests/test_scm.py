@@ -17,9 +17,10 @@ def X():
     )
 
 
-def test_fit_returns_centers(X):
+def test_fit_returns_self_and_stores_centers(X):
     model = SCM()
-    centers = model.fit(X).centers_
+    assert model.fit(X) is model
+    centers = model.centers_
     assert centers is not None
     assert centers.ndim == 2
     assert centers.shape[1] == 2
@@ -58,3 +59,40 @@ def test_3d_input():
     model = SCM()
     centers = model.fit(X).centers_
     assert centers.shape[1] == 3
+
+
+@pytest.mark.parametrize(
+    "X, indices",
+    [
+        (np.array([[-2.0], [2.0]]), [0, 1]),
+        (np.array([[-2.0, -3.0, -4.0], [-2.0, -3.0, -4.0], [2.0, 3.0, 4.0]]), [0, 2]),
+    ],
+    ids=["clusters-equal-samples", "features-equal-samples"],
+)
+def test_memberships_survive_center_dimension_collision_and_refit(X, indices):
+    model = SCM()
+    for offset in (0.0, 7.0):
+        data = X + offset
+        original = data.copy()
+        data.setflags(write=False)
+        if offset == 0.0:
+            assert model.fit(X=data) is model
+        else:
+            memberships = model.fit_predict(X=data)
+            np.testing.assert_array_equal(memberships, model.memberships_)
+
+        np.testing.assert_array_equal(data, original)
+        np.testing.assert_array_equal(model.center_indices_, indices)
+        np.testing.assert_array_equal(model.centers_, original[indices])
+        assert not np.shares_memory(model.centers_, data)
+        assert model.n_clusters_ == len(indices)
+        assert model.memberships_.shape == (len(data), len(indices))
+
+        scaled = (original - original.min(axis=0)) / np.ptp(original, axis=0)
+        squared_distances = ((scaled[:, None] - scaled[indices]) ** 2).sum(axis=2)
+        degrees = np.exp(-4.0 / model.ra**2 * squared_distances)
+        expected = degrees / degrees.sum(axis=1, keepdims=True)
+        np.testing.assert_allclose(model.memberships_, expected, rtol=1e-12, atol=1e-15)
+        np.testing.assert_allclose(model.predict_proba(), model.predict_proba(data))
+        np.testing.assert_array_equal(model.labels_, expected.argmax(axis=1))
+        np.testing.assert_array_equal(model.predict(), model.predict(data))

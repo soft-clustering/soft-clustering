@@ -82,8 +82,8 @@ class SCM(BaseSoftClusterer):
         self.ea = ea
         self.er = er
 
-    def fit(self, X) -> np.ndarray:
-        """Fit on a feature matrix and return the centers."""
+    def fit(self, X) -> SCM:
+        """Fit on a feature matrix and return self with centers and memberships."""
         name = type(self).__name__
         X = check_array(X, estimator=name)
         ra = check_scalar(
@@ -141,7 +141,7 @@ class SCM(BaseSoftClusterer):
         self.centers_ = X[self.center_indices_].copy()
         self._X_min, self._span, self._alpha = X_min, span, alpha
         self.memberships_ = self._predict_from(Xn)
-        return self.centers_
+        return self
 
     def _predict_from(self, Xn):
         Cn = (self.centers_ - self._X_min) / self._span
