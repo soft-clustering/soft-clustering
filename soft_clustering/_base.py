@@ -107,7 +107,8 @@ def _n_samples_of(data: Any) -> int | None:
     if isinstance(data, (list, tuple)) and data:
         first = data[0]
         first_shape = getattr(first, "shape", None)
-        if first_shape is not None and len(first_shape) >= 1:
+        # One-dimensional elements are feature rows, not ensemble matrices.
+        if first_shape is not None and len(first_shape) == 2:
             return int(first_shape[0])
     try:
         return len(data)
