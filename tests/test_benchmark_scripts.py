@@ -26,6 +26,29 @@ def _load_module(relative_path):
 main_benchmark = _load_module("benchmarks/run_main_benchmark.py")
 
 
+@pytest.mark.parametrize(
+    "module_path",
+    ["benchmarks/run_external_baselines.py", "tests/test_external_agreement.py"],
+)
+def test_alignment_is_bijective_and_preserves_equivalent_partitions(module_path):
+    align = _load_module(module_path).align
+    for reference, order in (
+        (np.array([[0.1, 0.9], [0.2, 0.8]]), [0, 1]),
+        (np.array([[0.1, 0.6, 0.3], [0.2, 0.7, 0.1]]), [2, 0, 1]),
+        (np.array([[0.2, 0.2, 0.6], [0.1, 0.1, 0.8]]), [2, 1, 0]),
+    ):
+        candidate = reference[:, order].copy()
+        original = candidate.copy()
+        expected = reference.copy()
+        actual = align(reference, candidate)
+        np.testing.assert_array_equal(actual, expected)
+        np.testing.assert_array_equal(candidate, original)
+        np.testing.assert_array_equal(reference, expected)
+        assert actual.shape == reference.shape
+    with pytest.raises(ValueError, match="equally shaped"):
+        align(np.ones((2, 2)), np.ones((2, 3)))
+
+
 def test_summary_accounts_for_every_status_and_only_successful_finite_values():
     statuses = [
         "ok",

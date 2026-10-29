@@ -47,6 +47,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import numpy as np
+from scipy.optimize import linear_sum_assignment
+from scipy.spatial.distance import cdist
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -85,13 +87,11 @@ def timed(fn, repeats: int) -> float:
 
 
 def align(reference: np.ndarray, candidate: np.ndarray) -> np.ndarray:
-    """Permute ``candidate``'s columns to best match ``reference``."""
-    remaining = list(range(candidate.shape[1]))
-    order = []
-    for column in reference.T:
-        best = max(remaining, key=lambda j: float(np.dot(column, candidate[:, j])))
-        order.append(best)
-        remaining.remove(best)
+    """Match equal-shaped partitions by minimum total squared column error."""
+    if reference.ndim != 2 or reference.shape != candidate.shape:
+        raise ValueError("align requires equally shaped 2-D membership matrices.")
+    cost = cdist(reference.T, candidate.T, metric="sqeuclidean")
+    _, order = linear_sum_assignment(cost)
     return candidate[:, order]
 
 
