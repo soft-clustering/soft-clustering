@@ -5,10 +5,11 @@
 
 Implementation note (optimization study)
 ----------------------------------------
-Vectorised implementation of the same algorithm. The vigilance test, the
-prototype update rule, the order in which documents are presented and the
-order in which prototypes are created and updated are unchanged. The reference
-implementation is preserved at
+Vectorised implementation retaining the prototype update rule and document
+processing order. The inclusive vigilance test now uses the unmodified positive
+document norm: exact equality passes, unlike the archived epsilon-perturbed
+test. This correction can change subsequent category creation and updates.
+The reference implementation is preserved at
 ``optimization/original/scpp_original/_kmart.py``.
 
 Profiling attributed the runtime to 28,634 ``np.sum`` calls inside
@@ -16,9 +17,10 @@ Profiling attributed the runtime to 28,634 ``np.sum`` calls inside
 ``_fuzzy_and`` is just ``np.minimum``, the whole vigilance test over the
 current category set is a single broadcast:
 
-    scores = sum(minimum(I, P), axis=1) / (sum(I) + eps)
+    scores = sum(minimum(I, P), axis=1) / sum(I)
 
-with ``P`` the block of existing prototypes. Prototypes are therefore held in
+for a positive document norm; zero-norm documents receive zero scores.
+Here ``P`` is the block of existing prototypes. Prototypes are held in
 one contiguous ``(capacity, vocab)`` buffer, doubled on demand, instead of a
 Python list of separate vectors, and the passing categories are updated with a
 single fancy-indexed assignment rather than one at a time.
@@ -254,9 +256,13 @@ class KMART(BaseSoftClusterer):
             #   ||I & P_j||_1 / ||I||_1 >= rho
             # np.minimum is the Fuzzy AND; broadcasting the document against
             # the prototype block gives all scores in one reduction.
-            denominator = np.sum(doc_vector) + 1e-9  # avoid division by zero
+            denominator = np.sum(doc_vector)
             active = prototypes[:n_prototypes]
-            scores = np.sum(np.minimum(doc_vector, active), axis=1) / denominator
+            scores = (
+                np.sum(np.minimum(doc_vector, active), axis=1) / denominator
+                if denominator > 0
+                else np.zeros(n_prototypes)
+            )
             passed_tests = np.flatnonzero(scores >= self.vigilance_param)
 
             # If no prototypes pass, create a new cluster (unsupervised learning)

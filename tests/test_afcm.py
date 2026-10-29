@@ -8,7 +8,7 @@ import pytest
 from sklearn.datasets import make_circles, make_moons
 from sklearn.metrics import adjusted_rand_score
 
-from soft_clustering import AFCM, FCM
+from soft_clustering import AFCM, FCM, _afcm
 
 
 @pytest.fixture
@@ -77,3 +77,67 @@ def test_legacy_c_keyword_still_accepted(X):
 def test_invalid_parameters_raise(X, kwargs):
     with pytest.raises(ValueError):
         AFCM(n_clusters=2, **kwargs).fit(X)
+
+
+@pytest.mark.parametrize(
+    "X, requested_k, sigma",
+    [
+        (np.array([[0.0], [0.0], [0.0], [1.0]]), 1, 1.0),
+        (np.zeros((4, 2)), 1, None),
+        (np.zeros((4, 2)), 3, None),
+        (np.zeros((4, 2)), 8, None),
+        (np.array([[0.0], [2.0]]), 5, None),
+    ],
+    ids=["duplicates", "identical", "all-other-points", "capped", "two-points"],
+)
+def test_knn_graph_excludes_self_and_keeps_k_other_samples(
+    monkeypatch, X, requested_k, sigma
+):
+    observed = []
+    original = _afcm.NearestNeighbors.kneighbors
+
+    def observe(self, *args, **kwargs):
+        result = original(self, *args, **kwargs)
+        observed.append(result)
+        return result
+
+    monkeypatch.setattr(_afcm.NearestNeighbors, "kneighbors", observe)
+    laplacian, bandwidth = _afcm._normalized_knn_laplacian(X, requested_k, sigma)
+    assert len(observed) == 1
+    distances, indices = observed[0]
+    n, k = len(X), min(requested_k, len(X) - 1)
+    assert indices.shape == (n, k)
+    for row, neighbors in enumerate(indices):
+        assert row not in neighbors
+        assert len(set(neighbors)) == k
+        np.testing.assert_allclose(
+            distances[row], np.linalg.norm(X[row] - X[neighbors], axis=1)
+        )
+    if not np.any(X):
+        assert bandwidth == 1.0
+    W = np.zeros((n, n))
+    for row, neighbors in enumerate(indices):
+        for column in neighbors:
+            W[row, column] = np.exp(
+                -np.sum((X[row] - X[column]) ** 2) / (2 * bandwidth**2)
+            )
+    W = np.maximum(W, W.T)
+    degree = W.sum(axis=1)
+    expected = np.eye(n) - W / np.sqrt(degree[:, None] * degree[None, :])
+    np.testing.assert_allclose(laplacian, expected, atol=1e-15)
+    np.testing.assert_array_equal(np.diag(laplacian), np.ones(n))
+
+
+@pytest.mark.parametrize("sigma", [None, 2.0])
+def test_untied_knn_laplacian_matches_independent_gaussian_graph(sigma):
+    X = np.array([[0.0], [1.0], [4.0], [10.0]])
+    # Nearest other points are 1, 0, 1, 2, with distances 1, 1, 3, 6.
+    expected_sigma = 2.0 if sigma is None else sigma
+    W = np.zeros((4, 4))
+    for i, j, distance in [(0, 1, 1), (1, 0, 1), (2, 1, 3), (3, 2, 6)]:
+        W[i, j] = W[j, i] = np.exp(-(distance**2) / (2 * expected_sigma**2))
+    degree = W.sum(axis=1)
+    expected = np.eye(4) - W / np.sqrt(degree[:, None] * degree[None, :])
+    actual, actual_sigma = _afcm._normalized_knn_laplacian(X, 1, sigma)
+    assert actual_sigma == expected_sigma
+    np.testing.assert_allclose(actual, expected, atol=1e-15)

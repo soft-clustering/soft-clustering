@@ -26,9 +26,9 @@ def _normalized_knn_laplacian(X: np.ndarray, n_neighbors: int, sigma: float | No
     """``L_hat = I - D^{-1/2} W D^{-1/2}`` of a symmetrised Gaussian kNN graph."""
     n = X.shape[0]
     k = min(n_neighbors, n - 1)
-    nn = NearestNeighbors(n_neighbors=k + 1).fit(X)
-    dist, ind = nn.kneighbors(X)
-    dist, ind = dist[:, 1:], ind[:, 1:]  # drop the sample itself
+    nn = NearestNeighbors(n_neighbors=k).fit(X)
+    # A fitted-point query excludes the actual sample index, including ties.
+    dist, ind = nn.kneighbors()
     if sigma is None:
         positive = dist[dist > 0]
         sigma = float(np.median(positive)) if positive.size else 1.0

@@ -249,7 +249,7 @@ class FeMIFuzzy(BaseSoftClusterer):
         """
         members = X[np.argmax(U, axis=1) == j]  # hard members
         if members.shape[0] == 0:
-            return np.zeros(X.shape[1] * 6 + 1)  # empty cluster
+            return np.zeros(X.shape[1] * 5 + 1)  # count and five feature summaries
 
         signature = [
             members.shape[0],  # number of observations
