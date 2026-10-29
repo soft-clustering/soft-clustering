@@ -85,6 +85,7 @@ class BenchmarkAdapter:
         self.membership_: np.ndarray | None = None
         self.centers_: np.ndarray | None = None
         self.labels_: np.ndarray | None = None
+        self._fitted = False
 
     # ------------------------------------------------------------------
     # Interface required by the benchmarking backends
@@ -92,16 +93,38 @@ class BenchmarkAdapter:
 
     def fit(self, X) -> BenchmarkAdapter:
         """Fit the wrapped model and populate the standardised attributes."""
-        if isinstance(self.model, BaseSoftClusterer):
-            self._fit_scpp(X)
-        else:
-            self._fit_foreign(X)
+        self._reset_fitted_state()
+        try:
+            if isinstance(self.model, BaseSoftClusterer):
+                self._fit_scpp(X)
+            else:
+                self._fit_foreign(X)
+        except Exception:
+            self._reset_fitted_state()
+            raise
+        self._fitted = True
         return self
 
     def predict(self, X=None) -> np.ndarray:
-        if self.labels_ is None:
+        """Return cached training labels for None, otherwise delegate inference."""
+        if not self._fitted:
             raise RuntimeError("BenchmarkAdapter: call fit() before predict().")
-        return self.labels_
+        if X is None:
+            if self.labels_ is None:
+                raise RuntimeError("BenchmarkAdapter: training labels are unavailable.")
+            return self.labels_
+        predict = getattr(self.model, "predict", None)
+        if not callable(predict):
+            raise NotImplementedError(
+                f"{type(self.model).__name__} has no callable predict(X)."
+            )
+        return predict(X)
+
+    def _reset_fitted_state(self) -> None:
+        self._fitted = False
+        self.membership_ = None
+        self.labels_ = None
+        self.centers_ = None
 
     # ------------------------------------------------------------------
     # Attribute delegation
@@ -116,6 +139,7 @@ class BenchmarkAdapter:
             "membership_",
             "centers_",
             "labels_",
+            "_fitted",
         ):
             raise AttributeError(name)
         return getattr(self.model, name)
@@ -189,6 +213,7 @@ class BenchmarkAdapter:
         """
         n_samples = X.shape[0] if hasattr(X, "shape") else len(X)
         U: np.ndarray | None = None
+        labels = None
 
         # --- 1. Try the return value of fit_predict ---
         if result is not None:
@@ -198,11 +223,12 @@ class BenchmarkAdapter:
                 if array is not None:
                     U = array
                     break
-            if U is None:
-                # No 2-D result; a 1-D result is a hard label vector.
-                for item in candidates:
-                    if isinstance(item, np.ndarray) and item.ndim == 1:
-                        self.labels_ = item
+            for item in candidates:
+                if isinstance(item, np.ndarray) and item.ndim == 1:
+                    # Preserve labels-only returns. In a mixed tuple, integer
+                    # labels are unambiguous; a floating loss trace is not.
+                    if U is None or np.issubdtype(item.dtype, np.integer):
+                        labels = item
                         break
 
         # --- 2. Try the attribute names the protocol knows about ---
@@ -217,8 +243,22 @@ class BenchmarkAdapter:
                 U = value
                 break
 
+        if U is not None:
+            if U.shape[0] != n_samples and U.shape[1] == n_samples:
+                U = U.T
+            if U.shape[0] != n_samples:
+                raise ValueError("Membership matrix must have one row per sample.")
         self.membership_ = U
-        if U is not None and self.labels_ is None:
+        if labels is None:
+            labels = getattr(self.model, "labels_", None)
+        if labels is not None:
+            labels = np.asarray(labels)
+            if labels.ndim != 1 or labels.shape[0] != n_samples:
+                raise ValueError(
+                    "Explicit labels must be one-dimensional with one label per sample."
+                )
+            self.labels_ = labels
+        elif U is not None:
             self.labels_ = np.argmax(U, axis=1)
 
     def _extract_centers(self) -> None:
