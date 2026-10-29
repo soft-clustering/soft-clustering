@@ -16,7 +16,8 @@ class PLSI(BaseSoftClusterer):
     Models a document-word count matrix as :math:`P(d, w) = \sum_z P(z)
     P(d \mid z) P(w \mid z)` and maximises the likelihood by EM (Hofmann,
     1999). ``memberships_`` holds :math:`P(z \mid d) \propto P(d \mid z)
-    P(z)`. The training log-likelihood (``log_likelihoods``) is non-decreasing
+    P(z)` in document-by-topic orientation; legacy ``P_z_given_d`` remains
+    topic-by-document. The training log-likelihood (``log_likelihoods``) is non-decreasing
     under plain EM. Tempered EM, with Hofmann's annealing schedule and a
     held-out set, is available through ``tempered=True``; it targets
     generalisation to unseen documents and needs a large corpus. Parameters
@@ -363,6 +364,7 @@ class PLSI(BaseSoftClusterer):
         self.perplexity = self._perplexity(X, doc_idx, word_idx, count)
         self.P_z_given_d = (self.P_d_given_z.T * self.P_z).T
         self.P_z_given_d /= self.P_z_given_d.sum(axis=0, keepdims=True)
+        self.memberships_ = self.P_z_given_d.T
 
         return self
 
