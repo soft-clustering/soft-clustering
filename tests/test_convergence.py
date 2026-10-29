@@ -75,3 +75,65 @@ def test_data_scale():
     X = _blobs()
     assert data_scale(X * 1e3) == pytest.approx(1e3 * data_scale(X))
     assert data_scale(np.ones((5, 2))) == 1.0
+
+
+@pytest.mark.parametrize("name,scale_attr", [("PCM", "etas_"), ("PFCM", "gamma_")])
+def test_possibilistic_scales_and_objectives_follow_squared_data_units(
+    name, scale_attr
+):
+    X = np.array([[0.0], [1.0], [10.0], [11.0]])
+    c = 1e-7
+    reference = getattr(sc, name)(n_clusters=2, max_iter=50, random_state=0).fit(X)
+    scaled = getattr(sc, name)(n_clusters=2, max_iter=50, random_state=0).fit(X * c)
+    tiny_scales = getattr(scaled, scale_attr)
+    assert np.all((tiny_scales > 0) & (tiny_scales < 1e-12))
+    np.testing.assert_allclose(
+        scaled.centers_ / c, reference.centers_, rtol=1e-9, atol=1e-10
+    )
+    np.testing.assert_allclose(
+        tiny_scales / c**2, getattr(reference, scale_attr), rtol=1e-9, atol=0
+    )
+    for attr in ("memberships_", "typicalities_"):
+        np.testing.assert_allclose(
+            getattr(scaled, attr), getattr(reference, attr), rtol=1e-9, atol=1e-12
+        )
+    np.testing.assert_allclose(
+        scaled.objective_trajectory_[-1] / c**2,
+        reference.objective_trajectory_[-1],
+        rtol=1e-9,
+        atol=0,
+    )
+    for model in (reference, scaled):
+        trajectory = model.objective_trajectory_
+        assert np.isfinite(trajectory).all()
+        assert np.all(
+            np.diff(trajectory) <= 1e-12 * max(trajectory.max(), np.finfo(float).tiny)
+        )
+    np.testing.assert_allclose(scaled.predict_proba(X * c), scaled.memberships_)
+    if name == "PFCM":
+        np.testing.assert_allclose(scaled.memberships_.sum(1), 1)
+        np.testing.assert_allclose(
+            scaled.predict_typicalities(X * c).T, scaled.typicalities_
+        )
+        assert scaled.gamma is scaled.gamma_
+    else:
+        assert not np.allclose(scaled.typicalities_.sum(1), 1)
+
+
+@pytest.mark.parametrize("name", ["PCM", "PFCM"])
+@pytest.mark.parametrize(
+    "values", [[0.0, 0.0, 0.0, 0.0], [3.0, 3.0, 3.0, 3.0], [1.0, 1.0, 5.0, 5.0]]
+)
+def test_possibilistic_constant_and_duplicate_data_keep_supported_centers(name, values):
+    X = np.array(values)[:, None]
+    model = getattr(sc, name)(n_clusters=2, max_iter=50, random_state=0).fit(X)
+    expected = [min(values), max(values)]
+    np.testing.assert_allclose(
+        np.sort(model.centers_[:, 0]), expected, rtol=0, atol=1e-12
+    )
+    scales = model.etas_ if name == "PCM" else model.gamma_
+    assert np.isfinite(scales).all() and (scales >= 0).all()
+    assert np.isfinite(model.typicalities_).all()
+    np.testing.assert_allclose(model.typicalities_.max(1), 1, rtol=0, atol=1e-12)
+    assert np.isfinite(model.objective_trajectory_).all()
+    np.testing.assert_allclose(model.predict_proba(X), model.memberships_)

@@ -202,9 +202,9 @@ class PFCM(BaseSoftClusterer):
 
         U, centers, _ = fcm_fit(X, K, m, rng, max_iter=self.max_iter, tol=self.tol)
         gamma = _estimate_etas(X, U, centers, m)
-        if not np.all(gamma > 1e-12):
+        if np.any(gamma == 0):
             fallback = float(np.mean(_euclidean_dist2(X, centers)))
-            gamma = np.where(gamma > 1e-12, gamma, max(fallback, 1e-12))
+            gamma = np.where(gamma == 0, fallback, gamma)
         self.gamma_ = gamma
 
         scale = data_scale(X)

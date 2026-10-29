@@ -25,34 +25,53 @@ def _update_T_from_centers(X, centers, etas, m, eps=1e-12):
 
     Evaluated as a logistic function of ``log(d^2/eta) / (m - 1)`` so that it
     neither overflows for ``m`` close to one nor returns NaN for a sample
-    coincident with a prototype.
+    coincident with a prototype. Positive scales, including subnormals, are
+    retained. At zero scale, coincident points have typicality one and other
+    points have the dimensionless lower clip ``eps``.
     """
     d2 = _euclidean_dist2(X, centers)
-    # Floors at the smallest positive double only guard log(0); a floor in data
-    # units (such as eps) would make the typicalities depend on the scale of X.
-    tiny = np.finfo(np.float64).tiny
-    log_ratio = np.log(np.maximum(d2, tiny)) - np.log(np.maximum(etas, tiny))[None, :]
+    etas = np.asarray(etas)
+    if np.any(etas < 0):
+        raise ValueError("PCM: typicality scales must be nonnegative.")
+    positive = etas > 0
+    distances = d2[:, positive]
+    log_distances = np.full_like(distances, -np.inf)
+    np.log(distances, out=log_distances, where=distances > 0)
+    log_ratio = log_distances - np.log(etas[positive])[None, :]
     z = log_ratio / (m - 1.0)
     # 1 / (1 + exp(z)) without overflow.
-    T = np.empty_like(z)
+    values = np.empty_like(z)
     pos = z >= 0
     ez = np.exp(-z[pos])
-    T[pos] = ez / (1.0 + ez)
-    T[~pos] = 1.0 / (1.0 + np.exp(z[~pos]))
+    values[pos] = ez / (1.0 + ez)
+    values[~pos] = 1.0 / (1.0 + np.exp(z[~pos]))
+    T = np.zeros_like(d2)
+    T[:, positive] = values
+    T[d2 == 0] = 1.0
     return np.clip(T, eps, 1.0)
 
 
 def _update_centers_from_T(X, T, m, eps=1e-12):
+    """Use actual positive weight masses; retain zero-vector empty fallback.
+
+    The legacy ``eps`` argument no longer biases positive-mass means.
+    """
     Tm = T**m
-    return (Tm.T @ X) / (Tm.sum(axis=0)[:, None] + eps)
+    num = Tm.T @ X
+    den = Tm.sum(axis=0)[:, None]
+    return np.divide(num, den, out=np.zeros_like(num, dtype=float), where=den > 0)
 
 
 def _estimate_etas(X, W, centers, m, alpha=1.0, eps=1e-12):
-    """``eta_k = alpha * sum_i w_ik^m d_ik^2 / sum_i w_ik^m`` (K&K, Eq. 9)."""
+    """Weighted squared spread (K&K, Eq. 9); zero for exactly empty support.
+
+    ``eps`` is retained for compatibility, without flooring scales or masses.
+    """
     d2 = _euclidean_dist2(X, centers)
     Wm = W**m
-    etas = alpha * (Wm * d2).sum(axis=0) / (Wm.sum(axis=0) + eps)
-    return np.maximum(etas, eps)
+    num = alpha * (Wm * d2).sum(axis=0)
+    den = Wm.sum(axis=0)
+    return np.divide(num, den, out=np.zeros_like(num, dtype=float), where=den > 0)
 
 
 def _objective_pcm(X, T, centers, etas, m):
@@ -206,12 +225,11 @@ class PossibilisticCMeans(BaseSoftClusterer):
             )
 
         etas = _estimate_etas(X, U, centers, m, alpha=alpha)
-        if not np.all(etas > 1e-12):
-            # A cluster with zero spread (e.g. all its points identical)
-            # would make every other point atypical; fall back to the mean
-            # spread so the typicality stays defined.
+        if np.any(etas == 0):
+            # Only true zero spread uses the data-derived global fallback.
+            # If that is also zero, the typicality helper handles its limit.
             fallback = float(np.mean(_euclidean_dist2(X, centers)))
-            etas = np.where(etas > 1e-12, etas, max(fallback, 1e-12))
+            etas = np.where(etas == 0, fallback, etas)
 
         T = _update_T_from_centers(X, centers, etas, m)
         obj_prev = np.inf

@@ -186,12 +186,11 @@ class SFCMEP(BaseSoftClusterer):
     ) -> np.ndarray:
         """Re-weight the cluster-major matrix ``U`` by ``exp(-d^2 / lam)``.
 
-        With ``lam = 0`` this is the hard c-means assignment. The exponents
-        are shifted by their per-sample maximum before exponentiating, which
-        cancels in the normalisation and keeps a sample far from every
-        centroid from underflowing to an all-zero column. A zero prior entry
-        is floored at the smallest positive double, so a column can never be
-        all zero.
+        With ``lam = 0`` this is the hard c-means assignment. For positive
+        temperature, shift the complete log-prior-minus-distance score per
+        sample before exponentiating. The largest weight is then one, so no
+        denominator epsilon is needed. Zero priors retain the established
+        float64.tiny floor: they are softened zeros, not hard exclusions.
 
         Earlier releases replaced a zero prior entry by one, the largest
         prior weight. A zero arises for the non-labelled classes of a
@@ -204,11 +203,15 @@ class SFCMEP(BaseSoftClusterer):
             U_new = np.zeros((self.C, self.N))
             U_new[np.argmin(d2, axis=0), np.arange(self.N)] = 1.0
             return U_new
-        logits = -d2 / self.lam
-        logits -= logits.max(axis=0, keepdims=True)
+        relative_d2 = d2 - d2.min(axis=0, keepdims=True)
         prior = np.maximum(U, np.finfo(np.float64).tiny)
-        num = prior * np.exp(logits)
-        return num / (num.sum(axis=0, keepdims=True) + 1e-12)
+        # An overflowing nonminimal penalty has zero weight; the minimum
+        # distance always retains a finite log prior for finite distances.
+        with np.errstate(over="ignore"):
+            logits = np.log(prior) - relative_d2 / self.lam
+        logits -= logits.max(axis=0, keepdims=True)
+        num = np.exp(logits)
+        return num / num.sum(axis=0, keepdims=True)
 
     @staticmethod
     def _normalise_labels(y, n_samples: int, n_clusters: int, name: str):
