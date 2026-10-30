@@ -11,6 +11,26 @@ import pytest
 from soft_clustering import SFCMEP
 
 
+@pytest.mark.parametrize("offset", [0.0, 1e9])
+def test_one_cluster_uses_arithmetic_mean(offset):
+    X = np.array([[-1.0], [1.0]]) + offset
+    model = SFCMEP(n_clusters=1, max_iter=1, random_state=0).fit(X, [None, None])
+    np.testing.assert_array_equal(model.centers_, [[offset]])
+    assert np.sum((X - model.centers_[0]) ** 2) == 2.0
+
+
+@pytest.mark.parametrize("scale", [1.0, 1e-20])
+def test_centroid_weights_are_unpowered_and_keep_zero_support(scale):
+    X = np.array([[10.0, 3.0], [11.0, 7.0], [14.0, 4.0]])
+    U = scale * np.array([[0.25, 0.5, 0.75], [0.0, 0.0, 0.0]])
+    expected = np.average(X, axis=0, weights=U[0])
+    with np.errstate(divide="raise", invalid="raise"):
+        actual = SFCMEP(n_clusters=2)._update_centroids(X, U)
+    np.testing.assert_allclose(actual[0], expected, rtol=2e-15, atol=0)
+    assert np.all((actual[0] >= X.min(axis=0)) & (actual[0] <= X.max(axis=0)))
+    np.testing.assert_array_equal(actual[1], np.zeros(2))
+
+
 @pytest.fixture
 def Xy():
     rng = np.random.default_rng(31)

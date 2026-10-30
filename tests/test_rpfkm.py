@@ -10,6 +10,40 @@ from sklearn.metrics import adjusted_rand_score
 from soft_clustering import RPFKM
 
 
+@pytest.mark.parametrize("scale", [1.0, 1e-20])
+def test_projected_means_preserve_positive_mass_and_zero_vectors(scale):
+    X = np.array([[10.0, 11.0, 14.0], [3.0, 7.0, 4.0]])
+    W = np.array([[0.6], [0.8]])
+    U = np.array([[0.25, 0.5, 0.75], [0.0, 0.0, 0.0]])
+    p = scale * np.array([[2.0, 3.0, 4.0], [1.0, 2.0, 1.0]])
+    projected = W.T @ X
+    expected = np.average(projected, axis=1, weights=p[0] * U[0])
+    with np.errstate(divide="raise", invalid="raise"):
+        actual = RPFKM(n_clusters=2, d=1)._update_M(X, W, U, p)
+    np.testing.assert_allclose(actual[:, 0], expected, rtol=2e-15, atol=0)
+    assert projected.min() <= actual[0, 0] <= projected.max()
+    np.testing.assert_array_equal(actual[:, 1], np.zeros(1))
+
+
+def test_translated_projected_mean_and_public_partition():
+    X = np.array([[0.0], [1.0], [10.0], [11.0]])
+    shifted = X + 1e12
+    kwargs = dict(n_clusters=2, d=1, gamma=0.1, random_state=0, max_iter=10)
+    model = RPFKM(**kwargs)
+    W, U, p = model._initialize_variables(shifted.T)
+    expected = np.array([np.average((W.T @ shifted.T)[0], weights=w) for w in U * p])
+    np.testing.assert_allclose(
+        model._update_M(shifted.T, W, U, p)[0],
+        expected,
+        rtol=0,
+        atol=2 * np.spacing(1e12),
+    )
+    ordinary = RPFKM(**kwargs).fit(X)
+    translated = RPFKM(**kwargs).fit(shifted)
+    assert len(np.unique(ordinary.labels_)) == 2
+    assert adjusted_rand_score(ordinary.labels_, translated.labels_) == 1.0
+
+
 def test_zero_support_cluster_keeps_fit_finite():
     X = np.array([[0.0, 0.0], [1.0, 1.0], [2.0, 0.0]])
     model = RPFKM(n_clusters=3, d=1, gamma=1e-6, max_iter=5, random_state=0)

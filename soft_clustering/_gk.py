@@ -7,6 +7,7 @@ import numpy as np
 from typeguard import typechecked
 
 from ._base import BaseSoftClusterer, ratio_memberships
+from ._fcm import _update_centers_from_U
 from ._validation import (
     check_array,
     check_generator,
@@ -47,8 +48,8 @@ def _compute_covariances(X, U, centers, m, reg_covar=1e-6):
     for k in range(K):
         w = Um[:, k : k + 1]
         diff = X - centers[k]
-        Nk = float(np.sum(w)) + 1e-12
-        S = (diff * w).T @ diff / Nk
+        Nk = float(np.sum(w))
+        S = np.divide((diff * w).T @ diff, Nk, out=np.zeros((d, d)), where=Nk > 0)
         S.flat[:: d + 1] += reg_covar
         C[k] = S
     return C
@@ -216,9 +217,7 @@ class GustafsonKessel(BaseSoftClusterer):
         elif self.init == "random":
             U = rng.random((n, K))
             U = U / (np.sum(U, axis=1, keepdims=True) + 1e-12)
-            Um = U**m
-            denom = np.sum(Um, axis=0, keepdims=True).T
-            centers = (Um.T @ X) / (denom + 1e-12)
+            centers = _update_centers_from_U(X, U, m)
         else:
             raise ValueError(
                 f"{name}: init must be 'kmeans++' or 'random'; got {self.init!r}."
@@ -230,9 +229,7 @@ class GustafsonKessel(BaseSoftClusterer):
             C = _compute_covariances(X, U, centers, m, reg_covar=self.reg_covar)
             d2 = _estimate_gk_dist2(X, centers, C)
             U = _update_U_from_d2(d2, m)
-            Um = U**m
-            denom = np.sum(Um, axis=0, keepdims=True).T
-            centers = (Um.T @ X) / (denom + 1e-12)
+            centers = _update_centers_from_U(X, U, m)
             obj = _objective(U, d2, m)
             traj.append(obj)
             if objective_converged(obj_prev, obj, self.tol):
