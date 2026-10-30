@@ -575,7 +575,7 @@ ALGORITHMS: dict[str, AlgorithmInfo] = {
             "adapted",
             "Punera and Ghosh (2008)",
             "https://doi.org/10.1080/08839510802170546",
-            "k-means instead of METIS",
+            "k-means grouping, summed association vectors, and row-normalized soft output",
         ),
     ]
 }

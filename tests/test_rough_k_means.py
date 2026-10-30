@@ -3,6 +3,9 @@
 
 """Tests for RoughKMeans (rough k-means, Lingras and West 2004)."""
 
+import inspect
+import typing
+
 import numpy as np
 import pytest
 from sklearn.cluster import KMeans
@@ -22,11 +25,19 @@ def X():
 def test_approximations_are_published(X):
     model = RoughKMeans(n_clusters=2, random_state=0)
     U = model.fit_predict(X)
+    assert U is model.memberships_
     assert U.shape == (40, 2)
     assert model.lower_approx_.shape == (40, 2)
     assert model.upper_approx_.shape == (40, 2)
     assert model.centers_.shape == (2, 2)
     assert model.n_iter_ >= 1
+
+
+def test_public_fit_predict_return_metadata():
+    signature = inspect.signature(RoughKMeans.fit_predict)
+    assert signature.parameters["y"].default is None
+    assert signature.return_annotation is np.ndarray
+    assert typing.get_type_hints(RoughKMeans.fit_predict)["return"] is np.ndarray
 
 
 def test_rough_set_axioms(X):

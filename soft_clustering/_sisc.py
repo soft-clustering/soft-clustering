@@ -15,8 +15,11 @@ class SISC(BaseSoftClusterer):
     Implements the Similarity-based Soft Clustering (SISC) algorithm.
 
     This algorithm performs soft clustering on documents, meaning a document
-    can belong to multiple clusters. It is based on a given similarity
-    measure and uses randomization to improve computational efficiency.
+    can belong to multiple clusters. SCPP chooses the first centroid using
+    ``random_state``. During refinement it recomputes every cluster-document
+    similarity and applies the threshold deterministically. This implementation
+    does not use the reference's randomized selective-recalculation acceleration
+    (Lin and Kondadadi, 2001, Section 3.3).
 
     Attributes
     ----------
@@ -362,13 +365,11 @@ class SISC(BaseSoftClusterer):
             # Update each centroid's documents
             for c_idx, centroid in enumerate(centroids):
                 for doc_idx in range(num_docs):
-                    # Randomization step: recalculate with a probability
+                    # Recompute every cluster-document similarity.
                     m_value = self._calculate_membership_measure(
                         doc_idx, centroid, processed_docs
                     )
-                    # The reference accepts a document with probability
-                    # m / lambda; for m >= lambda that probability is one,
-                    # so the test reduces to the threshold below.
+                    # Apply the threshold deterministically for this state.
                     if m_value >= self.similarity_threshold:
                         new_centroids[c_idx].add(doc_idx)
 
