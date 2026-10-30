@@ -118,11 +118,13 @@ class DMoN(nn.Module, BaseSoftClusterer):
         collapse_weight : float
             Weight on the collapse regulariser.
         max_epochs : int
-            Number of gradient steps taken by :meth:`fit`.
+            Maximum number of Adam updates taken by :meth:`fit`.
         lr : float
             Adam learning rate.
         tol : float
-            Stop when the loss improves by less than this over a step.
+            Stop after two consecutive absolute recorded-loss changes are
+            strictly below this threshold, including small increases.
+            Zero disables tolerance stopping.
         random_state : int or None
             Seed for the encoder initialisation.
         """
@@ -197,6 +199,14 @@ class DMoN(nn.Module, BaseSoftClusterer):
             Edge list. Derived from ``adj`` when omitted.
         adj : array-like of shape ``(n_nodes, n_nodes)``, optional
             Dense adjacency matrix. Derived from ``edge_index`` when omitted.
+
+        Notes
+        -----
+        Each recorded loss is evaluated before its Adam update; tolerance
+        stopping is checked after that update. Memberships are recomputed
+        from the final updated parameters, whose stationarity is not certified
+        by the recorded-loss comparisons. Each fit resets the loss history
+        and consecutive-small-change count.
         """
         x = _as_tensor(x)
         if edge_index is None and adj is None:
@@ -223,6 +233,7 @@ class DMoN(nn.Module, BaseSoftClusterer):
 
         self.loss_curve_ = []
         previous = float("inf")
+        small_changes = 0
 
         # Every fit starts from freshly initialised weights drawn from a
         # private, seeded stream, so refitting an instance reproduces the
@@ -242,6 +253,10 @@ class DMoN(nn.Module, BaseSoftClusterer):
                 value = float(loss.detach())
                 self.loss_curve_.append(value)
                 if abs(previous - value) < self.tol:
+                    small_changes += 1
+                else:
+                    small_changes = 0
+                if small_changes >= 2:
                     break
                 previous = value
 

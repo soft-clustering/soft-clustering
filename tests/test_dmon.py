@@ -154,6 +154,98 @@ def test_edge_index_and_adj_paths_agree():
 # ---------------------------------------------------------------------------
 
 
+def _fit_with_loss_schedule(model, x, adj, losses, monkeypatch):
+    """Control monitored values while retaining real gradients and Adam steps."""
+    original_loss = model.loss
+    targets = iter(losses)
+    original_adam = torch.optim.Adam
+    updates = 0
+    handles = []
+
+    def scheduled_loss(soft_assign, adjacency):
+        real_loss = original_loss(soft_assign, adjacency)
+        return real_loss - real_loss.detach() + real_loss.new_tensor(next(targets))
+
+    def count_update(optimizer, args, kwargs):
+        nonlocal updates
+        updates += 1
+
+    def observed_adam(*args, **kwargs):
+        optimizer = original_adam(*args, **kwargs)
+        handles.append(optimizer.register_step_post_hook(count_update))
+        return optimizer
+
+    try:
+        with monkeypatch.context() as patch:
+            patch.setattr(model, "loss", scheduled_loss)
+            patch.setattr(torch.optim, "Adam", observed_adam)
+            model.fit(x, adj=adj)
+    finally:
+        for handle in handles:
+            handle.remove()
+    return updates
+
+
+@pytest.mark.parametrize(
+    "losses,tol,budget,expected",
+    [
+        pytest.param([10, 10, 10, 10], 1.0, 4, 3, id="confirmed-plateau"),
+        pytest.param(
+            [10, 8, 7.75, 6.75, 6.5, 6.25, 5],
+            1.0,
+            7,
+            6,
+            id="reset-at-strict-boundary",
+        ),
+        pytest.param(
+            [10, 9.5, 11, 10.5, 9, 9.25, 9.5, 8],
+            1.0,
+            8,
+            7,
+            id="large-changes-reset-small-rises-qualify",
+        ),
+        pytest.param([10, 8, 6, 4], 1.0, 4, 4, id="material-progress"),
+        pytest.param([10] * 5, 0.0, 5, 5, id="zero-tolerance"),
+        pytest.param([10], 1.0, 1, 1, id="one-update-budget"),
+        pytest.param([10, 10], 1.0, 2, 2, id="two-update-budget"),
+    ],
+)
+def test_stopping_requires_consecutive_small_changes(
+    losses, tol, budget, expected, monkeypatch
+):
+    x, adj, _ = planted_graph(n=12)
+    model = DMoN(
+        in_channels=4, hidden_channels=8, random_state=0, max_epochs=budget, tol=tol
+    )
+    assert _fit_with_loss_schedule(model, x, adj, losses, monkeypatch) == expected
+    assert model.loss_curve_ == losses[:expected]
+
+
+def test_stopping_publishes_updated_state_and_resets_on_refit(monkeypatch):
+    x, adj, _ = planted_graph(n=12)
+    kwargs = dict(in_channels=4, hidden_channels=8, random_state=0)
+    model = DMoN(**kwargs, max_epochs=4, tol=1.0)
+    losses = [10, 10, 10, 10]
+    assert _fit_with_loss_schedule(model, x, adj, losses, monkeypatch) == 3
+    assert model.loss_curve_ == losses[:3]
+
+    control = DMoN(**kwargs, max_epochs=3, tol=0.0).fit(x, adj=adj)
+    for name, value in model.state_dict().items():
+        torch.testing.assert_close(value, control.state_dict()[name])
+    np.testing.assert_allclose(model.memberships_, control.memberships_)
+
+    model.eval()
+    adjacency = torch.as_tensor(adj)
+    edges = adjacency.nonzero(as_tuple=False).T.contiguous()
+    with torch.no_grad():
+        final_memberships = model(torch.as_tensor(x), edges, adjacency).numpy()
+    np.testing.assert_allclose(model.memberships_, final_memberships)
+
+    assert _fit_with_loss_schedule(model, x, adj, losses, monkeypatch) == 3
+    assert model.loss_curve_ == losses[:3]
+    np.testing.assert_allclose(model.memberships_, control.memberships_)
+
+
 def test_recovers_planted_communities():
     x, adj, z = planted_graph(seed=1)
     model = DMoN(
