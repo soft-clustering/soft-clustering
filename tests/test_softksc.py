@@ -37,6 +37,58 @@ def test_out_of_sample_extension():
     np.testing.assert_allclose(model.predict_proba(X), model.memberships_, atol=1e-10)
 
 
+def test_translated_training_and_fresh_queries_keep_direct_kernel_geometry():
+    X = np.array([[-2.0], [-1.0], [1.0], [2.0]])
+    query = np.array([[-3.0], [-0.75], [0.25], [1.5], [3.0]])
+    gamma = 0.1
+    training_kernel = np.exp(-gamma * (X - X.T) ** 2)
+    query_kernel = np.exp(-gamma * (query - X.T) ** 2)
+    fits, predictions = [], []
+    for offset in (0.0, 1e9):
+        shifted, fresh = X + offset, query + offset
+        np.testing.assert_array_equal(shifted - offset, X)
+        np.testing.assert_array_equal(fresh - offset, query)
+        model = SoftKSC(n_clusters=2, gamma=gamma).fit(shifted)
+        np.testing.assert_array_equal(model._X_fit, shifted)
+        np.testing.assert_allclose(
+            model.projections_,
+            training_kernel @ model.alphas_ + model.bias_,
+            rtol=1e-12,
+            atol=1e-12,
+        )
+        projected = query_kernel @ model.alphas_ + model.bias_
+        # With two clusters, the product over other cosine distances is just
+        # the distance to the other prototype. This oracle does not call the
+        # production membership or distance helper.
+        distances = np.array(
+            [
+                [
+                    1.0 - np.dot(e, s) / (np.linalg.norm(e) * np.linalg.norm(s))
+                    for s in model.prototypes_
+                ]
+                for e in projected
+            ]
+        )
+        distances = np.clip(distances, 0.0, 2.0)
+        assert np.all(distances.sum(axis=1) > 0)
+        expected = distances[:, ::-1] / distances.sum(axis=1, keepdims=True)
+        actual = model.predict_proba(fresh)
+        np.testing.assert_allclose(actual, expected, rtol=1e-12, atol=1e-12)
+        np.testing.assert_array_equal(model.predict(fresh), expected.argmax(axis=1))
+        fits.append(model)
+        predictions.append(actual)
+    assert adjusted_rand_score(fits[0].labels_, fits[1].labels_) == 1.0
+    assert len(np.unique(fits[1].labels_)) == 2
+    np.testing.assert_allclose(
+        predictions[0] @ predictions[0].T, predictions[1] @ predictions[1].T, atol=1e-12
+    )
+
+
+def test_genuinely_unresolved_kernel_still_rejects_cluster_count():
+    with pytest.raises(ValueError, match="only 1 distinct cluster encodings"):
+        SoftKSC(n_clusters=2, gamma=0.1).fit(np.zeros((4, 1)))
+
+
 def test_dual_problem_is_satisfied(blobs):
     """alpha are eigenvectors of D^-1 M_D Omega (Alzate and Suykens, 2010)."""
     X, _ = blobs
