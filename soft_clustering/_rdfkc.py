@@ -313,7 +313,8 @@ class RDFKC(BaseSoftClusterer):
         n = Z.shape[0]
         k = min(k, n - 1)
         D = torch.cdist(Z, Z)
-        idx = torch.argsort(D, dim=1)[:, 1 : k + 1]
+        D.fill_diagonal_(float("inf"))
+        idx = torch.argsort(D, dim=1)[:, :k]
         S = torch.zeros(n, n)
         S.scatter_(1, idx, torch.exp(-torch.gather(D, 1, idx) / 0.5))
         return 0.5 * (S + S.T)

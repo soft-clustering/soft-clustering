@@ -110,6 +110,75 @@ def test_missing_networks_raise():
         RDFKC(n_clusters=3)
 
 
+@pytest.mark.parametrize("n", [2, 4])
+def test_equal_codes_use_every_other_sample(n):
+    model = RDFKC(
+        n_clusters=2, encoder=torch.nn.Identity(), decoder=torch.nn.Identity()
+    )
+    actual = model._similarity(torch.zeros(n, 2))
+    torch.testing.assert_close(actual, torch.ones(n, n) - torch.eye(n))
+
+
+@pytest.mark.parametrize("values", [[0.0, 0.0, 1.0, 3.0], [0.0, 1.0, 2.0, 3.0]])
+def test_nonself_heat_weights_for_mixed_and_distinct_codes(values):
+    model = RDFKC(
+        n_clusters=2, encoder=torch.nn.Identity(), decoder=torch.nn.Identity()
+    )
+    Z = torch.tensor(values)[:, None]
+    distances = np.abs(np.subtract.outer(values, values))
+    expected = np.exp(-distances / 0.5)
+    np.fill_diagonal(expected, 0.0)
+    np.testing.assert_allclose(
+        model._similarity(Z).numpy(), expected, rtol=1e-6, atol=1e-8
+    )
+
+
+def test_tied_neighbor_cutoff_preserves_total_graph_weight():
+    model = RDFKC(
+        n_clusters=2, encoder=torch.nn.Identity(), decoder=torch.nn.Identity()
+    )
+    actual = model._similarity(torch.zeros(13, 2), k=10)
+    torch.testing.assert_close(actual.diag(), torch.zeros(13))
+    torch.testing.assert_close(actual, actual.T)
+    assert actual.sum().item() == pytest.approx(130.0)
+
+
+@pytest.mark.parametrize("n,k", [(1, 10), (4, 0)])
+def test_private_zero_neighbor_graph_is_unchanged(n, k):
+    model = RDFKC(
+        n_clusters=2, encoder=torch.nn.Identity(), decoder=torch.nn.Identity()
+    )
+    torch.testing.assert_close(
+        model._similarity(torch.zeros(n, 2), k=k), torch.zeros(n, n)
+    )
+
+
+def test_one_round_equal_codes_average_other_initial_memberships():
+    X = np.zeros((4, 2), dtype=np.float32)
+    with torch.random.fork_rng(devices=[]):
+        encoder = torch.nn.Linear(2, 2, bias=False)
+        decoder = torch.nn.Linear(2, 2, bias=False)
+        with torch.no_grad():
+            encoder.weight.copy_(torch.eye(2))
+            decoder.weight.copy_(torch.eye(2))
+    kwargs = dict(
+        n_clusters=2,
+        encoder=encoder,
+        decoder=decoder,
+        random_state=0,
+        mu=1.0,
+        gamma=0.0,
+        tau=0.1,
+    )
+    initial = RDFKC(max_iter=0, **kwargs).fit(X)
+    model = RDFKC(max_iter=1, **kwargs).fit(X)
+    expected = np.array(
+        [np.delete(initial.memberships_, i, axis=0).mean(axis=0) for i in range(len(X))]
+    )
+    np.testing.assert_array_equal(model.latent_, np.zeros((4, 2)))
+    np.testing.assert_allclose(model.memberships_, expected, rtol=1e-6, atol=1e-6)
+
+
 class _ConstantEncoder(torch.nn.Module):
     def __init__(self, value):
         super().__init__()
