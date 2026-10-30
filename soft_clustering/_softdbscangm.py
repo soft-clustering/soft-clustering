@@ -127,7 +127,8 @@ class SoftDBSCANGM(BaseSoftClusterer):
             cov += np.einsum(
                 "nk,nkd,nke->kde", U_m[start:stop], diff, diff, optimize=True
             )
-        return cov / (weights[:, None, None] + 1e-10)
+        mass = weights[:, None, None]
+        return np.divide(cov, mass, out=np.zeros_like(cov), where=mass > 0)
 
     def _mahalanobis_distances(self, X: np.ndarray, cov_inv: np.ndarray) -> np.ndarray:
         """All (n_samples, k) Mahalanobis distances to the current centres.
@@ -190,7 +191,13 @@ class SoftDBSCANGM(BaseSoftClusterer):
 
             # Step 3: update centers. One GEMM for all components at once.
             weights = U_m.sum(axis=0)
-            self.centers = (U_m.T @ X) / (weights[:, None] + 1e-10)
+            numerator = U_m.T @ X
+            self.centers = np.divide(
+                numerator,
+                weights[:, None],
+                out=np.zeros_like(numerator),
+                where=weights[:, None] > 0,
+            )
 
             # Step 4: update covariance inverses. One batched LAPACK call for
             # all k components instead of k separate inversions.

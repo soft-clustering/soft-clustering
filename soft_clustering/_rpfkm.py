@@ -131,8 +131,8 @@ class RPFKM(BaseSoftClusterer):
         M = np.zeros((self.d, self.c))
         for k in range(self.c):
             numerator = np.sum((p[k, :] * U[k, :]) * WX, axis=1)
-            denominator = np.sum(p[k, :] * U[k, :]) + 1e-10
-            M[:, k] = numerator / denominator
+            denominator = np.sum(p[k, :] * U[k, :])
+            np.divide(numerator, denominator, out=M[:, k], where=denominator > 0)
         return M
 
     def _update_p(self, X: np.ndarray, W: np.ndarray, M: np.ndarray) -> np.ndarray:

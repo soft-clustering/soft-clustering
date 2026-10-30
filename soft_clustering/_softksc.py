@@ -9,10 +9,10 @@ from collections import Counter
 
 import numpy as np
 from scipy.linalg import eig
-from sklearn.metrics.pairwise import rbf_kernel
 from typeguard import typechecked
 
 from ._base import BaseSoftClusterer
+from ._fcm import _euclidean_dist2
 from ._validation import check_array, check_n_clusters, check_n_features, check_scalar
 
 
@@ -144,7 +144,7 @@ class SoftKSC(BaseSoftClusterer):
             self.gamma, "gamma", estimator=name, lower=0.0, lower_inclusive=False
         )
 
-        Omega = rbf_kernel(X, gamma=gamma)
+        Omega = np.exp(-gamma * _euclidean_dist2(X, X))
         d_inv = 1.0 / Omega.sum(axis=1)
         ones = np.ones(n)
         norm = float(ones @ d_inv)
@@ -189,5 +189,6 @@ class SoftKSC(BaseSoftClusterer):
     def _predict_memberships(self, X) -> np.ndarray:
         X = check_array(X, estimator=type(self).__name__)
         check_n_features(X, self._X_fit.shape[1], estimator=type(self).__name__)
-        E = rbf_kernel(X, self._X_fit, gamma=self.gamma) @ self.alphas_ + self.bias_
+        kernel = np.exp(-self.gamma * _euclidean_dist2(X, self._X_fit))
+        E = kernel @ self.alphas_ + self.bias_
         return _soft_memberships(E, self.prototypes_)

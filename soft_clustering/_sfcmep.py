@@ -178,7 +178,8 @@ class SFCMEP(BaseSoftClusterer):
             # over every axis collapses it to a scalar, which then broadcasts
             # into all D coordinates and gives a centroid whose components are
             # all equal.
-            V[i] = (U[i] @ X) / (U[i].sum() + 1e-8)
+            mass = U[i].sum()
+            np.divide(U[i] @ X, mass, out=V[i], where=mass > 0)
         return V
 
     def _update_membership_matrix(
