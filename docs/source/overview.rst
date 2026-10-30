@@ -73,8 +73,9 @@ Methods:
   rule to it: FCM, GK, PCM, PFCM, GMM, Gath–Geva, ECM, ENTROPYFCM, KFCM, KFCCL,
   FCC, AFCMSimple, SCM and SoftKSC. The others are transductive and raise
   ``NotImplementedError``.
-- ``get_params`` / ``set_params`` / ``sklearn.base.clone`` work as in
-  scikit-learn.
+- ``get_params`` / ``set_params`` support parameter introspection and
+  ``sklearn.base.clone``; SCPP's setter invalidates fitted state as described
+  under "Relation to scikit-learn" below.
 
 The number of clusters is always the constructor argument ``n_clusters``.
 Spellings used by earlier releases (``c``, ``k``, ``K``, ``n_topics``,
@@ -162,6 +163,15 @@ Relation to scikit-learn
 Every estimator implements ``get_params`` and ``set_params``, declares
 scikit-learn estimator tags, raises scikit-learn's ``NotFittedError`` (which
 is also a ``RuntimeError``), and works with ``sklearn.base.clone``.
+
+SCPP deliberately reconstructs constructor state on every successful nonempty
+``set_params`` call, even for unchanged values. This discards the old fit and
+other instance additions; refit before predicting. Constructor parameter
+objects are passed through without cloning. An empty call is a no-op, and
+unknown keys or constructor rejection preserve the existing instance. Checks
+performed only during ``fit`` remain deferred until fitting. The setter accepts
+the existing ``get_params`` keys, without nested parameter expansion. This
+reconstruction policy differs from scikit-learn's general setter behavior.
 
 The inductive estimators that take a feature matrix — FCM, GK, GMM, PCM,
 PFCM, Gath–Geva, ECM, ENTROPYFCM, AFCMSimple, KFCM and FCC — pass

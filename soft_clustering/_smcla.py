@@ -18,13 +18,11 @@ from ._validation import check_n_clusters, int_seed
 class SMCLA(BaseSoftClusterer):
     r"""Soft MCLA consensus clustering of an ensemble of soft partitions.
 
-    sMCLA (Punera and Ghosh, 2008) clusters the *clusters*: every column of
-    every input membership matrix is a vector over the samples, these
-    vectors are grouped into ``n_clusters`` meta-clusters, and a sample's
-    consensus membership in a meta-cluster is the (normalised) sum of its
-    memberships in the clusters assigned to it. Unlike sCSPA and sHBGF, the
-    consensus is therefore *soft*. SCPP groups the cluster vectors with
-    k-means (the reference partitions a similarity graph of them with METIS).
+    SCPP provides an adaptation of sMCLA (Punera and Ghosh, 2008). It groups
+    input cluster-membership vectors with k-means, sums vectors assigned to
+    each meta-cluster, and normalizes each sample's association values to
+    produce soft consensus memberships. These grouping, aggregation and
+    output choices differ from the reference formulation.
 
     Parameters
     ----------
@@ -48,10 +46,16 @@ class SMCLA(BaseSoftClusterer):
     *Applied Artificial Intelligence*, 22(7--8):780--810, 2008.
     doi:10.1080/08839510802170546
 
+    Primary corroboration: Punera and Ghosh's author-hosted chapter
+    *Soft Cluster Ensembles*, Section 1.3.5, describes METIS grouping, mean
+    association vectors and strongest-meta-cluster assignments with a possible
+    confidence extension: https://www.ideal.ece.utexas.edu/papers/softensembleschapter.pdf
+
     Notes
     -----
-    Earlier releases computed this soft consensus and then discarded it,
-    returning only its arg-max as a one-hot matrix.
+    Earlier SCPP releases returned the arg-max as a one-hot matrix. Publishing
+    the normalized soft row is SCPP's output choice, rather than a requirement
+    of the reference formulation.
     """
 
     _membership_attrs = ("memberships_",)

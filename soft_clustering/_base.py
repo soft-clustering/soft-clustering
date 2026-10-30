@@ -712,10 +712,18 @@ class BaseSoftClusterer:
     def set_params(self, **params: Any) -> BaseSoftClusterer:
         """Set constructor arguments in place and return ``self``.
 
-        The estimator is reconstructed from the merged parameters, so any
-        derived state the constructor computes stays consistent. Fitted
-        attributes are discarded, as they are for a scikit-learn estimator.
+        A successful nonempty call reconstructs constructor state, discarding
+        fitted state and other instance additions even if the supplied values
+        are unchanged. This is SCPP's policy, not scikit-learn's general
+        setter behavior. Constructor parameter objects are passed through
+        without cloning, and derived state is rebuilt consistently.
+
+        An empty call is a no-op. Unknown keys or constructor failures leave
+        the original instance unchanged. Validation performed only by ``fit``
+        still occurs there; nested parameter keys are not supported.
         """
+        if not params:
+            return self
         current = self.get_params()
         unknown = sorted(set(params) - set(current))
         if unknown:
@@ -725,7 +733,9 @@ class BaseSoftClusterer:
                 f"{sorted(current)}"
             )
         current.update(params)
-        type(self).__init__(self, **current)
+        fresh = type(self)(**current)
+        self.__dict__.clear()
+        self.__dict__.update(fresh.__dict__)
         return self
 
     def __sklearn_tags__(self):

@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025-2026 The SCPP developers. See LICENSE for details.
 
-from typing import Any
-
 import numpy as np
 from typeguard import typechecked
 
@@ -97,7 +95,7 @@ class RoughKMeans(BaseSoftClusterer):
         """Compute Euclidean distance between two points."""
         return np.linalg.norm(a - b)
 
-    def fit_predict(self, X: np.ndarray) -> dict[str, Any]:
+    def fit_predict(self, X: np.ndarray) -> np.ndarray:
         """
         Perform Rough K-Means clustering on the input data.
 
@@ -108,16 +106,11 @@ class RoughKMeans(BaseSoftClusterer):
 
         Returns
         -------
-        result : dict
-            Dictionary containing clustering results with keys:
-            - 'lower_approx' : ndarray of shape (n_samples, n_clusters)
-              Binary matrix indicating certain membership (1 = in lower approximation)
-            - 'upper_approx' : ndarray of shape (n_samples, n_clusters)
-              Binary matrix indicating possible membership (1 = in upper approximation)
-            - 'centroids' : ndarray of shape (n_clusters, n_features)
-              Final cluster centroids
-            - 'n_iter' : int
-              Number of iterations performed
+        memberships : ndarray of shape (n_samples, n_clusters)
+            Lower-approximation objects belong fully to one cluster; boundary
+            objects share membership equally across their upper approximations.
+            The approximations, centers and iteration count remain available
+            as ``lower_approx_``, ``upper_approx_``, ``centers_`` and ``n_iter_``.
         """
         name = type(self).__name__
         X = check_array(X, estimator=name)
@@ -226,17 +219,9 @@ class RoughKMeans(BaseSoftClusterer):
         self.memberships_ = region / np.maximum(row_sums, 1.0)
         self.centers_ = centroids
 
-        # The interval sets are the method's actual output; publish them as
-        # fitted attributes rather than only inside the returned dict, which
-        # the protocol's fit wrapper discards. tests/test_external_agreement.py
-        # checks them against Lingras and West's axioms.
+        # Retain the interval sets alongside the dense memberships.
         self.lower_approx_ = lower_matrix
         self.upper_approx_ = upper_matrix
         self.n_iter_ = iter_count
 
-        return {
-            "lower_approx": lower_matrix,
-            "upper_approx": upper_matrix,
-            "centroids": centroids,
-            "n_iter": iter_count,
-        }
+        return self.memberships_

@@ -22,6 +22,7 @@ import importlib.util
 import numpy as np
 import pytest
 import scipy.sparse as sp
+from sklearn.exceptions import NotFittedError
 
 import soft_clustering as sc
 
@@ -484,6 +485,223 @@ def test_get_params_round_trips_through_clone(name):
     for key, value in original.items():
         if isinstance(value, (int, float, str, bool, tuple, type(None))):
             assert copied[key] == value, f"{name}.{key} did not round-trip"
+
+
+@pytest.mark.parametrize("name", COVERED)
+def test_set_params_reconstructs_all_registered_estimators(name):
+    from sklearn.base import clone
+
+    model = _make(name)
+    params = model.get_params()
+    assert params
+    model.user_note = object()
+    assert model.set_params(**params) is model
+    assert not hasattr(model, "user_note")
+    with pytest.raises(NotFittedError):
+        model.predict_proba()
+    for rebuilt in (model, clone(model)):
+        actual = rebuilt.get_params()
+        assert actual.keys() == params.keys()
+        for key, value in params.items():
+            if isinstance(value, (int, float, str, bool, tuple, type(None))):
+                assert actual[key] == value, f"{name}.{key} changed"
+
+
+@pytest.mark.parametrize("update", [{"n_clusters": 3, "m": 4.0}, {"m": 2.0}])
+def test_set_params_requires_refit_even_for_same_values(update):
+    X = np.array(
+        [[0.0, 0.0], [0.2, 0.1], [5.0, 5.0], [5.2, 5.1], [0.0, 5.0], [0.2, 5.1]]
+    )
+    rng = np.random.default_rng(0)
+    # The constructor alias stays accepted; setters use the canonical schema.
+    model = sc.FCM(c=2, random_state=rng).fit(X)
+    assert "n_clusters" in model.get_params() and "c" not in model.get_params()
+    old_U, old_centers, old_labels = model.memberships_, model.centers_, model.labels_
+    rng_state = copy.deepcopy(rng.bit_generator.state)
+    model.user_note = object()
+    note = model.user_note
+    assert model.set_params() is model
+    assert model.memberships_ is old_U and model.centers_ is old_centers
+    assert model.labels_ is old_labels and model.user_note is note
+    assert model.random_state is rng and rng.bit_generator.state == rng_state
+    for bad in ({"m": 4.0, "unknown": 1}, {"m__nested": 1}):
+        with pytest.raises(ValueError, match="invalid parameter.*valid parameters"):
+            model.set_params(**bad)
+        assert model.m == 2.0 and model.n_clusters == 2
+        assert model.predict_proba() is old_U and model.centers_ is old_centers
+        np.testing.assert_allclose(model.predict_proba(X), old_U)
+
+    assert model.set_params(**update) is model
+    assert model.random_state is rng and model.get_params()["random_state"] is rng
+    assert rng.bit_generator.state == rng_state
+    assert not hasattr(model, "user_note")
+    assert not hasattr(model, "n_features_in_")
+    assert model.n_clusters_ is None
+    for method in (model.predict, model.predict_proba):
+        for args in ((), (X,)):
+            with pytest.raises(NotFittedError):
+                method(*args)
+    model.fit(X)
+    assert model.memberships_.shape == (len(X), update.get("n_clusters", 2))
+    np.testing.assert_allclose(model.predict_proba(X), model.memberships_)
+
+
+def test_set_params_keeps_fit_time_validation_deferred():
+    model = _fit("FCM")
+    assert model.set_params(m=1.0) is model
+    with pytest.raises(NotFittedError):
+        model.predict()
+    with pytest.raises(ValueError, match="m"):
+        model.fit(*CASES["FCM"][1]())
+
+
+def test_set_params_document_rejection_and_refit():
+    model = _fit("KMART")
+    old_U, clusters, prototypes = model.memberships_, model.clusters_, model.prototypes_
+    params = model.get_params()
+    assert model.set_params() is model
+    assert model.predict_proba() is old_U
+    assert model.clusters_ is clusters and model.prototypes_ is prototypes
+    with pytest.raises(ValueError, match="vigilance_param"):
+        model.set_params(vigilance_param=1.5, learning_rate=0.5)
+    assert model.get_params() == params
+    assert model.predict_proba() is old_U
+    assert model.clusters_ is clusters and model.prototypes_ is prototypes
+    model.set_params(vigilance_param=0.6)
+    assert model.n_clusters_ is None
+    assert model.clusters_ == [] and model.prototypes_ == []
+    with pytest.raises(NotFittedError):
+        model.predict_proba()
+    model.fit(*CASES["KMART"][1]())
+    assert model.memberships_.shape == (len(_docs()), model.n_clusters_)
+    assert np.isfinite(model.memberships_).all()
+
+
+@pytest.mark.parametrize(
+    "name,learned", [("BGMM", "resp"), ("LDA", "gamma"), ("KFCM", "V")]
+)
+def test_set_params_removes_legacy_learned_state(name, learned):
+    model = _fit(name)
+    expected = model.memberships_.copy()
+    assert isinstance(getattr(model, learned), np.ndarray)
+    model.set_params(**model.get_params())
+    # KFCM exposes V through a class property that returns None when unfitted.
+    assert getattr(model, learned, None) is None
+    with pytest.raises(NotFittedError):
+        model.predict_proba()
+    model.fit(*CASES[name][1]())
+    np.testing.assert_allclose(model.memberships_, expected)
+
+
+def test_set_params_preserves_underscore_suffixed_configuration():
+    model = _fit("KFCCL")
+    model.set_params(lambda_=7.0)
+    assert model.lambda_ == model.get_params()["lambda_"] == 7.0
+    with pytest.raises(NotFittedError):
+        model.predict_proba()
+    model.fit(*CASES["KFCCL"][1]())
+    assert model.memberships_.shape == (N, K)
+
+
+def test_set_params_dmon_registration_rejection_and_refit():
+    torch = pytest.importorskip("torch")
+    model = sc.DMoN(
+        in_channels=4, hidden_channels=8, n_clusters=3, max_epochs=2, random_state=0
+    )
+    model.fit(_features(n=6), None, _graph(n=6))
+    conv1, conv2, old_U = model.conv1, model.conv2, model.memberships_
+    registered = dict(model.named_parameters())
+    before = {key: value.clone() for key, value in model.state_dict().items()}
+    stream = torch.get_rng_state().clone()
+    assert model.set_params() is model
+    assert model.conv1 is conv1 and model.conv2 is conv2
+    assert model.predict_proba() is old_U
+    with pytest.raises(ValueError, match="n_clusters"):
+        model.set_params(n_clusters=0)
+    assert model.conv1 is conv1 and model.conv2 is conv2
+    assert model.predict_proba() is old_U
+    assert model.n_clusters == 3
+    assert dict(model.named_parameters()).keys() == registered.keys()
+    for key, value in model.named_parameters():
+        assert value is registered[key]
+        torch.testing.assert_close(model.state_dict()[key], before[key], rtol=0, atol=0)
+    model.set_params(in_channels=3, hidden_channels=5, n_clusters=2)
+    assert torch.equal(torch.get_rng_state(), stream)
+    assert model.conv1.weight.shape == (3, 5) and model.conv2.weight.shape == (5, 2)
+    assert model.conv1 is not conv1 and model.conv2 is not conv2
+    assert set(model.state_dict()) == set(registered)
+    assert dict(model.named_parameters())["conv1.weight"] is model.conv1.weight
+    with pytest.raises(NotFittedError):
+        model.predict_proba()
+    model.fit(_features(n=6, d=3), None, _graph(n=6))
+    assert model.memberships_.shape == (6, 2)
+    assert np.isfinite(model.memberships_).all()
+
+
+@pytest.mark.parametrize("num_nodes", [None, 6])
+def test_set_params_cdcgs_temperature_registration_and_refit(num_nodes):
+    torch = pytest.importorskip("torch")
+    model = sc.CDCGS(
+        n_clusters=3, num_nodes=6, max_epochs=2, n_init=1, random_state=0
+    ).fit(_graph(n=6))
+    weights, old_U, temperature = model.W_C, model.memberships_, model._tau
+    stream = torch.get_rng_state().clone()
+    assert model.set_params() is model
+    assert model.W_C is weights and model.predict_proba() is old_U
+    assert model._tau == temperature
+    with pytest.raises(ValueError, match="tau"):
+        model.set_params(tau=0.0)
+    assert model.W_C is weights and model.predict_proba() is old_U
+    model.set_params(n_clusters=2, num_nodes=num_nodes, tau=0.8, tau_min=0.2)
+    assert torch.equal(torch.get_rng_state(), stream)
+    assert model._tau == model.tau == 0.8
+    if num_nodes is None:
+        assert model.W_C is None
+        assert not dict(model.named_parameters()) and not model.state_dict()
+    else:
+        assert model.W_C.shape == (6, 2)
+        assert dict(model.named_parameters())["W_C"] is model.W_C
+        assert set(model.state_dict()) == {"W_C"}
+    with pytest.raises(NotFittedError):
+        model.predict_proba()
+    model.fit(_graph(n=6))
+    assert model.memberships_.shape == (6, 2)
+    assert np.isfinite(model.memberships_).all()
+    assert dict(model.named_parameters())["W_C"] is model.W_C
+
+
+def test_set_params_rdfkc_retains_supplied_modules_and_rebuilds_trained_copies():
+    torch = pytest.importorskip("torch")
+    model = _make("RDFKC")
+    encoder, decoder = model.encoder, model.decoder
+    original_weights = [
+        p.detach().clone() for net in (encoder, decoder) for p in net.parameters()
+    ]
+    model.fit(*CASES["RDFKC"][1]())
+    trained_encoder, trained_decoder, old_U = (
+        model.encoder_,
+        model.decoder_,
+        model.memberships_,
+    )
+    assert model.set_params() is model
+    assert model.encoder_ is trained_encoder and model.decoder_ is trained_decoder
+    assert model.predict_proba() is old_U
+    assert model.set_params(lr=model.lr) is model
+    assert model.encoder is model.get_params()["encoder"] is encoder
+    assert model.decoder is model.get_params()["decoder"] is decoder
+    for learned in ("encoder_", "decoder_", "latent_", "latent_centers_"):
+        assert not hasattr(model, learned)
+    with pytest.raises(NotFittedError):
+        model.predict_proba()
+    model.fit(*CASES["RDFKC"][1]())
+    assert model.encoder_ is not encoder and model.encoder_ is not trained_encoder
+    assert model.decoder_ is not decoder and model.decoder_ is not trained_decoder
+    assert model.memberships_.shape == (N, K)
+    assert np.isfinite(model.memberships_).all()
+    for actual, expected in zip(
+        (p for net in (encoder, decoder) for p in net.parameters()), original_weights
+    ):
+        torch.testing.assert_close(actual, expected, rtol=0, atol=0)
 
 
 @pytest.mark.parametrize("name", COVERED)
