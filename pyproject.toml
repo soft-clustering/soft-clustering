@@ -1,5 +1,5 @@
 [build-system]
-requires = ["flit_core >=3.12,<4"]
+requires = ["flit_core >=3.12,<5"]
 build-backend = "flit_core.buildapi"
 
 [project]
@@ -52,7 +52,7 @@ deep = [
 docs = [
   "sphinx",
   "sphinx-rtd-theme",
-  "myst_parser>=3.0.1,<4",  # <4: evclust (dev, baselines) requires it
+  "myst_parser>=3.0.1,<5",  # <4: evclust (dev, baselines) requires it
 ]
 # Needed to *run* a benchmark, never to fit a model. soft_clustering.benchmarking
 # imports these defensively, so the module is importable without them.
